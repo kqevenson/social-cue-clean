@@ -856,6 +856,668 @@ const scenarios = {
           ]
         }
       ]
+    },
+    // CATEGORY 2: ACTIVE LISTENING
+    2: {
+      id: 2,
+      title: {
+        'k2': 'Listening Skills',
+        '3-5': 'Active Listening',
+        '6-8': 'Deep Listening',
+        '9-12': 'Empathetic Listening'
+      },
+      color: '#34D399',
+      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      situations: [
+        // SCENARIO 1: Showing You're Listening (Body Language + Verbal)
+        {
+          id: 1,
+          image: 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800&q=80',
+          imageAlt: 'Active listening',
+          context: {
+            'k2': "Your friend is telling you about their new puppy.",
+            '3-5': "A classmate is sharing a story about their weekend trip.",
+            '6-8': "Someone is telling you about a problem they're having at school.",
+            '9-12': "A friend is discussing a challenge they're facing."
+          },
+          prompt: {
+            'k2': "How do you show you're listening?",
+            '3-5': "What do you do while they talk?",
+            '6-8': "How do you demonstrate active listening?",
+            '9-12': "What signals engagement?"
+          },
+          options: [
+            {
+              text: {
+                'k2': "*Look at them and nod* That sounds fun!",
+                '3-5': "*Make eye contact and smile* Tell me more!",
+                '6-8': "*Maintain eye contact and nod* I can see why that's frustrating.",
+                '9-12': "*Lean in slightly and maintain eye contact* That sounds really challenging."
+              },
+              feedback: {
+                'k2': "Perfect! Looking at them and saying nice things shows you care!",
+                '3-5': "Excellent! Your body language and words both show you're interested!",
+                '6-8': "Great! You're using both verbal and non-verbal signals of engagement.",
+                '9-12': "Outstanding! You're demonstrating full active listening - body language plus verbal validation."
+              },
+              proTip: {
+                'k2': "Pro Tip: Look at someone's face when they talk! Nod your head to show you're listening!",
+                '3-5': "Pro Tip: Use your face, body, AND words! Nod, make eye contact, and say things like 'wow!' or 'cool!'",
+                '6-8': "Pro Tip: Active listening requires three things: eye contact, receptive body language, and verbal acknowledgment.",
+                '9-12': "Pro Tip: Full engagement requires: eye contact, open posture, forward lean, and verbal markers ('I see,' 'that makes sense')."
+              },
+              isGood: true,
+              points: 10
+            },
+            {
+              text: {
+                'k2': "*Look around the room while they talk*",
+                '3-5': "*Play with something on the table*",
+                '6-8': "*Check phone periodically while they're speaking*",
+                '9-12': "*Maintain minimal eye contact, glance at phone*"
+              },
+              feedback: {
+                'k2': "Oops! Look at them when they're talking to you!",
+                '3-5': "That's not listening! Put things down and look at them!",
+                '6-8': "This signals disinterest. Your body language says 'I don't care.'",
+                '9-12': "Your divided attention is obvious and dismissive. This damages trust."
+              },
+              proTip: {
+                'k2': "Pro Tip: When someone talks to you, stop what you're doing and look at them!",
+                '3-5': "Pro Tip: Put down toys, tablets, or anything you're holding. Face them with your body!",
+                '6-8': "Pro Tip: Phone checking is the #1 way to kill a conversation. Put it away completely.",
+                '9-12': "Pro Tip: Partial attention is read as disrespect. Either fully engage or politely postpone the conversation."
+              },
+              isGood: false,
+              points: 0
+            },
+            {
+              text: {
+                'k2': "Uh huh. *keeps doing other things*",
+                '3-5': "Yeah... *clearly not paying attention*",
+                '6-8': "Mm-hmm. *eyes glazed over*",
+                '9-12': "Right, right. *obviously thinking about something else*"
+              },
+              feedback: {
+                'k2': "Just saying words isn't enough! Show you're really listening!",
+                '3-5': "They can tell you're not really listening! Pay attention!",
+                '6-8': "Verbal acknowledgment without engagement feels patronizing.",
+                '9-12': "Empty affirmations without presence are worse than saying nothing."
+              },
+              proTip: {
+                'k2': "Pro Tip: Don't just say 'uh huh' - really listen and then say something about their story!",
+                '3-5': "Pro Tip: Don't use robot words like 'uh huh, uh huh.' Actually think about what they're saying!",
+                '6-8': "Pro Tip: Automatic verbal fillers ('mm-hmm,' 'yeah') without cognitive engagement are transparent.",
+                '9-12': "Pro Tip: People can sense when you're on autopilot. If you can't engage, say so: 'Can we talk in 5 minutes?'"
+              },
+              isGood: false,
+              points: 2
+            },
+            {
+              text: {
+                'k2': "OH! That reminds me of MY puppy!",
+                '3-5': "Wait, that's like what happened to ME last week!",
+                '6-8': "Oh that's nothing, listen to what happened to ME...",
+                '9-12': "I totally get it. Actually, here's my similar story... [talks for 5 minutes]"
+              },
+              feedback: {
+                'k2': "Hold on! Let them finish their story first!",
+                '3-5': "You're interrupting! Listen to their whole story before sharing yours!",
+                '6-8': "You've hijacked their story. This isn't listening, it's waiting to talk.",
+                '9-12': "Conversational narcissism - redirecting every topic back to yourself kills connection."
+              },
+              proTip: {
+                'k2': "Pro Tip: Let them finish talking! Then you can share your story!",
+                '3-5': "Pro Tip: Don't interrupt with your own stories! Listen first, then share if it fits!",
+                '6-8': "Pro Tip: The 'one-up' or 'me too' interruption makes conversations feel like competitions.",
+                '9-12': "Pro Tip: Reciprocal sharing is good, but timing matters. Let them fully express before relating your experience."
+              },
+              isGood: false,
+              points: 3
+            }
+          ]
+        },
+        // SCENARIO 2: Asking Follow-Up Questions
+        {
+          id: 2,
+          image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=800&q=80',
+          imageAlt: 'Asking questions',
+          context: {
+            'k2': "Your friend says 'I went to the park yesterday!'",
+            '3-5': "Someone mentions 'I started learning guitar.'",
+            '6-8': "A classmate says 'I had the worst day yesterday.'",
+            '9-12': "Someone mentions 'I'm thinking about quitting the team.'"
+          },
+          prompt: {
+            'k2': "What do you say?",
+            '3-5': "How do you respond?",
+            '6-8': "What's your follow-up?",
+            '9-12': "What question do you ask?"
+          },
+          options: [
+            {
+              text: {
+                'k2': "What did you do at the park?",
+                '3-5': "That's cool! How's it going so far?",
+                '6-8': "Oh no! What happened?",
+                '9-12': "Really? What's making you think about that?"
+              },
+              feedback: {
+                'k2': "Great question! You want to hear more about their story!",
+                '3-5': "Perfect! You showed interest and asked them to share more!",
+                '6-8': "Excellent! You expressed empathy and invited elaboration.",
+                '9-12': "Ideal! You're probing deeper with genuine curiosity."
+              },
+              proTip: {
+                'k2': "Pro Tip: When someone tells you something, ask 'what' or 'how' to learn more!",
+                '3-5': "Pro Tip: Good follow-ups: 'How did that go?' 'What was that like?' 'Tell me more!'",
+                '6-8': "Pro Tip: Follow-up questions signal you're engaged. Try: 'Then what?' 'How did you feel?' 'What did you do?'",
+                '9-12': "Pro Tip: The best follow-ups invite deeper sharing: 'What's the full story?' 'How are you feeling about it?'"
+              },
+              isGood: true,
+              points: 10
+            },
+            {
+              text: {
+                'k2': "Okay.",
+                '3-5': "Cool.",
+                '6-8': "That's nice.",
+                '9-12': "Interesting."
+              },
+              feedback: {
+                'k2': "That's not much! Ask them more about it!",
+                '3-5': "That ends the conversation! Show more interest!",
+                '6-8': "One-word responses kill dialogue. Ask a question!",
+                '9-12': "This is conversational termination. Follow up or acknowledge you can't talk right now."
+              },
+              proTip: {
+                'k2': "Pro Tip: 'Okay' stops the conversation! Instead say: 'What happened?' or 'Tell me more!'",
+                '3-5': "Pro Tip: Never just say 'cool' - add a question! 'Cool! How did you like it?'",
+                '6-8': "Pro Tip: Minimal responses signal disinterest. Every statement deserves a question or substantive comment.",
+                '9-12': "Pro Tip: If you can't engage, be honest: 'I want to hear about this but I'm swamped - can we talk later?'"
+              },
+              isGood: false,
+              points: 0
+            },
+            {
+              text: {
+                'k2': "I went to the park last week too!",
+                '3-5': "I've been playing piano for two years!",
+                '6-8': "I had a terrible day last month!",
+                '9-12': "I quit the debate team last year."
+              },
+              feedback: {
+                'k2': "Wait! They were telling you about THEIR park trip! Ask about theirs first!",
+                '3-5': "You made it about you! Ask about their guitar journey first!",
+                '6-8': "You redirected to your experience. This isn't listening!",
+                '9-12': "Immediate redirection to your story dismisses theirs."
+              },
+              proTip: {
+                'k2': "Pro Tip: When someone tells you something, ask about it! You can share your story after!",
+                '3-5': "Pro Tip: Let them talk about their thing first! Then you can share yours!",
+                '6-8': "Pro Tip: Rule of thumb: 2 follow-up questions about their topic before sharing your related experience.",
+                '9-12': "Pro Tip: Immediate parallel experiences feel competitive. Explore theirs first, then relate: 'I actually went through something similar...'"
+              },
+              isGood: false,
+              points: 3
+            },
+            {
+              text: {
+                'k2': "Parks are boring. I like pools better.",
+                '3-5': "Guitar is hard. You should try drums instead.",
+                '6-8': "Well, tomorrow will be better.",
+                '9-12': "You should definitely quit. That team is a waste of time."
+              },
+              feedback: {
+                'k2': "That's not nice! They liked the park! Don't say mean things!",
+                '3-5': "Don't dismiss what they're excited about! Support them!",
+                '6-8': "You're minimizing their feelings. They need to be heard, not fixed.",
+                '9-12': "Jumping to advice/judgment without understanding is presumptuous."
+              },
+              proTip: {
+                'k2': "Pro Tip: Don't say you don't like what they like! Just ask questions about it!",
+                '3-5': "Pro Tip: Never tell someone their interest is bad! Ask questions and be supportive!",
+                '6-8': "Pro Tip: Don't immediately problem-solve or dismiss. First: listen and understand. Then: ask if they want advice.",
+                '9-12': "Pro Tip: Resist the urge to immediately advise or judge. Understand first: 'Tell me more about what's going on.'"
+              },
+              isGood: false,
+              points: 0
+            }
+          ]
+        },
+        // SCENARIO 3: Paraphrasing to Show Understanding
+        {
+          id: 3,
+          image: 'https://images.unsplash.com/photo-1517898717222-37dd902c63e1?w=800&q=80',
+          imageAlt: 'Understanding others',
+          context: {
+            'k2': "Your friend says: 'I'm sad because I lost my favorite toy.'",
+            '3-5': "Someone says: 'I'm nervous about the test tomorrow because I don't understand fractions.'",
+            '6-8': "A friend says: 'I'm frustrated because my group members aren't doing their part of the project.'",
+            '9-12': "Someone says: 'I feel overwhelmed - I have three essays, two tests, and a game all this week.'"
+          },
+          prompt: {
+            'k2': "What do you say back?",
+            '3-5': "How do you respond?",
+            '6-8': "What's your response?",
+            '9-12': "How do you acknowledge them?"
+          },
+          options: [
+            {
+              text: {
+                'k2': "You're sad because you can't find your toy. That's hard!",
+                '3-5': "So you're worried about the test because fractions are confusing for you?",
+                '6-8': "It sounds like you're frustrated because you're doing all the work alone.",
+                '9-12': "So you're feeling buried under everything that's due this week."
+              },
+              feedback: {
+                'k2': "Perfect! You said back what they said to show you understand!",
+                '3-5': "Excellent! You repeated what they said in your own words!",
+                '6-8': "Great! Paraphrasing shows you truly heard them.",
+                '9-12': "Ideal! You've reflected their feelings and situation accurately."
+              },
+              proTip: {
+                'k2': "Pro Tip: Repeat what they said in a nice way! It shows you listened!",
+                '3-5': "Pro Tip: Say back what you heard: 'So you're [feeling] because [reason]?'",
+                '6-8': "Pro Tip: The formula: 'It sounds like you're [emotion] because [situation].' This validates their experience.",
+                '9-12': "Pro Tip: Reflective listening builds trust: mirror their emotion and situation without adding interpretation."
+              },
+              isGood: true,
+              points: 10
+            },
+            {
+              text: {
+                'k2': "Just get a new toy!",
+                '3-5': "Just study more!",
+                '6-8': "Just tell the teacher!",
+                '9-12': "Just manage your time better!"
+              },
+              feedback: {
+                'k2': "That's not helpful! They're sad and need you to understand!",
+                '3-5': "You jumped to solutions! They need to be heard first!",
+                '6-8': "'Just' makes problems sound easy. They need empathy, not dismissal.",
+                '9-12': "Solutions without understanding feel dismissive and preachy."
+              },
+              proTip: {
+                'k2': "Pro Tip: Don't tell them what to do right away! Say 'That's sad!' first!",
+                '3-5': "Pro Tip: Don't give advice immediately! First say 'That sounds hard' to show you understand!",
+                '6-8': "Pro Tip: The word 'just' minimizes their struggle. Validate first: 'That must be really frustrating.'",
+                '9-12': "Pro Tip: Resist immediate problem-solving. People usually want to be heard, not fixed. Ask: 'Do you want advice or just to vent?'"
+              },
+              isGood: false,
+              points: 0
+            },
+            {
+              text: {
+                'k2': "I lost a toy once too!",
+                '3-5': "I'm bad at fractions too!",
+                '6-8': "I hate group projects too!",
+                '9-12': "I'm so busy this week too!"
+              },
+              feedback: {
+                'k2': "Hold on! This is about their toy! Talk about their feelings first!",
+                '3-5': "You made it about you again! Focus on helping them first!",
+                '6-8': "You've redirected to your experience. Acknowledge theirs first.",
+                '9-12': "Relating is good but timing is wrong. Validate their experience before sharing yours."
+              },
+              proTip: {
+                'k2': "Pro Tip: Help them feel better first! You can share your story after!",
+                '3-5': "Pro Tip: Say something about THEIR problem first, then you can mention yours!",
+                '6-8': "Pro Tip: Sequence matters. First: 'That sounds really frustrating.' Then: 'I've been there too - last semester...'",
+                '9-12': "Pro Tip: Lead with validation, follow with relation: 'That's a lot on your plate. I remember when I...' positions support before sharing."
+              },
+              isGood: false,
+              points: 4
+            },
+            {
+              text: {
+                'k2': "Why did you lose it? You should be more careful!",
+                '3-5': "Why didn't you study earlier? You had time!",
+                '6-8': "Why didn't you assign tasks better from the start?",
+                '9-12': "Why did you commit to so much? You should have seen this coming."
+              },
+              feedback: {
+                'k2': "That's mean! They're already sad! Don't make them feel worse!",
+                '3-5': "Don't blame them! They need support, not criticism!",
+                '6-8': "This is judgment, not listening. They need empathy, not interrogation.",
+                '9-12': "Blame masquerading as questions is toxic. This destroys trust."
+              },
+              proTip: {
+                'k2': "Pro Tip: NEVER ask 'why' when someone is sad! Just say 'I'm sorry that happened!'",
+                '3-5': "Pro Tip: Don't blame people when they're struggling! Say 'That's tough!' not 'Why didn't you...'",
+                '6-8': "Pro Tip: 'Why' questions often sound accusatory when someone's vulnerable. Save analysis for later.",
+                '9-12': "Pro Tip: Hindsight criticism ('you should have') is cruel when someone's struggling. Support first, reflect later (if asked)."
+              },
+              isGood: false,
+              points: 0
+            }
+          ]
+        },
+        // SCENARIO 4: Not Interrupting
+        {
+          id: 4,
+          image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&q=80',
+          imageAlt: 'Not interrupting',
+          context: {
+            'k2': "Your friend is telling you a long story about their birthday party.",
+            '3-5': "Someone is explaining something important that happened to them.",
+            '6-8': "A classmate is sharing a detailed story about their family vacation.",
+            '9-12': "Someone is explaining a complex situation they're dealing with."
+          },
+          prompt: {
+            'k2': "What do you do?",
+            '3-5': "How do you listen?",
+            '6-8': "What's your approach?",
+            '9-12': "How do you handle this?"
+          },
+          options: [
+            {
+              text: {
+                'k2': "*Wait patiently and listen to the whole story*",
+                '3-5': "*Listen quietly and wait for them to finish*",
+                '6-8': "*Give them space to tell the complete story*",
+                '9-12': "*Allow them to fully express their thoughts*"
+              },
+              feedback: {
+                'k2': "Perfect! You let them tell their whole story!",
+                '3-5': "Great! You gave them time to share everything!",
+                '6-8': "Excellent! You respected their need to tell the complete story.",
+                '9-12': "Outstanding! You created a safe space for them to fully express themselves."
+              },
+              proTip: {
+                'k2': "Pro Tip: Let people finish their stories! Don't rush them!",
+                '3-5': "Pro Tip: Good listeners wait for the whole story before asking questions!",
+                '6-8': "Pro Tip: Interrupting cuts off their flow. Let them finish, then ask follow-up questions.",
+                '9-12': "Pro Tip: Full expression requires patience. Save your questions and insights for after they've finished."
+              },
+              isGood: true,
+              points: 10
+            },
+            {
+              text: {
+                'k2': "*Jump in with questions every few seconds*",
+                '3-5': "*Interrupt to ask questions while they're talking*",
+                '6-8': "*Cut them off to share your own similar experience*",
+                '9-12': "*Jump in with advice before they finish explaining*"
+              },
+              feedback: {
+                'k2': "Oops! You're interrupting! Let them finish first!",
+                '3-5': "You're cutting them off! Wait until they're done!",
+                '6-8': "This disrupts their flow. Let them complete their thought.",
+                '9-12': "Premature interruption shows impatience and disrespect for their process."
+              },
+              proTip: {
+                'k2': "Pro Tip: Wait until they stop talking before asking questions!",
+                '3-5': "Pro Tip: Save your questions for the end! Let them tell their story first!",
+                '6-8': "Pro Tip: Interrupting breaks their rhythm. Take notes mentally, then ask questions afterward.",
+                '9-12': "Pro Tip: Let them fully express before offering insights. Premature advice often misses the point."
+              },
+              isGood: false,
+              points: 0
+            },
+            {
+              text: {
+                'k2': "*Look bored and sigh loudly*",
+                '3-5': "*Show impatience with body language*",
+                '6-8': "*Display obvious signs of wanting to leave*",
+                '9-12': "*Show disinterest through posture and expression*"
+              },
+              feedback: {
+                'k2': "That's not nice! Show them you care about their story!",
+                '3-5': "They can see you're bored! Try to look interested!",
+                '6-8': "Your body language is communicating disinterest. This hurts their feelings.",
+                '9-12': "Non-verbal impatience is just as damaging as verbal interruption."
+              },
+              proTip: {
+                'k2': "Pro Tip: Look interested even if the story is long! Nod and smile!",
+                '3-5': "Pro Tip: Show interest with your face and body! Lean in and nod!",
+                '6-8': "Pro Tip: Even if you're impatient, maintain engaged body language. It shows respect.",
+                '9-12': "Pro Tip: If you can't engage fully, politely say: 'I want to hear this properly - can we talk when I have more time?'"
+              },
+              isGood: false,
+              points: 2
+            },
+            {
+              text: {
+                'k2': "I know what you mean! Let me tell you about MY birthday!",
+                '3-5': "That's like what happened to me! Let me tell you...",
+                '6-8': "I had something similar happen! Here's my story...",
+                '9-12': "I totally relate! Actually, let me tell you about when I... [takes over conversation]"
+              },
+              feedback: {
+                'k2': "Wait! They were still telling THEIR story! Let them finish!",
+                '3-5': "You took over their story! Let them finish first!",
+                '6-8': "You've hijacked their moment. This isn't listening, it's waiting to talk.",
+                '9-12': "Conversation hijacking destroys trust. You've made it about you instead of them."
+              },
+              proTip: {
+                'k2': "Pro Tip: Let them finish their story! You can tell yours after!",
+                '3-5': "Pro Tip: Don't take over! Listen to their whole story, then share yours!",
+                '6-8': "Pro Tip: 'Me too' can wait. First, fully acknowledge their experience: 'That sounds amazing/terrible/fun!'",
+                '9-12': "Pro Tip: Relate, don't redirect. 'I can imagine how that felt' before 'I had something similar...'"
+              },
+              isGood: false,
+              points: 3
+            }
+          ]
+        },
+        // SCENARIO 5: Managing Distractions
+        {
+          id: 5,
+          image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80',
+          imageAlt: 'Managing distractions',
+          context: {
+            'k2': "Your friend is talking, but there's a fun game happening nearby.",
+            '3-5': "Someone is sharing something important, but your phone keeps buzzing.",
+            '6-8': "A classmate is telling you about a problem, but other people are talking loudly nearby.",
+            '9-12': "Someone is discussing a sensitive topic, but you have multiple notifications and distractions."
+          },
+          prompt: {
+            'k2': "What do you do?",
+            '3-5': "How do you handle this?",
+            '6-8': "What's your response?",
+            '9-12': "How do you manage this?"
+          },
+          options: [
+            {
+              text: {
+                'k2': "*Ignore the game and focus on your friend*",
+                '3-5': "*Put phone away and give them full attention*",
+                '6-8': "*Move to a quieter spot or ask them to continue*",
+                '9-12': "*Silence all notifications and create a focused environment*"
+              },
+              feedback: {
+                'k2': "Perfect! You chose to listen to your friend instead of playing!",
+                '3-5': "Great! You put away distractions and focused on them!",
+                '6-8': "Excellent! You actively created better conditions for listening.",
+                '9-12': "Outstanding! You prioritized their needs over your distractions."
+              },
+              proTip: {
+                'k2': "Pro Tip: Friends are more important than games! Always choose listening!",
+                '3-5': "Pro Tip: Put phones and toys away when someone is talking to you!",
+                '6-8': "Pro Tip: If distractions are interfering, suggest moving somewhere quieter to continue the conversation.",
+                '9-12': "Pro Tip: Create listening conditions: silence notifications, minimize interruptions, and focus completely."
+              },
+              isGood: true,
+              points: 10
+            },
+            {
+              text: {
+                'k2': "*Look at the game while pretending to listen*",
+                '3-5': "*Keep checking phone while they talk*",
+                '6-8': "*Get distracted by the noise and lose focus*",
+                '9-12': "*Try to multitask and respond to notifications*"
+              },
+              feedback: {
+                'k2': "They can tell you're not really listening! Focus on them!",
+                '3-5': "That's not fair to them! Put the phone away!",
+                '6-8': "You're not giving them your full attention. They deserve better.",
+                '9-12': "Multitasking during important conversations is disrespectful and ineffective."
+              },
+              proTip: {
+                'k2': "Pro Tip: Don't look at other things when someone is talking! Look at them!",
+                '3-5': "Pro Tip: Phones can wait! Put it away when someone needs to talk!",
+                '6-8': "Pro Tip: If you can't focus due to distractions, be honest: 'I'm having trouble concentrating - can we talk somewhere quieter?'",
+                '9-12': "Pro Tip: True listening requires full presence. Either commit fully or suggest a better time."
+              },
+              isGood: false,
+              points: 0
+            },
+            {
+              text: {
+                'k2': "I want to play that game! Can we talk later?",
+                '3-5': "I need to check my phone! Can we finish this later?",
+                '6-8': "It's too noisy here! Let's talk about this later.",
+                '9-12': "I'm getting too many notifications! Can we reschedule this conversation?"
+              },
+              feedback: {
+                'k2': "That's okay if you're honest! Just make sure to talk to them later!",
+                '3-5': "Good! You're being honest about needing to do other things!",
+                '6-8': "Respectful! You acknowledged the distraction and suggested a better time.",
+                '9-12': "Appropriate! You're managing your capacity and suggesting better conditions."
+              },
+              proTip: {
+                'k2': "Pro Tip: It's okay to say you can't talk right now! Just make sure to talk to them soon!",
+                '3-5': "Pro Tip: Being honest is better than pretending to listen! Just follow through later!",
+                '6-8': "Pro Tip: 'I want to give this my full attention - can we talk in 10 minutes?' shows respect.",
+                '9-12': "Pro Tip: 'I want to be fully present for this - can we talk when I can focus better?' demonstrates care."
+              },
+              isGood: true,
+              points: 8
+            },
+            {
+              text: {
+                'k2': "*Keep looking at the game and saying 'uh huh'*",
+                '3-5': "*Keep checking phone and giving half-responses*",
+                '6-8': "*Nod along while clearly distracted by noise*",
+                '9-12': "*Give minimal responses while handling notifications*"
+              },
+              feedback: {
+                'k2': "They can tell you're not really listening! Be honest or focus!",
+                '3-5': "This is worse than saying you can't talk! Be honest!",
+                '6-8': "Half-listening is insulting. Either commit or be upfront about your limitations.",
+                '9-12': "Partial attention is more damaging than honest communication about your capacity."
+              },
+              proTip: {
+                'k2': "Pro Tip: Don't pretend to listen! Either really listen or say you can't right now!",
+                '3-5': "Pro Tip: Fake listening hurts feelings! Be honest about what you can do!",
+                '6-8': "Pro Tip: 'I'm having trouble focusing right now' is better than fake attention.",
+                '9-12': "Pro Tip: 'I want to give this proper attention but I'm distracted' shows more respect than fake listening."
+              },
+              isGood: false,
+              points: 1
+            }
+          ]
+        },
+        // SCENARIO 6: Empathetic Responses
+        {
+          id: 6,
+          image: 'https://images.unsplash.com/photo-1551836022-deb4988cc6c0?w=800&q=80',
+          imageAlt: 'Empathetic listening',
+          context: {
+            'k2': "Your friend is crying because they're moving away.",
+            '3-5': "Someone is upset because they didn't make the team they tried out for.",
+            '6-8': "A classmate is frustrated because their parents are getting divorced.",
+            '9-12': "Someone is struggling because they're dealing with anxiety about college applications."
+          },
+          prompt: {
+            'k2': "What do you say?",
+            '3-5': "How do you respond?",
+            '6-8': "What's your reaction?",
+            '9-12': "How do you handle this?"
+          },
+          options: [
+            {
+              text: {
+                'k2': "I'm sorry you're sad. That must be really hard.",
+                '3-5': "That's really disappointing. I can see why you're upset.",
+                '6-8': "That sounds really difficult. I'm sorry you're going through this.",
+                '9-12': "That sounds incredibly stressful. I can imagine how overwhelming this must feel."
+              },
+              feedback: {
+                'k2': "Perfect! You showed you care about their feelings!",
+                '3-5': "Great! You acknowledged their feelings and showed you understand!",
+                '6-8': "Excellent! You expressed empathy and validated their experience.",
+                '9-12': "Outstanding! You demonstrated deep empathy and emotional intelligence."
+              },
+              proTip: {
+                'k2': "Pro Tip: When someone is sad, say 'I'm sorry' and show you care about their feelings!",
+                '3-5': "Pro Tip: Acknowledge their feelings first: 'That sounds hard' or 'I can see why you're upset.'",
+                '6-8': "Pro Tip: Empathy formula: 'That sounds [emotion]' + 'I'm sorry you're going through this.'",
+                '9-12': "Pro Tip: Empathetic responses validate feelings first: 'That sounds [difficult/stressful/overwhelming]' before offering support."
+              },
+              isGood: true,
+              points: 10
+            },
+            {
+              text: {
+                'k2': "Don't cry! You'll make new friends!",
+                '3-5': "Don't worry! You can try out again next year!",
+                '6-8': "Don't be sad! It's not that bad!",
+                '9-12': "Don't stress! Everything will work out fine!"
+              },
+              feedback: {
+                'k2': "Don't tell them not to cry! Let them feel sad!",
+                '3-5': "Don't dismiss their feelings! They need to be sad right now!",
+                '6-8': "'Don't feel that way' invalidates their emotions. Let them process.",
+                '9-12': "Minimizing their feelings with 'don't worry' dismisses their legitimate concerns."
+              },
+              proTip: {
+                'k2': "Pro Tip: Never tell someone not to cry! Let them feel their feelings!",
+                '3-5': "Pro Tip: Don't say 'don't worry' when someone is upset! Acknowledge their feelings first!",
+                '6-8': "Pro Tip: 'Don't be sad' makes people feel worse. Instead: 'It's okay to feel sad about this.'",
+                '9-12': "Pro Tip: 'Don't worry' minimizes legitimate concerns. Instead: 'That's a lot to handle - how are you feeling?'"
+              },
+              isGood: false,
+              points: 0
+            },
+            {
+              text: {
+                'k2': "I know exactly how you feel! I moved once too!",
+                '3-5': "I didn't make the team either! I know how it feels!",
+                '6-8': "My parents got divorced too! I totally understand!",
+                '9-12': "I was anxious about college too! I know exactly what you're going through!"
+              },
+              feedback: {
+                'k2': "Hold on! Let them talk about THEIR feelings first!",
+                '3-5': "Don't make it about you! Focus on helping them first!",
+                '6-8': "You've redirected to your experience. Acknowledge theirs first.",
+                '9-12': "Immediate 'I understand' can feel dismissive. Validate their unique experience first."
+              },
+              proTip: {
+                'k2': "Pro Tip: Help them with THEIR feelings first! You can share your story after!",
+                '3-5': "Pro Tip: Focus on their feelings first! Then you can relate your experience!",
+                '6-8': "Pro Tip: First validate: 'That must be really hard.' Then relate: 'I went through something similar...'",
+                '9-12': "Pro Tip: Lead with validation: 'That sounds incredibly difficult.' Then offer relation: 'I had some similar challenges...'"
+              },
+              isGood: false,
+              points: 4
+            },
+            {
+              text: {
+                'k2': "It'll be okay! Everything happens for a reason!",
+                '3-5': "Maybe it's for the best! You'll find something better!",
+                '6-8': "This will make you stronger! You'll learn from this!",
+                '9-12': "This is just a phase! You'll get through this!"
+              },
+              feedback: {
+                'k2': "That's not helpful right now! They need you to understand their sadness!",
+                '3-5': "Don't try to make them feel better yet! Let them be upset first!",
+                '6-8': "Premature optimism dismisses their current pain. Validate first, encourage later.",
+                '9-12': "Forced positivity when someone's struggling can feel invalidating and dismissive."
+              },
+              proTip: {
+                'k2': "Pro Tip: Don't try to fix their feelings! Just say 'I'm sorry you're sad!'",
+                '3-5': "Pro Tip: Don't jump to 'it'll be okay'! First say 'That must be really hard!'",
+                '6-8': "Pro Tip: Save 'it'll get better' for later. First: 'This sounds really difficult right now.'",
+                '9-12': "Pro Tip: Premature reassurance can feel dismissive. First acknowledge: 'This sounds overwhelming.' Then offer hope if appropriate."
+              },
+              isGood: false,
+              points: 2
+            }
+          ]
+        }
+      ]
     }
   };
   
