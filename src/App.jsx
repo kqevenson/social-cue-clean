@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import LandingPage from './components/LandingPage';
+import NewLandingPage from './components/NewLandingPage';
 import OnboardingScreen from './components/OnboardingScreen';
 import SocialCueApp from './components/SocialCueApp';
 
@@ -56,7 +56,7 @@ function App() {
   };
 
   if (appState === 'landing') {
-    return <LandingPage onGetStarted={handleGetStarted} />;
+    return <NewLandingPage onGetStarted={handleGetStarted} />;
   }
 
   if (appState === 'onboarding') {
