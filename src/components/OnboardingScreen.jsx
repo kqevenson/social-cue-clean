@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 function OnboardingScreen({ onComplete }) {
   const [step, setStep] = useState(1);
@@ -124,10 +124,32 @@ function OnboardingScreen({ onComplete }) {
           {/* Step 1: Role Selection */}
           {step === 1 && (
             <div>
-              <div className="text-center mb-8">
-                <Sparkles className="w-12 h-12 text-blue-400 mx-auto mb-4" />
-                <h2 className="text-3xl md:text-4xl font-bold mb-3">Welcome to SocialCue!</h2>
-                <p className="text-gray-400 text-lg">Who are you?</p>
+              <div className="text-center mb-12">
+                <h2 className="text-xl font-bold mb-6">Welcome to</h2>
+                
+                {/* Wordmark - Copied from Landing Page */}
+                <div className="flex items-end justify-center mb-8" style={{letterSpacing: '-2px'}}>
+                  <span className="font-extrabold text-5xl text-white">Social</span>
+                  <span className="font-extrabold text-5xl text-white" style={{marginRight: '6px'}}>C</span>
+                  <div className="flex flex-col items-center justify-end" style={{marginBottom: '7px', height: '62px', gap: '10px'}}>
+                    <div className="flex smile-eyes" style={{gap: '16px'}}>
+                      <div className="rounded-full" style={{width: '7px', height: '7px', background: '#4A90E2'}}></div>
+                      <div className="rounded-full" style={{width: '7px', height: '7px', background: '#4A90E2'}}></div>
+                    </div>
+                    <div className="smile-mouth" style={{
+                      width: '35px',
+                      height: '22px',
+                      borderLeft: '5px solid #34D399',
+                      borderRight: '5px solid #34D399',
+                      borderBottom: '5px solid #34D399',
+                      borderTop: 'none',
+                      borderRadius: '0 0 17px 17px'
+                    }}></div>
+                  </div>
+                  <span className="font-extrabold text-5xl text-white" style={{marginLeft: '6px'}}>e</span>
+                </div>
+                
+                <h2 className="text-xl font-bold mb-6">Who are you?</h2>
               </div>
 
               <div className="space-y-4">
@@ -279,6 +301,38 @@ function OnboardingScreen({ onComplete }) {
           )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes smileWiggle {
+          0%, 100% { 
+            transform: translateY(0) scaleY(1);
+          }
+          50% { 
+            transform: translateY(-2px) scaleY(1.1);
+          }
+        }
+        
+        @keyframes eyeBlink {
+          0%, 90%, 100% { 
+            transform: scaleY(1);
+          }
+          95% { 
+            transform: scaleY(0.1);
+          }
+        }
+        .smile-mouth {
+          animation: smileWiggle 3s ease-in-out infinite;
+          transform-origin: top center;
+        }
+        
+        .smile-eyes > div {
+          animation: eyeBlink 6s ease-in-out infinite;
+        }
+        
+        .smile-eyes > div:nth-child(2) {
+          animation-delay: 0.15s;
+        }
+      `}</style>
     </div>
   );
 }

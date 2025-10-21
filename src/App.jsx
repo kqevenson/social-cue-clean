@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import NewLandingPage from './components/NewLandingPage';
+import LandingPage from './components/LandingPage';
 import OnboardingScreen from './components/OnboardingScreen';
 import SocialCueApp from './components/SocialCueApp';
 
@@ -13,7 +13,7 @@ function App() {
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        if (parsed.name && parsed.gradeLevel) {
+        if (parsed.userName && parsed.gradeLevel) {
           setUserData(parsed);
           setAppState('app');
         }
@@ -29,7 +29,7 @@ function App() {
 
   const handleOnboardingComplete = (data) => {
     const userDataToSave = {
-      name: data.name || 'User',
+      userName: data.name || 'User',
       gradeLevel: data.gradeLevel || '6',
       role: data.role || 'learner',
       email: data.email || '',
@@ -56,7 +56,7 @@ function App() {
   };
 
   if (appState === 'landing') {
-    return <NewLandingPage onGetStarted={handleGetStarted} />;
+    return <LandingPage onGetStarted={handleGetStarted} />;
   }
 
   if (appState === 'onboarding') {
