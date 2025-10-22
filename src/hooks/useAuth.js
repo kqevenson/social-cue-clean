@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       
       // Generate a temporary guest ID
-      const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
       
       // Store guest data in localStorage
       const guestData = {

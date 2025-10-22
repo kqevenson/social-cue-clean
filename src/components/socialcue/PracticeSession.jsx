@@ -7,7 +7,9 @@ import { apiService } from '../../services/api';
 import { getLearnerProfile } from '../../firebaseHelpers';
 import SuccessAnimation from './animations/SuccessAnimation';
 import LoadingSpinner from './animations/LoadingSpinner';
-import { saveSession, updateLearnerProgress, updateTopicMastery, addBadge, saveLessonProgress, getLessonProgress, updateLessonStep, markLessonComplete, saveQuestionAnswer, saveLessonData, getLessonData, linkLessonProgressToData } from '../../firebaseHelpers';
+import { saveSession, updateLearnerProgress, updateTopicMastery, addBadge, saveLessonProgress, getLessonProgress, updateLessonStep, markLessonComplete, saveQuestionAnswer, saveLessonData, getLessonData, linkLessonProgressToData, loadLessonData, clearLessonProgress, saveRealWorldChallenge, updateChallengeStats, testFirebaseConnection } from '../../firebaseHelpers';
+import { collection, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 import ResumePrompt from './lessons/ResumePrompt';
 
 // Enhanced Loading Screen Component
@@ -274,10 +276,84 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     );
   }
 
+  // Helper functions for Firebase saving
+  const getUserId = () => {
+    let guestId = localStorage.getItem('guestUserId');
+    if (!guestId) {
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(2, 11);
+      guestId = `guest_${timestamp}_${randomStr}`;
+      localStorage.setItem('guestUserId', guestId);
+      console.log('✅ Created guest ID:', guestId);
+    }
+    return guestId;
+  };
+
+  const saveLessonProgress = async (sessionId, topicName, points, maxPoints) => {
+    try {
+      const learnerId = getUserId();
+      const score = Math.round((points / maxPoints) * 100);
+      const progressData = {
+        learnerId: learnerId,
+        topicName: topicName,
+        lessonId: sessionId,
+        completionPercentage: score,
+        totalPoints: points,
+        maxPoints: maxPoints,
+        completed: true,
+        lastAccessedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      const docRef = doc(db, 'lesson_progress', `${learnerId}_${sessionId}`);
+      await setDoc(docRef, progressData, { merge: true });
+      console.log('✅ Saved to Firebase lesson_progress');
+      return true;
+    } catch (error) {
+      console.error('❌ Error saving progress:', error);
+      return false;
+    }
+  };
+
+  const saveChallenge = async (topicName) => {
+    try {
+      const learnerId = getUserId();
+      const challenge = {
+        learnerId: learnerId,
+        challengeText: `Try using these ${topicName} skills in real life!`,
+        topic: topicName,
+        difficulty: 'medium',
+        timeframe: 'This week',
+        tips: [
+          'Start small with someone you trust',
+          'Remember what you practiced',
+          'Don\'t worry if it feels awkward at first'
+        ],
+        status: 'active',
+        createdAt: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, 'real_world_challenges'), challenge);
+      console.log('✅ Saved to Firebase real_world_challenges');
+      return docRef.id;
+    } catch (error) {
+      console.error('❌ Error saving challenge:', error);
+      return null;
+    }
+  };
+
   // Lesson state
   const [lessonState, setLessonState] = useState('loading'); // loading, introduction, concepts, practice, summary, error
   const [lesson, setLesson] = useState(null);
   const [error, setError] = useState(null);
+  
+  // Resume state
+  const [currentStep, setCurrentStep] = useState(1); // 1: introduction, 2: concepts, 3: practice
+  const [resuming, setResuming] = useState(false);
+  const [showResumeBanner, setShowResumeBanner] = useState(false);
+  const [showQuickReview, setShowQuickReview] = useState(false);
+  
+  // Challenge state
+  const [challengeStatus, setChallengeStatus] = useState(null); // null, 'saving', 'saved', 'error'
+  const [challengeId, setChallengeId] = useState(null);
   
   // Practice state
   const [currentSituation, setCurrentSituation] = useState(0);
@@ -306,7 +382,6 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   
   // Lesson progress state
   const [lessonProgress, setLessonProgress] = useState(null);
-  const [currentStep, setCurrentStep] = useState(1);
   const [stepsCompleted, setStepsCompleted] = useState([]);
   const [isLoadingProgress, setIsLoadingProgress] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
@@ -320,7 +395,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     const initializeLesson = async () => {
       setIsLoadingProgress(true);
       const userData = getUserData();
-      const learnerId = userData.userId || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const learnerId = userData.userId || 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
       
       console.log('🎯 Initializing AI lesson session for learner:', learnerId);
       
@@ -328,28 +403,71 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         // Check if lesson is already in progress
         const existingProgress = await getLessonProgress(learnerId, topicName);
         
-        if (existingProgress) {
-          console.log('📚 Found existing lesson progress:', existingProgress);
-          setLessonProgress(existingProgress);
+        if (existingProgress && existingProgress.status === 'in_progress') {
+          console.log('📚 Found in-progress lesson, resuming from step:', existingProgress.currentStep);
+          
+          // RESUME MODE
+          setResuming(true);
           setCurrentStep(existingProgress.currentStep || 1);
+          setLessonProgress(existingProgress);
           setStepsCompleted(existingProgress.stepsCompleted || []);
           setQuestionsAnswered(existingProgress.questionsAnswered || []);
           
-          // Check if we have saved lesson data
+          // Try to load saved lesson data using lessonDataId
+          if (existingProgress.lessonDataId) {
+            try {
+              const savedLesson = await loadLessonData(existingProgress.lessonDataId);
+              if (savedLesson) {
+                console.log('✅ Loaded saved lesson data, jumping to step:', existingProgress.currentStep);
+                setLesson(savedLesson);
+                
+                // Jump to appropriate lesson state based on current step
+                if (existingProgress.currentStep === 1) {
+                  setLessonState('introduction');
+                } else if (existingProgress.currentStep === 2) {
+                  setLessonState('concepts');
+                } else if (existingProgress.currentStep === 3) {
+                  setLessonState('practice');
+                }
+                
+                // Show resume banner
+                setShowResumeBanner(true);
+                setTimeout(() => setShowResumeBanner(false), 5000);
+                
+                return; // Exit early - we're resuming
+              }
+            } catch (error) {
+              console.warn('⚠️ Failed to load saved lesson data, will regenerate:', error);
+            }
+          }
+          
+          // Fallback: try old lesson data format
           const savedData = await getLessonData(learnerId, topicName);
           if (savedData) {
-            console.log('💾 Found saved lesson data, using cached lesson');
+            console.log('💾 Found saved lesson data (old format), using cached lesson');
             setLesson(savedData.lesson);
             setSavedLessonData(savedData);
-            setShowResumePrompt(true);
+            
+            // Jump to appropriate step
+            if (existingProgress.currentStep === 1) {
+              setLessonState('introduction');
+            } else if (existingProgress.currentStep === 2) {
+              setLessonState('concepts');
+            } else if (existingProgress.currentStep === 3) {
+              setLessonState('practice');
+            }
+            
+            // Show resume banner
+            setShowResumeBanner(true);
+            setTimeout(() => setShowResumeBanner(false), 5000);
+            
             return;
           }
           
-          // Resume from saved step without cached data
-          if (existingProgress.status === 'in_progress') {
-            console.log(`🔄 Resuming lesson from step ${existingProgress.currentStep}`);
-            setShowResumePrompt(true);
-          }
+          // If no saved data found, show resume prompt for regeneration
+          console.log(`🔄 No saved lesson data, showing resume prompt`);
+          setShowResumePrompt(true);
+          return;
         } else {
           console.log('📚 Starting new lesson');
           // Create new lesson progress
@@ -500,7 +618,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     }
   };
 
-  const loadAILesson = async (learnerId) => {
+  const loadAILesson = async (learnerId, isResume = false) => {
     try {
       console.log('🤖 Loading AI lesson for topic:', topicName || sessionId);
       
@@ -544,12 +662,29 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
       setLesson(aiLesson);
       
-      // Save lesson data for future resume
-      await saveLessonData(learnerId, topicName, { lesson: aiLesson });
-      await linkLessonProgressToData(learnerId, topicName, `${learnerId}_${(topicName || '').toLowerCase().replace(/\s+/g, '-')}_data`);
+      // Save lesson data for future resume (only if not resuming)
+      if (!isResume) {
+        try {
+          const lessonDataId = await saveLessonData(learnerId, topicName, aiLesson);
+          await linkLessonProgressToData(learnerId, topicName, lessonDataId);
+          console.log('💾 Lesson data saved for resume functionality');
+        } catch (error) {
+          console.warn('⚠️ Failed to save lesson data:', error);
+          // Don't fail the lesson loading if saving fails
+        }
+      }
       
       if (showResumePrompt) {
         setShowResumePrompt(false);
+      } else if (isResume) {
+        // When resuming, jump to the appropriate step
+        if (currentStep === 1) {
+          setLessonState('introduction');
+        } else if (currentStep === 2) {
+          setLessonState('concepts');
+        } else if (currentStep === 3) {
+          setLessonState('practice');
+        }
       } else {
         setLessonState('introduction');
       }
@@ -701,6 +836,22 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     return () => stopSpeaking();
   }, []);
 
+  // Sync offline challenges and test Firebase connection when component mounts
+  useEffect(() => {
+    const initializeFirebase = async () => {
+      // Test Firebase connection first
+      const isFirebaseWorking = await testFirebaseConnection();
+      if (!isFirebaseWorking) {
+        console.warn('⚠️ Firebase connection test failed - challenges may not sync properly');
+      }
+      
+      // Then sync offline challenges
+      syncOfflineChallenges();
+    };
+    
+    initializeFirebase();
+  }, []);
+
   const handleOptionSelect = async (optionIndex) => {
     if (showFeedback) return;
     
@@ -750,7 +901,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       
       // Get learner profile for personalization
       const userData = getUserData();
-      const learnerId = userData.userId || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const learnerId = userData.userId || 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
       let learnerProfile = null;
       
       try {
@@ -920,7 +1071,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     stopSpeaking();
     playSound('click');
     
@@ -940,6 +1091,10 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       
       // Save to Firebase
       saveSessionToFirebase();
+      
+      // Add Firebase saving for lesson progress and challenges
+      await saveLessonProgress(sessionId, topicName, totalPoints, lesson.practiceScenarios.length * 10);
+      await saveChallenge(topicName);
       
       // Move to summary
       setLessonState('summary');
@@ -982,6 +1137,163 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       setLessonState('concepts');
     } else if (currentStep === 3) {
       setLessonState('practice');
+    }
+  };
+
+  // Challenge handlers
+  const handleAcceptChallenge = async () => {
+    try {
+      setChallengeStatus('saving');
+      console.log('💪 Accepting challenge...');
+      
+      const userData = getUserData();
+      const learnerId = userData?.userId || 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+      
+      const challengeData = {
+        lessonTopic: lesson.topic,
+        challengeText: lesson.summary.realWorldChallenge,
+        timeframe: 'Try this week',
+        tips: lesson.summary.keyTakeaway ? [lesson.summary.keyTakeaway] : [],
+        status: 'active'
+      };
+      
+      try {
+        const savedChallengeId = await saveRealWorldChallenge(learnerId, challengeData);
+        
+        // Update learner stats
+        await updateChallengeStats(learnerId, 'accepted');
+        
+        setChallengeId(savedChallengeId);
+        setChallengeStatus('saved');
+        
+        console.log('✅ Challenge accepted and saved:', savedChallengeId);
+        
+        // Update lesson progress with challenge info
+        if (lessonProgress) {
+          const progressUpdate = {
+            activeChallengeId: savedChallengeId,
+            challengeStatus: 'active',
+            realWorldChallengeAccepted: true
+          };
+          
+          await updateLessonStep(learnerId, lesson.topic, 3, progressUpdate);
+        }
+        
+      } catch (firebaseError) {
+        console.error('❌ Firebase save failed with detailed error:', firebaseError);
+        console.error('❌ Error code:', firebaseError.code);
+        console.error('❌ Error message:', firebaseError.message);
+        console.error('❌ Challenge data:', challengeData);
+        
+        // Fallback to offline caching
+        const cachedId = cacheChallengeOffline({ ...challengeData, learnerId }, 'active');
+        setChallengeId(cachedId);
+        setChallengeStatus('error'); // Show "saved locally" message
+        
+        console.log('✅ Challenge cached offline:', cachedId);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error accepting challenge:', error);
+      setChallengeStatus('error');
+    }
+  };
+
+  const handleSkipChallenge = async () => {
+    try {
+      setChallengeStatus('saving');
+      console.log('⏭️ Skipping challenge...');
+      
+      const userData = getUserData();
+      const learnerId = userData?.userId || 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+      
+      const challengeData = {
+        lessonTopic: lesson.topic,
+        challengeText: lesson.summary.realWorldChallenge,
+        timeframe: 'Try this week',
+        tips: lesson.summary.keyTakeaway ? [lesson.summary.keyTakeaway] : [],
+        status: 'skipped'
+      };
+      
+      try {
+        const savedChallengeId = await saveRealWorldChallenge(learnerId, challengeData);
+        
+        // Update learner stats
+        await updateChallengeStats(learnerId, 'skipped');
+        
+        setChallengeId(savedChallengeId);
+        setChallengeStatus('saved');
+        
+        console.log('✅ Challenge skipped and saved:', savedChallengeId);
+        
+      } catch (firebaseError) {
+        console.error('❌ Firebase save failed with detailed error:', firebaseError);
+        console.error('❌ Error code:', firebaseError.code);
+        console.error('❌ Error message:', firebaseError.message);
+        console.error('❌ Challenge data:', challengeData);
+        
+        // Fallback to offline caching
+        const cachedId = cacheChallengeOffline({ ...challengeData, learnerId }, 'skipped');
+        setChallengeId(cachedId);
+        setChallengeStatus('error'); // Show "saved locally" message
+        
+        console.log('✅ Challenge cached offline:', cachedId);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error skipping challenge:', error);
+      setChallengeStatus('error');
+    }
+  };
+
+  // Offline challenge caching
+  const cacheChallengeOffline = (challengeData, status) => {
+    try {
+      const cachedChallenges = JSON.parse(localStorage.getItem('pending_challenges') || '[]');
+      const challengeToCache = {
+        ...challengeData,
+        status,
+        cachedAt: Date.now(),
+        id: `cached_${Date.now()}`
+      };
+      
+      cachedChallenges.push(challengeToCache);
+      localStorage.setItem('pending_challenges', JSON.stringify(cachedChallenges));
+      
+      console.log('💾 Challenge cached offline:', challengeToCache.id);
+      return challengeToCache.id;
+    } catch (error) {
+      console.error('❌ Error caching challenge offline:', error);
+      return null;
+    }
+  };
+
+  // Sync offline challenges when online
+  const syncOfflineChallenges = async () => {
+    try {
+      const cachedChallenges = JSON.parse(localStorage.getItem('pending_challenges') || '[]');
+      
+      if (cachedChallenges.length === 0) return;
+      
+      console.log('🔄 Syncing offline challenges...', cachedChallenges.length);
+      
+      for (const cachedChallenge of cachedChallenges) {
+        try {
+          await saveRealWorldChallenge(cachedChallenge.learnerId, cachedChallenge);
+          await updateChallengeStats(cachedChallenge.learnerId, cachedChallenge.status === 'active' ? 'accepted' : 'skipped');
+          
+          console.log('✅ Synced offline challenge:', cachedChallenge.id);
+        } catch (error) {
+          console.error('❌ Error syncing offline challenge:', error);
+        }
+      }
+      
+      // Clear cached challenges after sync
+      localStorage.removeItem('pending_challenges');
+      console.log('✅ All offline challenges synced');
+      
+    } catch (error) {
+      console.error('❌ Error syncing offline challenges:', error);
     }
   };
 
@@ -1065,6 +1377,104 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     onNavigate('home');
   };
 
+  // Show resume banner if resuming
+  if (showResumeBanner && resuming) {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'} flex items-center justify-center p-6`}>
+        <div className="max-w-md w-full text-center">
+          <div className="mb-8 flex justify-center">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 flex items-center justify-center animate-pulse">
+              <Sparkles className="w-12 h-12 text-yellow-400" />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold mb-4 text-blue-400">
+            Continuing from Step {currentStep}...
+          </h2>
+          
+          <p className="text-gray-400 mb-8">
+            Welcome back! We're picking up where you left off.
+          </p>
+          
+          {currentStep > 1 && (
+            <button
+              onClick={() => setShowQuickReview(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mb-4"
+            >
+              Quick Review
+            </button>
+          )}
+          
+          <button
+            onClick={() => setShowResumeBanner(false)}
+            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Continue to Lesson
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show quick review if requested
+  if (showQuickReview && lesson) {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'} p-6`}>
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-8">
+            <button
+              onClick={() => setShowQuickReview(false)}
+              className="flex items-center gap-2 text-blue-400 hover:text-blue-300 mb-4"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Lesson
+            </button>
+            <h1 className="text-3xl font-bold mb-2">Quick Review</h1>
+            <p className="text-gray-400">Here's what you've learned so far:</p>
+          </div>
+          
+          <div className="space-y-6">
+            {currentStep >= 2 && (
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-2xl p-6">
+                <h3 className="text-xl font-bold mb-4 text-blue-300">Learning Module</h3>
+                <div className="space-y-3">
+                  <h4 className="font-semibold">{lesson.introduction.title}</h4>
+                  <p className="text-gray-300">{lesson.introduction.objective}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    {lesson.explanation.keyPoints.map((point, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <p className="text-sm text-gray-300">{point}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {currentStep >= 3 && (
+              <div className="bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-2xl p-6">
+                <h3 className="text-xl font-bold mb-4 text-green-300">Practice Session</h3>
+                <p className="text-gray-300">
+                  You've been practicing {lesson.practiceScenarios.length} scenarios to build your skills.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={() => setShowQuickReview(false)}
+              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Continue to Step {currentStep}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Show resume prompt if lesson is in progress
   if (showResumePrompt && lessonProgress && lesson) {
     return (
@@ -1078,6 +1488,66 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       />
     );
   }
+
+  // Step Indicator Component
+  const StepIndicator = () => {
+    const steps = [
+      { id: 1, name: 'Learning Module', state: lessonState === 'introduction' ? 'current' : stepsCompleted.includes(1) ? 'completed' : 'upcoming' },
+      { id: 2, name: 'Key Concepts', state: lessonState === 'concepts' ? 'current' : stepsCompleted.includes(2) ? 'completed' : 'upcoming' },
+      { id: 3, name: 'Practice Session', state: lessonState === 'practice' ? 'current' : stepsCompleted.includes(3) ? 'completed' : 'upcoming' }
+    ];
+
+    return (
+      <div className={`mb-8 p-6 rounded-2xl border ${
+        darkMode ? 'bg-gray-900/50 border-gray-700' : 'bg-white border-gray-200'
+      }`}>
+        <div className="flex items-center justify-between">
+          {steps.map((step, index) => (
+            <div key={step.id} className="flex items-center">
+              {/* Step Circle */}
+              <div className={`relative flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all ${
+                step.state === 'completed' 
+                  ? 'bg-green-500 border-green-500 text-white' 
+                  : step.state === 'current'
+                  ? 'bg-blue-500 border-blue-500 text-white animate-pulse'
+                  : 'bg-gray-200 border-gray-300 text-gray-500'
+              }`}>
+                {step.state === 'completed' ? (
+                  <CheckCircle className="w-6 h-6" />
+                ) : (
+                  <span className="font-bold text-sm">{step.id}</span>
+                )}
+              </div>
+
+              {/* Step Label */}
+              <div className={`ml-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div className={`text-sm font-medium ${
+                  step.state === 'current' ? 'text-blue-400' : 
+                  step.state === 'completed' ? 'text-green-400' : 'text-gray-500'
+                }`}>
+                  {step.name}
+                </div>
+                <div className={`text-xs ${
+                  step.state === 'current' ? 'text-blue-300' : 
+                  step.state === 'completed' ? 'text-green-300' : 'text-gray-400'
+                }`}>
+                  {step.state === 'completed' ? 'Completed' : 
+                   step.state === 'current' ? 'In Progress' : 'Upcoming'}
+                </div>
+              </div>
+
+              {/* Connector Line */}
+              {index < steps.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-4 ${
+                  step.state === 'completed' ? 'bg-green-500' : 'bg-gray-300'
+                }`} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // Enhanced loading screen with animated progress
   if (lessonState === 'loading') {
@@ -1116,6 +1586,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     return (
       <div className="min-h-screen bg-black text-white p-6">
         <div className="max-w-4xl mx-auto">
+          <StepIndicator />
           {/* Header */}
           <div className="text-center mb-12">
             <div className="flex items-center justify-center gap-3 mb-6">
@@ -1206,6 +1677,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     return (
       <div className="min-h-screen bg-black text-white p-6">
         <div className="max-w-4xl mx-auto">
+          <StepIndicator />
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex justify-between items-center mb-4">
@@ -1315,6 +1787,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         
         <div className="relative z-10 p-6 pb-24">
           <div className="max-w-4xl mx-auto">
+            <StepIndicator />
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -1600,13 +2073,64 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
           <div className="bg-white/5 backdrop-blur border border-white/10 rounded-3xl p-8 mb-8">
             <div className="flex items-start gap-4 mb-6">
               <Target className="w-8 h-8 text-purple-400 flex-shrink-0" />
-              <div>
+              <div className="flex-1">
                 <h2 className="text-2xl font-bold mb-4 text-purple-400">Your Challenge</h2>
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-6">
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-6 mb-6">
                   <p className="text-lg text-purple-300 leading-relaxed">
                     {lesson.summary.realWorldChallenge}
                   </p>
                 </div>
+                
+                {/* Challenge Actions */}
+                {!challengeStatus && (
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={handleAcceptChallenge}
+                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-200 hover:scale-105 hover:shadow-lg flex items-center justify-center gap-3"
+                    >
+                      <Target className="w-5 h-5" />
+                      I'll Try This! 🎯
+                    </button>
+                    <button
+                      onClick={handleSkipChallenge}
+                      className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-200 hover:scale-105 flex items-center justify-center gap-3"
+                    >
+                      Maybe Later
+                    </button>
+                  </div>
+                )}
+                
+                {/* Challenge Status */}
+                {challengeStatus === 'saving' && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6">
+                    <div className="flex items-center justify-center gap-3">
+                      <LoadingSpinner size="sm" />
+                      <span className="text-blue-300 font-medium">Saving your challenge...</span>
+                    </div>
+                  </div>
+                )}
+                
+                {challengeStatus === 'saved' && (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-6">
+                    <div className="flex items-center justify-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-green-400" />
+                      <span className="text-green-300 font-medium">
+                        Challenge saved! {challengeId ? '🎯' : '✅'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {challengeStatus === 'error' && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6">
+                    <div className="flex items-center justify-center gap-3">
+                      <XCircle className="w-6 h-6 text-red-400" />
+                      <span className="text-red-300 font-medium">
+                        Challenge saved locally, will sync soon
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

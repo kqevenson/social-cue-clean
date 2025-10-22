@@ -24,7 +24,7 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       
       // Get learner profile data for personalization
       const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      const learnerId = userData.userId || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const learnerId = userData.userId || 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
       
       let learnerProfile = null;
       try {

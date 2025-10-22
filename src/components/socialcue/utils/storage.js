@@ -12,14 +12,31 @@ export const getDefaultUserData = () => ({
 
 export const getUserData = () => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
+    // First try to get regular user data
+    let stored = localStorage.getItem(STORAGE_KEY);
+    let parsed = null;
+    
+    if (stored) {
+      parsed = JSON.parse(stored);
+    }
+    
+    // If no regular user data, try to get guest data
+    if (!parsed || typeof parsed !== 'object') {
+      console.log('🔍 No regular user data, checking for guest data...');
+      const guestStored = localStorage.getItem('socialCueGuestData');
+      if (guestStored) {
+        parsed = JSON.parse(guestStored);
+        console.log('✅ Found guest data:', parsed);
+      }
+    }
+    
+    // If still no data, create default
+    if (!parsed || typeof parsed !== 'object') {
+      console.log('🔍 No user data found, creating default...');
       const defaultData = getDefaultUserData();
       saveUserData(defaultData);
       return defaultData;
     }
-    
-    const parsed = JSON.parse(stored);
     
     // Validate the parsed data structure
     if (!parsed || typeof parsed !== 'object') {
@@ -29,6 +46,7 @@ export const getUserData = () => {
       return defaultData;
     }
     
+    console.log('✅ Returning user data:', parsed);
     return parsed;
   } catch (error) {
     console.error('Failed to load user data:', error);

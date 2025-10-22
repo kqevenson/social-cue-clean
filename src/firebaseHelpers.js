@@ -18,6 +18,21 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
+/**
+ * Cleans data for Firebase by removing undefined values
+ * @param {Object} obj - Object to clean
+ * @returns {Object} - Cleaned object without undefined values
+ */
+const cleanFirebaseData = (obj) => {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+};
+
 // ============================================================================
 // USER FUNCTIONS
 // ============================================================================
@@ -180,10 +195,15 @@ export const updateLearnerProgress = async (learnerId, updates) => {
     
     // Now update the profile
     const profileRef = doc(db, 'learner_profiles', learnerId);
-    await updateDoc(profileRef, {
+    const updateData = {
       ...updates,
       lastActive: serverTimestamp()
-    });
+    };
+    
+    // Clean data to remove undefined values
+    const cleanUpdateData = cleanFirebaseData(updateData);
+    
+    await setDoc(profileRef, cleanUpdateData, { merge: true });
     
     console.log('✅ Learner progress updated successfully');
   } catch (error) {
@@ -391,7 +411,10 @@ export const saveLessonProgress = async (learnerId, lessonData) => {
       progressDoc.pointsEarned = 0;
     }
 
-    await setDoc(progressRef, progressDoc, { merge: true });
+    // Clean data to remove undefined values
+    const cleanProgressDoc = cleanFirebaseData(progressDoc);
+    
+    await setDoc(progressRef, cleanProgressDoc, { merge: true });
     console.log('Lesson progress saved successfully');
   } catch (error) {
     console.error('Error saving lesson progress:', error);
@@ -505,12 +528,17 @@ export const updateLessonStep = async (learnerId, lessonTopic, currentStep, step
     const docId = `${learnerId}_${(lessonTopic || '').toLowerCase().replace(/\s+/g, '-')}`;
     const progressRef = doc(db, 'lesson_progress', docId);
     
-    await updateDoc(progressRef, {
+    const updateData = {
       currentStep,
       stepsCompleted,
       lastAccessedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    });
+    };
+    
+    // Clean data to remove undefined values
+    const cleanUpdateData = cleanFirebaseData(updateData);
+    
+    await setDoc(progressRef, cleanUpdateData, { merge: true });
     
     console.log('Lesson step updated successfully');
   } catch (error) {
@@ -534,13 +562,18 @@ export const markLessonComplete = async (learnerId, lessonTopic, practiceScore, 
     const docId = `${learnerId}_${(lessonTopic || '').toLowerCase().replace(/\s+/g, '-')}`;
     const progressRef = doc(db, 'lesson_progress', docId);
     
-    await updateDoc(progressRef, {
+    const updateData = {
       status: 'completed',
       practiceScore,
       totalPoints,
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    });
+    };
+    
+    // Clean data to remove undefined values
+    const cleanUpdateData = cleanFirebaseData(updateData);
+    
+    await setDoc(progressRef, cleanUpdateData, { merge: true });
     
     console.log('Lesson marked as complete successfully');
   } catch (error) {
@@ -888,7 +921,8 @@ export const saveLessonData = async (learnerId, lessonTopic, lessonData) => {
       updatedAt: serverTimestamp()
     }, { merge: true });
     
-    console.log('Lesson data saved successfully');
+    console.log('Lesson data saved successfully with ID:', docId);
+    return docId; // Return the document ID
   } catch (error) {
     console.error('Error saving lesson data:', error);
     throw error;
@@ -934,13 +968,24 @@ export const linkLessonProgressToData = async (learnerId, lessonTopic, lessonDat
   try {
     console.log('Linking lesson progress to data:', { learnerId, lessonTopic, lessonDataId });
     
+    // Only proceed if lessonDataId is valid
+    if (!lessonDataId || lessonDataId === undefined) {
+      console.warn('⚠️ lessonDataId is undefined, skipping link operation');
+      return;
+    }
+    
     const docId = `${learnerId}_${(lessonTopic || '').toLowerCase().replace(/\s+/g, '-')}`;
     const progressRef = doc(db, 'lesson_progress', docId);
     
-    await updateDoc(progressRef, {
+    const updateData = {
       lessonDataId,
       updatedAt: serverTimestamp()
-    });
+    };
+    
+    // Clean data to remove undefined values
+    const cleanUpdateData = cleanFirebaseData(updateData);
+    
+    await setDoc(progressRef, cleanUpdateData, { merge: true });
     
     console.log('Lesson progress linked to data successfully');
   } catch (error) {
@@ -948,3 +993,317 @@ export const linkLessonProgressToData = async (learnerId, lessonTopic, lessonDat
     throw error;
   }
 };
+
+// ===== REAL-WORLD CHALLENGES FUNCTIONS =====
+
+/**
+ * Saves a real-world challenge to Firebase
+ * @param {string} learnerId - The learner's unique ID
+ * @param {Object} challengeData - Challenge data object
+ * @returns {Promise<string>} - Returns the challengeId
+ */
+export const saveRealWorldChallenge = async (learnerId, challengeData) => {
+  try {
+    console.log('💪 Saving real-world challenge...', { learnerId, lessonTopic: challengeData.lessonTopic });
+    console.log('📊 Challenge data structure:', challengeData);
+    console.log('🔗 Firebase db instance:', db);
+    
+    const challengeDoc = {
+      learnerId,
+      lessonTopic: challengeData.lessonTopic,
+      challengeText: challengeData.challengeText,
+      timeframe: challengeData.timeframe || 'Try this week',
+      tips: challengeData.tips || [],
+      status: challengeData.status || 'active',
+      createdAt: serverTimestamp(),
+      completedAt: challengeData.status === 'completed' ? serverTimestamp() : null,
+      skippedAt: challengeData.status === 'skipped' ? serverTimestamp() : null,
+      notes: challengeData.notes || '',
+      attemptCount: challengeData.attemptCount || 0
+    };
+    
+    // Clean data to remove undefined values
+    const cleanChallengeDoc = cleanFirebaseData(challengeDoc);
+    
+    const challengeRef = await addDoc(collection(db, 'real_world_challenges'), cleanChallengeDoc);
+    
+    console.log('✅ Challenge saved with ID:', challengeRef.id);
+    return challengeRef.id;
+  } catch (error) {
+    console.error('❌ Error saving real-world challenge:', error);
+    console.error('❌ Error details:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack
+    });
+    throw error;
+  }
+};
+
+/**
+ * Updates challenge status (active → completed or skipped)
+ * @param {string} challengeId - The challenge document ID
+ * @param {string} status - New status ('active', 'completed', 'skipped')
+ * @param {string} notes - Optional user notes
+ * @param {number} attemptCount - Number of attempts
+ * @returns {Promise<void>}
+ */
+export const updateChallengeStatus = async (challengeId, status, notes = '', attemptCount = 0) => {
+  try {
+    console.log('📝 Updating challenge status:', { challengeId, status });
+    
+    const challengeRef = doc(db, 'real_world_challenges', challengeId);
+    const updateData = {
+      status,
+      notes,
+      attemptCount,
+      lastUpdatedAt: serverTimestamp()
+    };
+    
+    if (status === 'completed') {
+      updateData.completedAt = serverTimestamp();
+    } else if (status === 'skipped') {
+      updateData.skippedAt = serverTimestamp();
+    }
+    
+    // Clean data to remove undefined values
+    const cleanUpdateData = cleanFirebaseData(updateData);
+    
+    await setDoc(challengeRef, cleanUpdateData, { merge: true });
+    
+    console.log('✅ Challenge status updated successfully');
+  } catch (error) {
+    console.error('❌ Error updating challenge status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets all active challenges for a learner
+ * @param {string} learnerId - The learner's unique ID
+ * @returns {Promise<Array>} - Array of active challenges
+ */
+export const getActiveChallenges = async (learnerId) => {
+  try {
+    console.log('📋 Getting active challenges for learner:', learnerId);
+    
+    // Filter by learnerId and status
+    const q = query(
+      collection(db, 'real_world_challenges'),
+      where('learnerId', '==', learnerId),
+      where('status', '==', 'active')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const challenges = [];
+    
+    querySnapshot.forEach((doc) => {
+      challenges.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    // Sort by createdAt in JavaScript (newest first)
+    const sortedChallenges = challenges.sort((a, b) => {
+      const aTime = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+      const bTime = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+      return bTime - aTime;
+    });
+    
+    console.log(`✅ Found ${sortedChallenges.length} active challenges for learner ${learnerId}`);
+    return sortedChallenges;
+  } catch (error) {
+    console.error('❌ Error getting active challenges:', error);
+    // Return empty array on error to prevent app crashes
+    return [];
+  }
+};
+
+/**
+ * Gets all challenges for a learner (active, completed, skipped)
+ * @param {string} learnerId - The learner's unique ID
+ * @returns {Promise<Array>} - Array of all challenges
+ */
+export const getAllChallenges = async (learnerId) => {
+  try {
+    console.log('📊 Getting all challenges for learner:', learnerId);
+    
+    // Simple query without orderBy to avoid index requirement
+    const q = query(
+      collection(db, 'real_world_challenges'),
+      where('learnerId', '==', learnerId)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const challenges = [];
+    
+    querySnapshot.forEach((doc) => {
+      challenges.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    // Sort by createdAt in JavaScript (newest first)
+    const sortedChallenges = challenges.sort((a, b) => {
+      const aTime = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+      const bTime = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+      return bTime - aTime;
+    });
+    
+    console.log(`✅ Found ${sortedChallenges.length} total challenges`);
+    return sortedChallenges;
+  } catch (error) {
+    console.error('❌ Error getting all challenges:', error);
+    return [];
+  }
+};
+
+/**
+ * Gets challenges for a specific topic
+ * @param {string} learnerId - The learner's unique ID
+ * @param {string} lessonTopic - Topic name
+ * @returns {Promise<Array>} - Array of challenges for the topic
+ */
+export const getChallengesByTopic = async (learnerId, lessonTopic) => {
+  try {
+    console.log('🎯 Getting challenges for topic:', { learnerId, lessonTopic });
+    
+    // Simple query without orderBy to avoid index requirement
+    const q = query(
+      collection(db, 'real_world_challenges'),
+      where('learnerId', '==', learnerId),
+      where('lessonTopic', '==', lessonTopic)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const challenges = [];
+    
+    querySnapshot.forEach((doc) => {
+      challenges.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    // Sort by createdAt in JavaScript (newest first)
+    const sortedChallenges = challenges.sort((a, b) => {
+      const aTime = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+      const bTime = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+      return bTime - aTime;
+    });
+    
+    console.log(`✅ Found ${sortedChallenges.length} challenges for topic: ${lessonTopic}`);
+    return sortedChallenges;
+  } catch (error) {
+    console.error('❌ Error getting challenges by topic:', error);
+    return [];
+  }
+};
+
+/**
+ * Updates learner profile with challenge stats
+ * @param {string} learnerId - The learner's unique ID
+ * @param {string} action - Action type ('accepted', 'completed', 'skipped')
+ * @returns {Promise<void>}
+ */
+export const updateChallengeStats = async (learnerId, action) => {
+  try {
+    console.log('📊 Updating challenge stats:', { learnerId, action });
+    
+    const learnerRef = doc(db, 'learner_profiles', learnerId);
+    
+    // Get current stats
+    const learnerSnap = await getDoc(learnerRef);
+    const currentData = learnerSnap.exists() ? learnerSnap.data() : {};
+    
+    const updateData = {
+      lastActive: serverTimestamp()
+    };
+    
+    // Update stats based on action
+    if (action === 'accepted') {
+      updateData.totalChallengesAccepted = (currentData.totalChallengesAccepted || 0) + 1;
+      updateData.lastChallengeAcceptedAt = serverTimestamp();
+    } else if (action === 'completed') {
+      updateData.totalChallengesCompleted = (currentData.totalChallengesCompleted || 0) + 1;
+      updateData.lastChallengeCompletedAt = serverTimestamp();
+    } else if (action === 'skipped') {
+      updateData.totalChallengesSkipped = (currentData.totalChallengesSkipped || 0) + 1;
+    }
+    
+    // Update active challenges count
+    const activeChallenges = await getActiveChallenges(learnerId);
+    updateData.activeChallengesCount = activeChallenges.length;
+    
+    // Clean data to remove undefined values
+    const cleanUpdateData = cleanFirebaseData(updateData);
+    
+    // Use setDoc with merge to create if doesn't exist, update if does
+    await setDoc(learnerRef, cleanUpdateData, { merge: true });
+    
+    console.log('✅ Challenge stats updated successfully');
+  } catch (error) {
+    console.error('❌ Error updating challenge stats:', error);
+    // Don't throw error - this is not critical for the main flow
+  }
+};
+
+/**
+ * Loads lesson data by document ID
+ * @param {string} lessonDataId - The document ID of the lesson data
+ * @returns {Promise<Object|null>} - The lesson data or null if not found
+ */
+export const loadLessonData = async (lessonDataId) => {
+  try {
+    console.log('📚 Loading lesson data by ID:', lessonDataId);
+    
+    const docRef = doc(db, 'lesson_data', lessonDataId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      console.log('✅ Lesson data loaded successfully');
+      return data.lessonData || data.fullLessonData || data;
+    } else {
+      console.log('❌ No lesson data found for ID:', lessonDataId);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Error loading lesson data:', error);
+    return null;
+  }
+};
+
+/**
+ * Test Firebase connectivity by writing a simple test document
+ * @returns {Promise<boolean>} - True if Firebase is working
+ */
+export const testFirebaseConnection = async () => {
+  try {
+    console.log('🧪 Testing Firebase connection...');
+    
+    const testRef = await addDoc(collection(db, 'firebase_test'), {
+      test: true,
+      timestamp: serverTimestamp(),
+      message: 'Firebase connection test'
+    });
+    
+    console.log('✅ Firebase connection test successful:', testRef.id);
+    
+    // Clean up test document
+    await deleteDoc(doc(db, 'firebase_test', testRef.id));
+    console.log('🧹 Test document cleaned up');
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Firebase connection test failed:', error);
+    console.error('❌ Error details:', {
+      code: error.code,
+      message: error.message
+    });
+    return false;
+  }
+};
+
