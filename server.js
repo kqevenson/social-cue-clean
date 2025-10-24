@@ -550,6 +550,149 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
   }
 });
 
+// NEW: Simplified AI lesson generation endpoint
+app.post('/api/generate-lesson-simple', async (req, res) => {
+  try {
+    const { topic, gradeLevel, numScenarios } = req.body;
+    
+    console.log(`📚 Generating AI lesson for: ${topic}, Grade: ${gradeLevel}, Scenarios: ${numScenarios || 5}`);
+
+    // Topic-specific examples for better scenarios
+    const topicExamples = {
+      'starting-conversations': 'introducing yourself, asking questions, finding common interests',
+      'reading-body-language': 'noticing facial expressions, understanding personal space, reading tone',
+      'small-talk': 'talking about weekend plans, commenting on the weather, casual classroom chat',
+      'making-friends': 'joining activities, showing interest, being a good listener',
+      'small-talk-basics': 'casual conversations, asking about interests, sharing simple stories',
+      'active-listening': 'paying attention, asking follow-up questions, showing you care',
+      'body-language': 'reading facial expressions, understanding personal space, noticing gestures',
+      'confidence-building': 'speaking up, trying new things, believing in yourself'
+    };
+
+    const topicContext = topicExamples[topic?.toLowerCase()] || 'general social situations';
+    const age = parseInt(gradeLevel) + 5; // Approximate age
+
+    const prompt = `You are an expert in social skills training for children. Generate ${numScenarios || 5} realistic, engaging practice scenarios for the topic: "${topic}".
+
+CRITICAL REQUIREMENTS:
+- Grade level: ${gradeLevel} (age ${age})
+- Use natural, age-appropriate language kids actually use
+- Create realistic situations kids encounter daily
+- Each scenario should feel like a real conversation or situation
+- NO workplace jargon - kids don't have "colleagues" or "meetings"
+- Use names like Alex, Sam, Jordan, Casey, etc.
+- Focus on these specific aspects: ${topicContext}
+
+For each scenario, provide:
+1. A realistic situation description (2-3 sentences)
+2. 4 response options with varying quality
+3. Specific, encouraging feedback for each option
+4. Point values (10 for best, 7 for good, 4 for okay, 2 for poor)
+
+EXAMPLE GOOD SCENARIO:
+"You're eating lunch in the cafeteria when you notice Sam sitting alone at a table, looking down at their phone. You've seen Sam in your math class but have never really talked. Your friends are sitting at your usual table. What do you do?"
+
+OPTIONS:
+A) Walk over to Sam and say, "Hey! Want to come sit with us? We have room at our table." (BEST - 10 points)
+B) Wave at Sam from your table and smile. (GOOD - 7 points)
+C) Keep eating with your friends but feel bad about Sam sitting alone. (OKAY - 4 points)
+D) Don't do anything. Sam probably wants to be alone. (POOR - 2 points)
+
+Generate ${numScenarios || 5} scenarios like this, varying in difficulty from easy to challenging.
+
+Return ONLY valid JSON in this exact format:
+{
+  "title": "${topic}",
+  "scenarios": [
+    {
+      "scenario": "situation description",
+      "options": [
+        {
+          "text": "response option",
+          "isGood": true/false,
+          "points": 10/7/4/2,
+          "feedback": "specific feedback explaining why this choice works or doesn't work"
+        }
+      ]
+    }
+  ]
+}`;
+
+    console.log(`📝 Making API call to Claude for lesson generation...`);
+    
+    const message = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+    });
+    
+    let responseText = message.content[0].text;
+    console.log(`📊 API response received, validating for age-appropriateness...`);
+    
+    // Simple validation for banned words
+    const bannedWords = ['coworker', 'colleague', 'workplace', 'office', 'professional', 'business', 'corporate', 'employee', 'supervisor', 'HR', 'networking', 'resume', 'interview', 'client', 'customer', 'boss', 'manager'];
+    const lowerText = responseText.toLowerCase();
+    
+    for (const word of bannedWords) {
+      if (lowerText.includes(word)) {
+        console.log(`🚫 Response rejected due to banned word: "${word}"`);
+        throw new Error(`Unable to generate age-appropriate scenarios. Banned word detected: ${word}`);
+      }
+    }
+    
+    console.log(`✅ Response validated successfully - no banned words detected`);
+    console.log(`📊 Parsing JSON from validated response...`);
+    
+    // Parse JSON from response
+    let lessonData;
+    try {
+      // Extract JSON from markdown code blocks if present
+      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/) || 
+                       responseText.match(/\{[\s\S]*\}/);
+      
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+      
+      lessonData = JSON.parse(jsonMatch[0]);
+      console.log(`✅ Successfully parsed lesson: "${lessonData.title || 'Unknown'}"`);
+      console.log(`📊 Lesson contains ${lessonData.scenarios?.length || 0} practice scenarios`);
+      
+      // Log scenario quality for debugging
+      if (lessonData.scenarios) {
+        console.log(`📝 Generated scenarios:`, lessonData.scenarios.map(s => ({
+          scenario: s.scenario.substring(0, 50) + '...',
+          numOptions: s.options?.length || 0
+        })));
+      }
+      
+    } catch (parseError) {
+      console.error(`❌ Failed to parse lesson JSON:`, parseError);
+      console.log(`Raw response:`, responseText.substring(0, 500) + '...');
+      throw new Error('Failed to parse lesson response from AI');
+    }
+    
+    // Calculate token usage and cost
+    const inputTokens = prompt.length / 4; // Rough estimate
+    const outputTokens = responseText.length / 4; // Rough estimate
+    const totalTokens = inputTokens + outputTokens;
+    const cost = totalTokens * 0.00000025; // Rough cost estimate
+    
+    console.log(`💰 Token usage: ${Math.round(totalTokens)} tokens (~$${cost.toFixed(4)})`);
+    
+    res.json(lessonData);
+    
+  } catch (error) {
+    console.error('❌ Error generating lesson:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Generate dynamic scenario endpoint
 app.post('/api/generate-scenario', async (req, res) => {
   try {

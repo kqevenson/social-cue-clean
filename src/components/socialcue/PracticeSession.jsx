@@ -73,7 +73,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         setLessonState('loading');
 
         // Call your backend API to generate scenarios
-        const response = await fetch('http://localhost:3001/api/generate-lesson', {
+        const response = await fetch('http://localhost:3001/api/generate-lesson-simple', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -95,19 +95,19 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         // Transform the API response to match our scenario format
         const transformedScenario = {
           id: sessionId,
-          title: data.lesson.topic || sessionId,
-          situations: data.lesson.practiceScenarios.map((scenario, index) => ({
-            id: scenario.id || index + 1,
-            context: scenario.situation,
-            prompt: scenario.question,
-            options: scenario.options.map(option => ({
+          title: data.title || sessionId.replace(/-/g, ' '),
+          situations: data.scenarios?.map((scenario, index) => ({
+            id: index + 1,
+            context: scenario.scenario,
+            prompt: "What should you do?",
+            options: scenario.options?.map(option => ({
               text: option.text,
-              isGood: option.quality === 'excellent',
-              points: option.quality === 'excellent' ? 10 : option.quality === 'good' ? 5 : 0,
+              isGood: option.isGood,
+              points: option.points || 10,
               feedback: option.feedback,
-              tip: option.tip
-            }))
-          })),
+              tip: option.feedback
+            })) || []
+          })) || [],
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           aiGenerated: true
         };
