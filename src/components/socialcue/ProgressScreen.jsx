@@ -9,30 +9,49 @@ import {
   AnimatedLineChart, 
   DashboardSkeleton 
 } from './animations';
+import { getFirestore, collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 
-function ProgressScreen({ userData, darkMode }) {
+function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [masteryData, setMasteryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [insights, setInsights] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsError, setInsightsError] = useState(null);
-  const [activeChallenges, setActiveChallenges] = useState([
-    {
-      id: 1,
-      title: "Start a conversation at lunch",
-      description: "Try introducing yourself to someone new at lunch. Ask them about their day or what they're interested in.",
-      difficulty: "Beginner",
-      topic: "Starting Conversations"
-    },
-    {
-      id: 2,
-      title: "Make eye contact during a conversation",
-      description: "When talking to someone today, practice maintaining comfortable eye contact for 3-5 seconds at a time.",
-      difficulty: "Intermediate",
-      topic: "Body Language"
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [activeChallenges, setActiveChallenges] = useState([]);
+
+  // Fetch active challenges from Firebase
+  const fetchActiveChallenges = async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+
+      const db = getFirestore();
+      const challengesRef = collection(db, `users/${userId}/challenges`);
+      const q = query(challengesRef, where('status', '==', 'active'));
+      const snapshot = await getDocs(q);
+      
+      const challenges = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setActiveChallenges(challenges);
+    } catch (error) {
+      console.error('Error fetching challenges:', error);
+      // Fallback to sample challenges if error
+      setActiveChallenges([
+        {
+          id: 1,
+          title: "Start a conversation at lunch",
+          description: "Try introducing yourself to someone new. Ask them about their day.",
+          difficulty: "Beginner",
+          topic: "Starting Conversations"
+        }
+      ]);
     }
-  ]);
+  };
 
   // Fetch mastery dashboard data
   useEffect(() => {
@@ -422,7 +441,15 @@ function ProgressScreen({ userData, darkMode }) {
         }
         
         console.log('✅ Progress insights received:', data);
-        setInsights(data.insights);
+        
+        // Use fresh insights if available, otherwise use saved insights
+        const insightsData = data.insights.fresh || data.insights.saved || {};
+        setInsights(insightsData);
+        
+        // Show celebration if insights indicate celebration is worthy
+        if (insightsData.celebrationWorthy) {
+          setShowCelebration(true);
+        }
         
       } catch (err) {
         console.error('❌ Error fetching progress insights:', err);
@@ -449,6 +476,11 @@ function ProgressScreen({ userData, darkMode }) {
     };
 
     fetchInsights();
+  }, []);
+
+  // Fetch active challenges on component mount
+  useEffect(() => {
+    fetchActiveChallenges();
   }, []);
 
   // Helper functions
@@ -544,20 +576,48 @@ function ProgressScreen({ userData, darkMode }) {
     }
   };
 
-  const handleCompleteChallenge = (challengeId) => {
-    // Mark challenge as complete and remove from active list
-    setActiveChallenges(prev => prev.filter(c => c.id !== challengeId));
-    
-    // Save to Firebase
-    // TODO: Add Firebase save logic
-    
-    // Show success message
-    alert('Great job! Challenge completed! 🎉');
+  const handleCompleteChallenge = async (challengeId) => {
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+      
+      const db = getFirestore();
+      const challengeRef = doc(db, `users/${userId}/challenges`, challengeId);
+      
+      await updateDoc(challengeRef, {
+        status: 'completed',
+        completedAt: new Date().toISOString()
+      });
+      
+      setActiveChallenges(prev => prev.filter(c => c.id !== challengeId));
+      alert('Great job! Challenge completed! 🎉');
+    } catch (error) {
+      console.error('Error completing challenge:', error);
+      // Still remove from UI even if Firebase fails
+      setActiveChallenges(prev => prev.filter(c => c.id !== challengeId));
+      alert('Great job! Challenge completed! 🎉');
+    }
   };
 
-  const handleSkipChallenge = (challengeId) => {
-    // Remove challenge from active list
-    setActiveChallenges(prev => prev.filter(c => c.id !== challengeId));
+  const handleSkipChallenge = async (challengeId) => {
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+      
+      const db = getFirestore();
+      const challengeRef = doc(db, `users/${userId}/challenges`, challengeId);
+      
+      await updateDoc(challengeRef, {
+        status: 'skipped',
+        skippedAt: new Date().toISOString()
+      });
+      
+      setActiveChallenges(prev => prev.filter(c => c.id !== challengeId));
+    } catch (error) {
+      console.error('Error skipping challenge:', error);
+      // Still remove from UI even if Firebase fails
+      setActiveChallenges(prev => prev.filter(c => c.id !== challengeId));
+    }
   };
 
   if (loading) {
@@ -600,6 +660,11 @@ function ProgressScreen({ userData, darkMode }) {
   }
   return (
     <div className="pb-24 px-6 py-8">
+      <CelebrationAnimation 
+        show={showCelebration} 
+        onComplete={() => setShowCelebration(false)} 
+        darkMode={darkMode}
+      />
       <h1 className={`text-4xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Mastery Dashboard</h1>
       
       {/* This Week's Insights */}
@@ -625,18 +690,25 @@ function ProgressScreen({ userData, darkMode }) {
           </div>
 
           {/* Weekly Highlight */}
-          <div className="mb-6">
-            <div className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          <div className="mb-8">
+            <div className={`text-3xl font-bold mb-4 leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
               {insights.weeklyHighlight}
             </div>
             {insights.celebrationWorthy && (
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-xl ${
-                darkMode ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-yellow-100 border border-yellow-200'
+              <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl mb-4 ${
+                darkMode ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30' : 'bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-200'
               }`}>
-                <Trophy className="w-5 h-5 text-yellow-500" />
-                <span className={`font-semibold ${darkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                  🎉 {insights.celebrationReason}
-                </span>
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center">
+                  <Trophy className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className={`text-lg font-bold ${darkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                    🎉 {insights.celebrationReason}
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-yellow-200' : 'text-yellow-600'}`}>
+                    This is worth celebrating!
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -659,14 +731,21 @@ function ProgressScreen({ userData, darkMode }) {
 
           {/* Motivational Message */}
           {insights.motivationalMessage && (
-            <div className={`p-4 rounded-xl mb-6 ${
-              darkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+            <div className={`p-6 rounded-2xl mb-8 ${
+              darkMode ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30' : 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200'
             }`}>
-              <div className="flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-blue-400 flex-shrink-0 mt-1" />
-                <p className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-700'}`}>
-                  {insights.motivationalMessage}
-                </p>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h4 className={`text-lg font-bold mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                    Your Learning Journey
+                  </h4>
+                  <p className={`text-base leading-relaxed ${darkMode ? 'text-blue-200' : 'text-blue-600'}`}>
+                    {insights.motivationalMessage}
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -690,32 +769,41 @@ function ProgressScreen({ userData, darkMode }) {
 
           {/* Practice Recommendation */}
           {insights.practiceRecommendation && (
-            <div className={`p-6 rounded-xl ${
+            <div className={`p-8 rounded-3xl ${
               darkMode ? 'bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/30' : 'bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200'
             }`}>
-              <div className="flex items-start gap-3 mb-4">
-                <Play className="w-6 h-6 text-orange-400 flex-shrink-0 mt-1" />
-                <div>
-                  <h4 className={`font-bold text-lg mb-2 ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center flex-shrink-0">
+                  <Play className="w-8 h-8 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
                     Recommended Practice
                   </h4>
-                  <p className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <p className={`text-xl font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     {insights.practiceRecommendation.topicToFocus}
                   </p>
-                  <p className={`text-sm mb-3 ${darkMode ? 'text-orange-200' : 'text-orange-600'}`}>
+                  <p className={`text-base mb-4 leading-relaxed ${darkMode ? 'text-orange-200' : 'text-orange-600'}`}>
                     {insights.practiceRecommendation.reason}
                   </p>
-                  <div className="flex items-center gap-4">
-                    <span className={`text-sm ${darkMode ? 'text-orange-300' : 'text-orange-600'}`}>
-                      ~{insights.practiceRecommendation.estimatedSessions} sessions needed
-                    </span>
-                    <button className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-                      darkMode 
-                        ? 'bg-orange-500 hover:bg-orange-600 text-white' 
-                        : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  <div className="flex items-center gap-6">
+                    <div className={`px-4 py-2 rounded-xl ${
+                      darkMode ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-200 text-orange-700'
                     }`}>
+                      <span className="text-sm font-semibold">
+                        ~{insights.practiceRecommendation.estimatedSessions} sessions needed
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => handleStartPractice(insights.practiceRecommendation.topicToFocus)}
+                      className={`px-6 py-3 rounded-xl font-bold text-base transition-all transform hover:scale-105 ${
+                        darkMode 
+                          ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg' 
+                          : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg'
+                      }`}
+                    >
                       Start Practice
-                      <ArrowRight className="w-4 h-4 inline ml-1" />
+                      <ArrowRight className="w-5 h-5 inline ml-2" />
                     </button>
                   </div>
                 </div>

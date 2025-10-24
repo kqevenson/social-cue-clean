@@ -5,7 +5,7 @@ import { getGradeRange } from './utils/helpers';
 import scenarios from './utils/scenarios';
 import SuccessAnimation from './animations/SuccessAnimation';
 import LoadingSpinner from './animations/LoadingSpinner';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, addDoc } from 'firebase/firestore';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   const [currentSituation, setCurrentSituation] = useState(0);
@@ -100,6 +100,34 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       };
     } finally {
       setIsEvaluating(false);
+    }
+  };
+
+  // Generate real-world challenge function
+  const generateRealWorldChallenge = async (topicName, performance) => {
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+
+      // Create a challenge based on what they just learned
+      const challenge = {
+        id: Date.now(),
+        title: `Practice: ${topicName}`,
+        description: `Now that you've learned about ${topicName}, try using it in real life! Look for an opportunity today to apply what you learned.`,
+        difficulty: performance >= 80 ? 'Intermediate' : 'Beginner',
+        topic: topicName,
+        createdAt: new Date().toISOString(),
+        status: 'active'
+      };
+
+      // Save to Firebase
+      const db = getFirestore();
+      const challengesRef = collection(db, `users/${userId}/challenges`);
+      await addDoc(challengesRef, challenge);
+
+      console.log('✅ Real-world challenge created:', challenge);
+    } catch (error) {
+      console.error('Error creating challenge:', error);
     }
   };
 
@@ -381,11 +409,26 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       setSessionComplete(true);
       playSound('complete');
       
+      // Calculate performance for challenge generation
+      const performance = Math.round((totalPoints / (scenario.situations.length * 10)) * 100);
+      
+      // Generate a real-world challenge
+      await generateRealWorldChallenge(scenario.title, performance);
+      
       // Update local user data
       const userData = getUserData();
       userData.totalSessions += 1;
       userData.confidenceScore = Math.min(100, userData.confidenceScore + 2);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+      
+      // Update last practice date in Firebase
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        const userRef = doc(getFirestore(), 'users', userId);
+        await updateDoc(userRef, {
+          lastPracticeDate: new Date().toISOString()
+        });
+      }
       
       // Complete the session and show results
       await completePracticeSession();
