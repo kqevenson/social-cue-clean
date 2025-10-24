@@ -21,6 +21,31 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   const scenario = scenarios[sessionId] || scenarios[1];
   const situation = scenario.situations[currentSituation];
 
+  // Shuffle function to randomize answer positions
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // Shuffle options for each situation
+  const [shuffledOptions, setShuffledOptions] = useState([]);
+  const [originalCorrectIndex, setOriginalCorrectIndex] = useState(null);
+
+  useEffect(() => {
+    if (situation && situation.options) {
+      const shuffled = shuffleArray(situation.options);
+      setShuffledOptions(shuffled);
+      
+      // Find the original correct answer index in the shuffled array
+      const correctIndex = shuffled.findIndex(option => option.isGood);
+      setOriginalCorrectIndex(correctIndex);
+    }
+  }, [currentSituation, situation]);
+
   // Sound effect functions
   const playSound = (type) => {
     if (!soundEffects) return;
@@ -162,8 +187,9 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     setSelectedOption(optionIndex);
     setShowFeedback(true);
     
-    const option = situation.options[optionIndex];
-    if (option.isGood) {
+    // Use shuffled options instead of original order
+    const option = shuffledOptions[optionIndex];
+    if (option && option.isGood) {
       setTotalPoints(prev => prev + option.points);
       playSound('correct');
       setShowCelebration(true);
@@ -319,7 +345,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
           </div>
 
           <div className="space-y-3">
-            {situation.options.map((option, index) => {
+            {shuffledOptions.map((option, index) => {
               const optionText = getContent(option.text);
               return (
                 <button key={index} onClick={() => handleOptionSelect(index)} disabled={showFeedback} className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-lg ${
@@ -343,13 +369,13 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
         {showFeedback && (
           <div className={`backdrop-blur-xl border rounded-3xl p-6 mb-6 animate-fadeIn ${
-            situation.options[selectedOption].isGood ? (darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200') :
+            shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? (darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200') :
             (darkMode ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200')
           }`}>
             <div className="flex items-center justify-end mb-4">
               <button onClick={() => {
-                const feedback = getContent(situation.options[selectedOption].feedback);
-                const proTip = situation.options[selectedOption].proTip ? getContent(situation.options[selectedOption].proTip) : '';
+                const feedback = getContent(shuffledOptions[selectedOption].feedback);
+                const proTip = shuffledOptions[selectedOption].proTip ? getContent(shuffledOptions[selectedOption].proTip) : '';
                 const feedbackText = feedback + (proTip ? `. ${proTip}` : '');
                 toggleSpeech(feedbackText);
               }} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
@@ -362,27 +388,27 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
             <div className="flex items-start gap-4">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                situation.options[selectedOption].isGood ? 'bg-emerald-500' : 'bg-red-500'
+                shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? 'bg-emerald-500' : 'bg-red-500'
               }`}>
-                {situation.options[selectedOption].isGood ? <CheckCircle className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white" />}
+                {shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? <CheckCircle className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white" />}
               </div>
               <div className="flex-1">
                 <h3 className={`text-lg font-bold mb-2 ${
-                  situation.options[selectedOption].isGood ? (darkMode ? 'text-emerald-400' : 'text-emerald-700') : (darkMode ? 'text-red-400' : 'text-red-700')
+                  shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? (darkMode ? 'text-emerald-400' : 'text-emerald-700') : (darkMode ? 'text-red-400' : 'text-red-700')
                 }`}>
-                  {situation.options[selectedOption].isGood ? 'Great Choice!' : "Let's Learn!"}
+                  {shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? 'Great Choice!' : "Let's Learn!"}
                 </h3>
                 <p className={`mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {getContent(situation.options[selectedOption].feedback)}
+                  {getContent(shuffledOptions[selectedOption].feedback)}
                 </p>
                 
-                {!situation.options[selectedOption].isGood && situation.options[selectedOption].proTip && (
+                {!(shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood) && shuffledOptions[selectedOption] && shuffledOptions[selectedOption].proTip && (
                   <div className={`flex items-start gap-3 p-4 rounded-xl mt-4 ${
                     darkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
                   }`}>
                     <Lightbulb className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                     <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
-                      {getContent(situation.options[selectedOption].proTip)}
+                      {getContent(shuffledOptions[selectedOption].proTip)}
                     </p>
                   </div>
                 )}
