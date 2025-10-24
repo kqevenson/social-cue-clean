@@ -13,6 +13,15 @@ export const lessonApiService = {
         learnerWeaknesses
       });
 
+      // Check network connectivity
+      if (!navigator.onLine) {
+        throw new Error('No internet connection available');
+      }
+
+      // Set timeout for the request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(`${API_BASE_URL}/generate-lesson`, {
         method: 'POST',
         headers: {
@@ -25,7 +34,22 @@ export const lessonApiService = {
           learnerStrengths,
           learnerWeaknesses
         }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Too many requests. Please wait a moment and try again.');
+        } else if (response.status >= 500) {
+          throw new Error('Server error. Please try again later.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication error. Please refresh the page.');
+        } else {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+      }
 
       const data = await response.json();
       
@@ -37,6 +61,16 @@ export const lessonApiService = {
       return data.lesson;
     } catch (error) {
       console.error('❌ Error generating AI lesson:', error);
+      
+      // Classify error for better handling
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out. Please try again.');
+      } else if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your connection.');
+      } else if (error.message.includes('No internet')) {
+        throw new Error('No internet connection available.');
+      }
+      
       throw error;
     }
   },
