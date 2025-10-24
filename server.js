@@ -1502,6 +1502,142 @@ app.get('/api/adaptive/preferences/:userId', async (req, res) => {
   }
 });
 
+// Real-world challenge generation endpoint
+app.post('/api/adaptive/generate-challenge', async (req, res) => {
+  try {
+    const { learnerId, topicName, gradeLevel, currentLevel, strengths, needsWork, recentPerformance } = req.body;
+
+    console.log('🎯 Generating real-world challenge for:', {
+      learnerId,
+      topicName,
+      gradeLevel,
+      currentLevel
+    });
+
+    // Validate required fields
+    if (!learnerId || !topicName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: learnerId and topicName'
+      });
+    }
+
+    // Create the prompt for challenge generation
+    const prompt = `You are an expert social skills educator creating personalized real-world challenges for students.
+
+STUDENT PROFILE:
+- Grade Level: ${gradeLevel || 'K-2'}
+- Current Skill Level: ${currentLevel || 1}
+- Topic Focus: ${topicName}
+- Strengths: ${strengths?.join(', ') || 'General social skills'}
+- Areas for Improvement: ${needsWork?.join(', ') || 'Building confidence'}
+- Recent Performance: ${recentPerformance || 'New to social skills practice'}
+
+Create a personalized real-world challenge that:
+1. Is age-appropriate for ${gradeLevel || 'K-2'} students
+2. Builds on the topic: ${topicName}
+3. Is achievable but slightly challenging
+4. Can be practiced in real social situations
+5. Has clear success indicators
+6. Includes helpful tips
+
+Respond with a JSON object containing:
+{
+  "title": "Clear, engaging challenge title",
+  "description": "Brief description of what to do",
+  "specificGoal": "Specific, measurable goal",
+  "whereToTry": ["Location 1", "Location 2", "Location 3"],
+  "successIndicators": ["Indicator 1", "Indicator 2", "Indicator 3"],
+  "tips": ["Tip 1", "Tip 2", "Tip 3"],
+  "timeframe": "This week" or "Today" or "This month",
+  "estimatedDifficulty": "Easy" or "Moderate" or "Challenging"
+}
+
+Make it encouraging, specific, and practical for real-world practice.`;
+
+    // Generate challenge using Anthropic
+    const response = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 1000,
+      temperature: 0.7,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
+
+    const challengeText = response.content[0].text;
+    
+    // Parse the JSON response
+    let challenge;
+    try {
+      // Extract JSON from the response (in case there's extra text)
+      const jsonMatch = challengeText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        challenge = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.error('Error parsing challenge JSON:', parseError);
+      console.log('Raw response:', challengeText);
+      
+      // Fallback challenge
+      challenge = {
+        title: `Practice ${topicName}`,
+        description: `Try applying what you learned about ${topicName} in a real situation today.`,
+        specificGoal: `Use your ${topicName} skills in a conversation or interaction.`,
+        whereToTry: ['At school', 'At home', 'With friends'],
+        successIndicators: ['You tried the skill', 'You felt more confident', 'The other person responded positively'],
+        tips: ['Start small', 'Be yourself', 'Practice makes perfect'],
+        timeframe: 'This week',
+        estimatedDifficulty: 'Easy'
+      };
+    }
+
+    // Add metadata
+    challenge.learnerId = learnerId;
+    challenge.topicName = topicName;
+    challenge.gradeLevel = gradeLevel;
+    challenge.generatedAt = new Date().toISOString();
+
+    console.log('✅ Challenge generated successfully:', challenge.title);
+
+    res.json({
+      success: true,
+      challenge: challenge
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating challenge:', error);
+    
+    // Return fallback challenge on error
+    const fallbackChallenge = {
+      title: `Practice ${req.body.topicName || 'Social Skills'}`,
+      description: `Try applying what you learned in a real situation today.`,
+      specificGoal: `Use your social skills in a conversation or interaction.`,
+      whereToTry: ['At school', 'At home', 'With friends'],
+      successIndicators: ['You tried the skill', 'You felt more confident', 'The other person responded positively'],
+      tips: ['Start small', 'Be yourself', 'Practice makes perfect'],
+      timeframe: 'This week',
+      estimatedDifficulty: 'Easy',
+      learnerId: req.body.learnerId,
+      topicName: req.body.topicName,
+      gradeLevel: req.body.gradeLevel,
+      generatedAt: new Date().toISOString(),
+      isFallback: true
+    };
+
+    res.json({
+      success: true,
+      challenge: fallbackChallenge,
+      warning: 'Using fallback challenge due to AI generation error'
+    });
+  }
+});
+
 // Mount adaptive learning routes
 app.use('/api/adaptive', adaptiveLearningRoutes);
 

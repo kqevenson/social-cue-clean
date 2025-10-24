@@ -1,7 +1,103 @@
-import React from 'react';
-import { CheckCircle, Lightbulb, Target, ArrowRight, Trophy, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, Lightbulb, Target, ArrowRight, Trophy, Star, Sparkles } from 'lucide-react';
+import RealWorldChallengeCard from '../RealWorldChallengeCard';
+import { challengeService } from '../../../services/challengeService';
+import { getUserData } from '../utils/storage';
+import adaptiveErrorHandler from '../../../services/adaptiveErrorHandler';
 
-export default function LessonSummary({ lesson, pointsEarned, onComplete }) {
+export default function LessonSummary({ lesson, pointsEarned, onComplete, sessionId }) {
+  const [generatedChallenge, setGeneratedChallenge] = useState(null);
+  const [challengeLoading, setChallengeLoading] = useState(false);
+  const [challengeError, setChallengeError] = useState(null);
+  const [showChallenge, setShowChallenge] = useState(false);
+
+  useEffect(() => {
+    generateChallenge();
+  }, []);
+
+  const generateChallenge = async () => {
+    try {
+      setChallengeLoading(true);
+      setChallengeError(null);
+
+      const userData = getUserData();
+      const userId = userData.userId || 'guest_' + Date.now();
+      
+      // Get topic name from sessionId
+      const topicMap = {
+        1: 'Making Friends',
+        2: 'Active Listening',
+        3: 'Body Language',
+        4: 'Small Talk',
+        5: 'Conflict Resolution',
+        6: 'Teamwork',
+        7: 'Empathy',
+        8: 'Assertiveness'
+      };
+      
+      const topicName = topicMap[sessionId] || 'Social Skills';
+      const topicId = sessionId?.toString() || '1';
+
+      const learnerProfile = {
+        name: userData.name || 'Student',
+        grade: userData.gradeLevel || 'K-2',
+        currentLevel: userData.currentLevel || 1,
+        strengths: userData.strengths || [],
+        needsWork: userData.needsWork || [],
+        recentPerformance: 'Just completed a lesson'
+      };
+
+      // Try to generate challenge with API
+      try {
+        const challenge = await adaptiveErrorHandler.retryOperation(
+          () => challengeService.generateChallenge(userId, topicId, topicName, learnerProfile),
+          'challenge_generation',
+          { userId, topicId, topicName }
+        );
+        
+        setGeneratedChallenge(challenge);
+        setShowChallenge(true);
+      } catch (error) {
+        console.warn('API challenge generation failed, using fallback:', error);
+        
+        // Use fallback challenge
+        const fallbackChallenge = challengeService.createFallbackChallenge(topicName, learnerProfile.grade);
+        setGeneratedChallenge(fallbackChallenge);
+        setShowChallenge(true);
+      }
+
+    } catch (error) {
+      console.error('Error generating challenge:', error);
+      setChallengeError(error.message);
+    } finally {
+      setChallengeLoading(false);
+    }
+  };
+
+  const handleAcceptChallenge = (challenge) => {
+    try {
+      const userData = getUserData();
+      const userId = userData.userId || 'guest_' + Date.now();
+      
+      challengeService.saveActiveChallenge(challenge, userId);
+      setShowChallenge(false);
+      
+      alert('Challenge accepted! Check your Active Challenges section. 🎯');
+    } catch (error) {
+      console.error('Error accepting challenge:', error);
+      alert('Error accepting challenge. Please try again.');
+    }
+  };
+
+  const handleTryLater = (challenge) => {
+    setShowChallenge(false);
+    // Could save to "try later" list in the future
+  };
+
+  const handleSkip = (challenge) => {
+    setShowChallenge(false);
+    // Challenge is dismissed
+  };
   return (
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-4xl mx-auto">
@@ -54,20 +150,77 @@ export default function LessonSummary({ lesson, pointsEarned, onComplete }) {
           </div>
         </div>
 
-        {/* Real World Challenge */}
-        <div className="bg-white/5 backdrop-blur border border-white/10 rounded-3xl p-8 mb-8">
-          <div className="flex items-start gap-4 mb-6">
-            <Target className="w-8 h-8 text-purple-400 flex-shrink-0" />
-            <div>
-              <h2 className="text-2xl font-bold mb-4 text-purple-400">Your Challenge</h2>
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-6">
-                <p className="text-lg text-purple-300 leading-relaxed">
-                  {lesson.summary.realWorldChallenge}
-                </p>
+        {/* Challenge Generation */}
+        {challengeLoading && (
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-3xl p-8 mb-8">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />
+                <h2 className="text-2xl font-bold text-purple-400">Creating Your Challenge</h2>
+                <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />
+              </div>
+              <div className="w-16 h-1 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full mx-auto mb-4"></div>
+              <p className="text-lg text-gray-300 mb-6">
+                AI is crafting a personalized real-world challenge just for you...
+              </p>
+              <div className="flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {challengeError && (
+          <div className="bg-red-500/10 backdrop-blur border border-red-500/30 rounded-3xl p-8 mb-8">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-red-400 mb-2">Challenge Generation Failed</h2>
+              <p className="text-red-300 mb-4">{challengeError}</p>
+              <button
+                onClick={generateChallenge}
+                className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold transition-all"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showChallenge && generatedChallenge && (
+          <div className="mb-8">
+            <div className="text-center mb-6">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <Target className="w-8 h-8 text-purple-400" />
+                <h2 className="text-2xl font-bold text-purple-400">Your Personalized Challenge</h2>
+                <Target className="w-8 h-8 text-purple-400" />
+              </div>
+              <div className="w-16 h-1 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full mx-auto"></div>
+            </div>
+            <RealWorldChallengeCard
+              challenge={generatedChallenge}
+              onAccept={handleAcceptChallenge}
+              onTryLater={handleTryLater}
+              onSkip={handleSkip}
+              darkMode={true}
+            />
+          </div>
+        )}
+
+        {/* Fallback Real World Challenge */}
+        {!showChallenge && !challengeLoading && !challengeError && (
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-3xl p-8 mb-8">
+            <div className="flex items-start gap-4 mb-6">
+              <Target className="w-8 h-8 text-purple-400 flex-shrink-0" />
+              <div>
+                <h2 className="text-2xl font-bold mb-4 text-purple-400">Your Challenge</h2>
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-6">
+                  <p className="text-lg text-purple-300 leading-relaxed">
+                    {lesson.summary?.realWorldChallenge || 'Practice what you learned today in a real situation!'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Next Topic */}
         <div className="bg-white/5 backdrop-blur border border-white/10 rounded-3xl p-8 mb-8">

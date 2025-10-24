@@ -9,6 +9,7 @@ import ProgressBar from './progress/ProgressBar';
 import StatusBadge from './progress/StatusBadge';
 import ProgressStats from './progress/ProgressStats';
 import CelebrationAnimation from './progress/CelebrationAnimation';
+import ActiveChallengesSection from './ActiveChallengesSection';
 
 // Challenge Card Component
 const ChallengeCard = ({ challenge, onComplete, onSkip, onLogAttempt, darkMode }) => {
@@ -711,125 +712,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
         </div>
 
         {/* Active Challenges Section */}
-        <section className="mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <Target className="w-6 h-6 text-purple-400" />
-            <h2 className="text-2xl font-bold text-purple-400">
-              Your Active Challenges ({activeChallenges?.length || 0})
-            </h2>
-          </div>
-          
-          
-          {loadingChallenges ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {[1, 2].map(i => (
-                <div key={i} className="p-6 bg-gray-800 rounded-xl border border-gray-700 animate-pulse">
-                  <div className="h-4 bg-gray-700 rounded mb-3"></div>
-                  <div className="h-3 bg-gray-700 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-700 rounded mb-4"></div>
-                  <div className="flex gap-2">
-                    <div className="h-8 bg-gray-700 rounded w-24"></div>
-                    <div className="h-8 bg-gray-700 rounded w-20"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : !activeChallenges || activeChallenges.length === 0 ? (
-            <div className="p-8 bg-gray-800 rounded-xl border border-gray-700 text-center">
-              <Target className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">No Active Challenges</h3>
-              <p className="text-gray-400">Complete a lesson to get your first real-world challenge!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {activeChallenges.slice(0, 4).map(challenge => (
-                <div key={challenge.id || challenge.challengeId} className="p-6 bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-xl border border-purple-500/30 hover:border-purple-400/50 transition-all duration-300">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                        <Target className="w-5 h-5 text-purple-400" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-purple-300 text-sm uppercase tracking-wide">
-                          {challenge.lessonTopic}
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs text-gray-400">
-                            {challenge.timeframe}
-                          </p>
-                          {challenge.attemptCount > 0 && (
-                            <span className="text-xs font-bold px-2 py-1 rounded-full bg-blue-500/20 text-blue-500">
-                              {challenge.attemptCount} {challenge.attemptCount === 1 ? 'attempt' : 'attempts'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <p className="text-gray-200 mb-6 leading-relaxed">
-                    {challenge.challengeText}
-                  </p>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setLoggingAttempt(challenge.id || challenge.challengeId)}
-                      className={`flex-1 font-bold py-3 px-6 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
-                        darkMode 
-                          ? 'border-white/20 text-white hover:bg-white/10'
-                          : 'border-gray-300 text-gray-900 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Target className="w-5 h-5" />
-                      I Tried This
-                    </button>
-                    <button
-                      onClick={() => setCompletingChallenge(challenge.id || challenge.challengeId)}
-                      className="flex-1 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-3 px-6 rounded-xl hover:shadow-lg hover:shadow-blue-500/50 transition-all flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle className="w-5 h-5" />
-                      Mark as Complete
-                    </button>
-                    {challenge.tips && challenge.tips.length > 0 && (
-                      <button
-                        onClick={() => setShowTips(challenge.id || challenge.challengeId)}
-                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Tips
-                      </button>
-                    )}
-                  </div>
-                  
-                  {showTips === (challenge.id || challenge.challengeId) && challenge.tips && (
-                    <div className="mt-4 p-4 bg-gray-800/50 rounded-lg border border-gray-600">
-                      <h4 className="font-medium text-gray-300 mb-2 flex items-center gap-2">
-                        <HelpCircle className="w-4 h-4" />
-                        Tips for Success
-                      </h4>
-                      <ul className="space-y-1">
-                        {challenge.tips.map((tip, idx) => (
-                          <li key={idx} className="text-sm text-gray-400 flex items-start gap-2">
-                            <span className="text-purple-400 mt-1">•</span>
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {activeChallenges.length > 4 && (
-                <div className="col-span-full text-center">
-                  <button className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium transition-colors duration-200">
-                    View All Challenges ({activeChallenges.length})
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        <ActiveChallengesSection darkMode={darkMode} />
         
         {/* Original Conditional Section (commented out for debugging) */}
         {/* {activeChallenges.length > 0 && (

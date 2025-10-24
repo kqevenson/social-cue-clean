@@ -344,6 +344,7 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         lesson={lesson}
         pointsEarned={pointsEarned}
         onComplete={handleCompleteLesson}
+        sessionId={sessionId}
       />
     );
   }
