@@ -5,6 +5,7 @@ import { getGradeRange } from './utils/helpers';
 import scenarios from './utils/scenarios';
 import SuccessAnimation from './animations/SuccessAnimation';
 import LoadingSpinner from './animations/LoadingSpinner';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   const [currentSituation, setCurrentSituation] = useState(0);
@@ -216,7 +217,19 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
       
       // Navigate to progress screen after a short delay to show completion
-      setTimeout(() => {
+      setTimeout(async () => {
+        // Save completion date to Firebase
+        try {
+          const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
+          const userRef = doc(getFirestore(), 'users', userId);
+          await updateDoc(userRef, {
+            lastPracticeDate: new Date().toISOString(),
+            totalSessions: userData.totalSessions
+          });
+        } catch (error) {
+          console.log('Could not save to Firebase:', error);
+        }
+        
         if (onNavigate) {
           onNavigate('progress');
         }
