@@ -44,6 +44,7 @@ function App() {
         role: data.role || 'learner',
         email: data.email || '',
         accountType: data.accountType || 'guest',
+        childId: data.childId || null, // Add childId for parents
         streak: 0,
         totalSessions: 0,
         totalPoints: 0,

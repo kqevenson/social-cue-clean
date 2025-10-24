@@ -710,8 +710,8 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
           </p>
         </div>
 
-        {/* Active Challenges Section - FORCED FOR DEBUGGING */}
-        <section className="mb-8 border-2 border-red-500 p-4">
+        {/* Active Challenges Section */}
+        <section className="mb-8">
           <div className="flex items-center gap-3 mb-6">
             <Target className="w-6 h-6 text-purple-400" />
             <h2 className="text-2xl font-bold text-purple-400">

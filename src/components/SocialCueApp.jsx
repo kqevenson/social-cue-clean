@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Target, TrendingUp, Settings, BookOpen } from 'lucide-react';
+import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3 } from 'lucide-react';
 import { getUserData, saveUserData } from './socialcue/utils/storage';
 import { lessonApiService } from '../services/lessonApi';
 import HomeScreen from './socialcue/HomeScreen';
 import PracticeScreen from './socialcue/PracticeScreen';
 import ProgressScreen from './socialcue/ProgressScreen';
 import SettingsScreen from './socialcue/SettingsScreen';
+import ParentDashboard from './socialcue/ParentDashboard';
+import ParentChildOverview from './socialcue/ParentChildOverview';
 import PracticeSession from './socialcue/PracticeSession';
 import AILessonSession from './socialcue/AILessonSession';
 import AIPracticeSession from './AIPracticeSession';
@@ -20,11 +22,44 @@ function SocialCueApp({ onLogout }) {
   const [autoReadText, setAutoReadText] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [sessionId, setSessionId] = useState(1);
+  const [selectedChildId, setSelectedChildId] = useState(null);
+
+  // Role-based navigation items
+  const getNavigationItems = (userRole) => {
+    if (userRole === 'parent') {
+      // Parent sees simplified nav with parent-specific icons
+      return [
+        { id: 'home', label: 'My Child', icon: User },
+        { id: 'progress', label: 'Reports', icon: BarChart3 },
+        { id: 'settings', label: 'Settings', icon: Settings }
+      ];
+    } else {
+      // Learner sees full nav
+      return [
+        { id: 'home', label: 'Home', icon: Home },
+        { id: 'lessons', label: 'Lessons', icon: BookOpen },
+        { id: 'practice', label: 'Practice', icon: Target },
+        { id: 'progress', label: 'Progress', icon: TrendingUp },
+        { id: 'settings', label: 'Settings', icon: Settings }
+      ];
+    }
+  };
 
   useEffect(() => {
     const data = getUserData();
     console.log('SocialCueApp loaded userData:', data);
     setUserData(data);
+    
+    // Check if user needs adaptive learning initialization
+    if (data && data.userId) {
+      checkAndInitializeAdaptiveLearning(data.userId, data);
+    }
+    
+    // Load child selection for parents
+    const savedChildId = localStorage.getItem('selectedChildId');
+    if (savedChildId) {
+      setSelectedChildId(savedChildId);
+    }
     
     // Load preferences from localStorage
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -39,6 +74,67 @@ function SocialCueApp({ onLogout }) {
     const savedNotifications = localStorage.getItem('notifications');
     if (savedNotifications !== null) setNotifications(savedNotifications === 'true');
   }, []);
+
+  const checkAndInitializeAdaptiveLearning = async (userId, userData) => {
+    try {
+      console.log('🔍 Checking if user needs adaptive learning initialization:', userId);
+      
+      const response = await fetch(`http://localhost:3001/api/adaptive/check-init/${userId}`);
+      const result = await response.json();
+      
+      if (result.success && !result.isInitialized) {
+        console.log('⚠️ User needs initialization, running background setup...');
+        
+        // Initialize with default preferences
+        const defaultAnswers = {
+          learningGoal: 'confidence',
+          practiceFrequency: 'few-times-week',
+          pace: 'self-paced',
+          feedbackStyle: 'encouraging',
+          challengeLevel: 'moderate'
+        };
+        
+        await initializeAdaptiveLearning(userId, userData, defaultAnswers);
+      } else {
+        console.log('✅ User is already initialized');
+      }
+    } catch (error) {
+      console.error('❌ Error checking initialization status:', error);
+      // Don't show error to user - this is background initialization
+    }
+  };
+
+  const initializeAdaptiveLearning = async (userId, userData, answers) => {
+    try {
+      console.log('🚀 Running background initialization for user:', userId);
+      
+      const response = await fetch('http://localhost:3001/api/adaptive/init', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          userData: {
+            name: userData.userName || userData.name,
+            gradeLevel: userData.gradeLevel || userData.grade || '5'
+          },
+          onboardingAnswers: answers
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to initialize adaptive learning');
+      }
+
+      const result = await response.json();
+      console.log('✅ Background initialization completed:', result);
+      
+    } catch (error) {
+      console.error('❌ Error in background initialization:', error);
+      // Don't throw error - let user continue
+    }
+  };
 
   const toggleDarkMode = (value) => {
     setDarkMode(value);
@@ -61,6 +157,7 @@ function SocialCueApp({ onLogout }) {
   };
 
   const handleNavigate = (screen, sid) => {
+    console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
     setCurrentScreen(screen);
     if (sid) {
       setSessionId(sid);
@@ -89,29 +186,33 @@ function SocialCueApp({ onLogout }) {
     }
   };
 
-  const navItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'lessons', label: 'Lessons', icon: BookOpen },
-    { id: 'practice', label: 'Practice', icon: Target },
-    { id: 'progress', label: 'Progress', icon: TrendingUp },
-    { id: 'settings', label: 'Settings', icon: Settings }
-  ];
+  const navItems = getNavigationItems(userData?.role);
 
   if (!userData) return null;
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="overflow-y-auto" style={{ height: 'calc(100vh - 80px)' }}>
+        {/* Home screen - different for parents vs learners */}
         {currentScreen === 'home' && (
-          <HomeScreen 
-            userData={userData} 
-            onNavigate={handleNavigate} 
-            darkMode={darkMode} 
-            soundEffects={soundEffects}
-          />
+          userData?.role === 'parent' ? (
+            <ParentChildOverview 
+              childUserId={userData.childId || selectedChildId || 'test-user-123'}
+              darkMode={darkMode}
+              onNavigate={handleNavigate}
+            />
+          ) : (
+            <HomeScreen 
+              userData={userData} 
+              onNavigate={handleNavigate} 
+              darkMode={darkMode} 
+              soundEffects={soundEffects}
+            />
+          )
         )}
         
-        {currentScreen === 'lessons' && (
+        {/* Lessons - only for learners */}
+        {currentScreen === 'lessons' && userData?.role !== 'parent' && (
           <LessonsScreen 
             userData={userData} 
             onNavigate={handleNavigate} 
@@ -119,10 +220,21 @@ function SocialCueApp({ onLogout }) {
           />
         )}
         
-        {currentScreen === 'practice' && sessionId && (
+        {/* Practice Session - only for learners */}
+        {currentScreen === 'practice' && sessionId && userData?.role !== 'parent' && (
           <PracticeSession 
             sessionId={sessionId} 
-            onNavigate={handleNavigate} 
+            onNavigate={handleNavigate}
+            onComplete={(data) => {
+              console.log('Session completed!', data);
+              handleNavigate('progress');
+              setSessionId(null);
+            }}
+            onExit={() => {
+              console.log('Session exited');
+              handleNavigate('home');
+              setSessionId(null);
+            }}
             darkMode={darkMode} 
             gradeLevel={userData.grade || "5"} 
             soundEffects={soundEffects}
@@ -131,7 +243,8 @@ function SocialCueApp({ onLogout }) {
           />
         )}
         
-        {currentScreen === 'practiceHome' && (
+        {/* Practice Home - only for learners */}
+        {currentScreen === 'practiceHome' && userData?.role !== 'parent' && (
           <PracticeScreen 
             onNavigate={handleNavigate} 
             darkMode={darkMode} 
@@ -146,11 +259,19 @@ function SocialCueApp({ onLogout }) {
           />
         )}
         
+        {/* Progress - different for parents vs learners */}
         {currentScreen === 'progress' && (
-          <ProgressScreen 
-            userData={userData} 
-            darkMode={darkMode} 
-          />
+          userData?.role === 'parent' ? (
+            <ParentDashboard 
+              childUserId={userData.childId || selectedChildId || 'test-user-123'}
+              darkMode={darkMode}
+            />
+          ) : (
+            <ProgressScreen 
+              userData={userData} 
+              darkMode={darkMode} 
+            />
+          )
         )}
         
         {currentScreen === 'settings' && (
@@ -165,6 +286,21 @@ function SocialCueApp({ onLogout }) {
             notifications={notifications}
             onToggleNotifications={toggleNotifications}
             onLogout={onLogout}
+            onNavigate={handleNavigate}
+          />
+        )}
+        
+        {currentScreen === 'learning-preferences' && (
+          <LearningPreferencesScreen 
+            onNavigate={handleNavigate}
+            darkMode={darkMode}
+          />
+        )}
+
+        {currentScreen === 'parent-dashboard' && (
+          <ParentDashboard 
+            childUserId={selectedChildId || 'test-user-123'}
+            darkMode={darkMode}
           />
         )}
       </div>

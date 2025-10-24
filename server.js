@@ -5,7 +5,8 @@ import bodyParser from 'body-parser';
 import Anthropic from '@anthropic-ai/sdk';
 import { getTemplate, getDisplayName } from './promptTemplates.js';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
+import adaptiveLearningRoutes from './adaptive-learning-routes.js';
 
 dotenv.config();
 
@@ -37,6 +38,44 @@ const anthropic = new Anthropic({
 // Test endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Server is running!', timestamp: new Date() });
+});
+
+// Firebase connection test endpoint
+app.get('/api/test-firebase', async (req, res) => {
+  try {
+    console.log('🔥 Testing Firebase connection...');
+    
+    // Test basic Firestore connection
+    const testDoc = doc(db, 'test', 'connection');
+    await setDoc(testDoc, { 
+      timestamp: serverTimestamp(),
+      message: 'Firebase connection test',
+      status: 'success'
+    });
+    
+    console.log('✅ Firebase write test successful');
+    
+    // Test reading the document
+    const docSnap = await getDoc(testDoc);
+    if (docSnap.exists()) {
+      console.log('✅ Firebase read test successful');
+      res.json({ 
+        success: true, 
+        message: 'Firebase connection successful',
+        data: docSnap.data()
+      });
+    } else {
+      throw new Error('Document not found after write');
+    }
+    
+  } catch (error) {
+    console.error('❌ Firebase connection test failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Firebase connection failed',
+      details: error.message
+    });
+  }
 });
 
 // Lesson caching functions
@@ -992,8 +1031,483 @@ Make the feedback feel natural, personalized, and encouraging for a ${guidelines
   }
 });
 
+// Adaptive Learning Initialization API
+app.post('/api/adaptive/init', async (req, res) => {
+  try {
+    const { userId, userData, onboardingAnswers } = req.body;
+    
+    console.log(`🚀 Initializing adaptive learning for user: ${userId}`);
+    console.log('👤 User data:', userData);
+    console.log('📝 Onboarding answers:', onboardingAnswers);
+    
+    // Validate required fields
+    if (!userId || !userData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: userId and userData'
+      });
+    }
+    
+    const { name, gradeLevel } = userData;
+    if (!name || !gradeLevel) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required user data: name and gradeLevel'
+      });
+    }
+    
+    // Initialize learner profile
+    const learnerProfile = {
+      userId: userId,
+      name: name,
+      gradeLevel: gradeLevel,
+      totalPoints: 0,
+      streak: 0,
+      totalSessions: 0,
+      currentLevel: 1,
+      badges: [],
+      strengths: [],
+      needsWork: [],
+      createdAt: serverTimestamp(),
+      lastActive: serverTimestamp(),
+      isInitialized: true
+    };
+    
+    // Set default learning preferences based on onboarding answers
+    const defaultPreferences = {
+      learningPace: onboardingAnswers?.pace || 'self-paced',
+      feedbackStyle: onboardingAnswers?.feedbackStyle || 'encouraging',
+      challengeLevel: onboardingAnswers?.challengeLevel || 'moderate',
+      practiceFrequency: onboardingAnswers?.practiceFrequency || 'few-times-week'
+    };
+    
+    // Initialize all topics with difficulty level 1
+    const topics = [
+      'Small Talk Basics',
+      'Active Listening', 
+      'Reading Body Language',
+      'Building Confidence',
+      'Conflict Resolution',
+      'Teamwork',
+      'Empathy',
+      'Assertiveness'
+    ];
+    
+    const topicMastery = topics.map(topic => ({
+      userId: userId,
+      topicId: topic.toLowerCase().replace(/\s+/g, '-'),
+      topicName: topic,
+      difficultyLevel: 1,
+      masteryLevel: 0,
+      accuracy: 0,
+      timeSpent: 0,
+      sessionsCompleted: 0,
+      lastPracticed: null,
+      isCompleted: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }));
+    
+    // Save to Firebase
+    const batch = writeBatch(db);
+    
+    // Save learner profile
+    const learnerRef = doc(db, 'learner_profiles', userId);
+    batch.set(learnerRef, learnerProfile);
+    
+    // Save learning preferences
+    const preferencesRef = doc(db, 'learner_preferences', userId);
+    batch.set(preferencesRef, {
+      ...defaultPreferences,
+      userId: userId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    // Save topic mastery for each topic
+    topicMastery.forEach(topic => {
+      const topicRef = doc(db, 'topic_mastery', `${userId}_${topic.topicId}`);
+      batch.set(topicRef, topic);
+    });
+    
+    // Commit the batch
+    await batch.commit();
+    
+    console.log(`✅ Adaptive learning initialized successfully for user: ${userId}`);
+    console.log(`📊 Created profile, preferences, and ${topics.length} topic mastery records`);
+    
+    res.json({
+      success: true,
+      message: 'Adaptive learning system initialized successfully',
+      data: {
+        learnerProfile: learnerProfile,
+        preferences: defaultPreferences,
+        topicsInitialized: topics.length,
+        topics: topics
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error initializing adaptive learning:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to initialize adaptive learning system',
+      details: error.message
+    });
+  }
+});
+
+// Check if user needs initialization
+app.get('/api/adaptive/check-init/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`🔍 Checking initialization status for user: ${userId}`);
+    
+    // Check if learner profile exists
+    const learnerRef = doc(db, 'learner_profiles', userId);
+    const learnerSnap = await getDoc(learnerRef);
+    
+    if (learnerSnap.exists()) {
+      const learnerData = learnerSnap.data();
+      console.log(`✅ User ${userId} is already initialized`);
+      
+      res.json({
+        success: true,
+        isInitialized: true,
+        learnerProfile: learnerData
+      });
+    } else {
+      console.log(`⚠️ User ${userId} needs initialization`);
+      
+      res.json({
+        success: true,
+        isInitialized: false,
+        message: 'User needs adaptive learning initialization'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error checking initialization status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check initialization status',
+      details: error.message
+    });
+  }
+});
+
+// Parent Analytics API
+app.get('/api/adaptive/analytics/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`📊 Getting analytics for child: ${userId}`);
+    
+    // Get learner profile
+    const learnerRef = doc(db, 'learner_profiles', userId);
+    const learnerSnap = await getDoc(learnerRef);
+    
+    if (!learnerSnap.exists()) {
+      return res.status(404).json({
+        success: false,
+        error: 'Child profile not found'
+      });
+    }
+    
+    const learnerProfile = learnerSnap.data();
+    
+    // Get topic mastery data
+    const topicMasteryQuery = query(
+      collection(db, 'topic_mastery'),
+      where('userId', '==', userId)
+    );
+    const topicMasterySnap = await getDocs(topicMasteryQuery);
+    
+    const topicMastery = topicMasterySnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Get session history (last 30 days) - simplified query
+    const sessionQuery = query(
+      collection(db, 'session_history'),
+      where('learnerId', '==', userId)
+    );
+    const sessionSnap = await getDocs(sessionQuery);
+    
+    const allSessions = sessionSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Filter sessions from last 30 days in JavaScript
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentSessions = allSessions.filter(session => {
+      if (!session.completedAt) return false;
+      const sessionDate = new Date(session.completedAt.seconds * 1000);
+      return sessionDate >= thirtyDaysAgo;
+    });
+    
+    // Get real-world challenges
+    const challengesQuery = query(
+      collection(db, 'real_world_challenges'),
+      where('userId', '==', userId)
+    );
+    const challengesSnap = await getDocs(challengesQuery);
+    
+    const challenges = challengesSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Calculate analytics
+    const totalTopics = topicMastery.length;
+    const masteredTopics = topicMastery.filter(topic => topic.masteryLevel >= 80).length;
+    const inProgressTopics = topicMastery.filter(topic => topic.masteryLevel > 0 && topic.masteryLevel < 80).length;
+    const notStartedTopics = topicMastery.filter(topic => topic.masteryLevel === 0).length;
+    
+    const totalTimeSpent = topicMastery.reduce((sum, topic) => sum + (topic.timeSpent || 0), 0);
+    const totalSessions = recentSessions.length;
+    const averageAccuracy = recentSessions.length > 0 
+      ? recentSessions.reduce((sum, session) => sum + (session.score || 0), 0) / recentSessions.length
+      : 0;
+    
+    const completedChallenges = challenges.filter(challenge => challenge.status === 'completed').length;
+    const activeChallenges = challenges.filter(challenge => challenge.status === 'active').length;
+    
+    // Calculate practice frequency
+    const practiceDays = new Set(recentSessions.map(session => 
+      new Date(session.completedAt?.seconds * 1000).toDateString()
+    )).size;
+    
+    const practiceFrequency = practiceDays > 0 ? Math.round((practiceDays / 30) * 100) : 0;
+    
+    // Get strengths and growth areas
+    const strengths = topicMastery
+      .filter(topic => topic.masteryLevel >= 70)
+      .map(topic => topic.topicName)
+      .slice(0, 3);
+    
+    const growthAreas = topicMastery
+      .filter(topic => topic.masteryLevel < 50 && topic.masteryLevel > 0)
+      .map(topic => topic.topicName)
+      .slice(0, 3);
+    
+    // Recent activity timeline (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentActivity = recentSessions
+      .filter(session => session.completedAt?.seconds * 1000 >= sevenDaysAgo.getTime())
+      .map(session => ({
+        date: new Date(session.completedAt?.seconds * 1000).toISOString().split('T')[0],
+        topic: session.topicName,
+        score: session.score,
+        timeSpent: session.timeSpent,
+        type: 'practice_session'
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 10);
+    
+    // Add challenge completions to timeline
+    const recentChallengeCompletions = challenges
+      .filter(challenge => 
+        challenge.status === 'completed' && 
+        challenge.completedAt?.seconds * 1000 >= sevenDaysAgo.getTime()
+      )
+      .map(challenge => ({
+        date: new Date(challenge.completedAt?.seconds * 1000).toISOString().split('T')[0],
+        topic: challenge.topicName,
+        title: challenge.title,
+        type: 'challenge_completed'
+      }));
+    
+    recentActivity.push(...recentChallengeCompletions);
+    recentActivity.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const analytics = {
+      learnerProfile: {
+        name: learnerProfile.name,
+        gradeLevel: learnerProfile.gradeLevel,
+        totalPoints: learnerProfile.totalPoints,
+        streak: learnerProfile.streak,
+        currentLevel: learnerProfile.currentLevel,
+        badges: learnerProfile.badges || []
+      },
+      progressSummary: {
+        totalTopics,
+        masteredTopics,
+        inProgressTopics,
+        notStartedTopics,
+        masteryPercentage: totalTopics > 0 ? Math.round((masteredTopics / totalTopics) * 100) : 0
+      },
+      learningStats: {
+        totalTimeSpent: Math.round(totalTimeSpent / 60), // Convert to hours
+        totalSessions,
+        averageAccuracy: Math.round(averageAccuracy),
+        practiceFrequency,
+        completedChallenges,
+        activeChallenges
+      },
+      strengths,
+      growthAreas,
+      recentActivity: recentActivity.slice(0, 10),
+      topicMastery: topicMastery.map(topic => ({
+        topicName: topic.topicName,
+        masteryLevel: topic.masteryLevel,
+        difficultyLevel: topic.difficultyLevel,
+        accuracy: topic.accuracy,
+        timeSpent: topic.timeSpent,
+        sessionsCompleted: topic.sessionsCompleted,
+        lastPracticed: topic.lastPracticed,
+        isCompleted: topic.isCompleted
+      }))
+    };
+    
+    console.log(`✅ Analytics generated for child: ${userId}`);
+    console.log(`📈 Progress: ${masteredTopics}/${totalTopics} topics mastered`);
+    console.log(`⏱️ Time spent: ${analytics.learningStats.totalTimeSpent} hours`);
+    console.log(`🎯 Average accuracy: ${analytics.learningStats.averageAccuracy}%`);
+    
+    res.json({
+      success: true,
+      analytics: analytics
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get analytics',
+      details: error.message
+    });
+  }
+});
+
+// Learning Preferences API
+app.put('/api/adaptive/preferences/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const preferences = req.body;
+    
+    console.log(`⚙️ Saving preferences for user: ${userId}`);
+    console.log('📋 Preferences:', preferences);
+    
+    // Validate preferences
+    const validLearningPaces = ['self-paced', 'guided', 'accelerated'];
+    const validFeedbackStyles = ['encouraging', 'direct', 'detailed'];
+    const validChallengeLevels = ['gradual', 'moderate', 'aggressive'];
+    const validFrequencies = ['daily', 'few-times-week', 'weekly'];
+    
+    if (!validLearningPaces.includes(preferences.learningPace)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid learning pace'
+      });
+    }
+    
+    if (!validFeedbackStyles.includes(preferences.feedbackStyle)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid feedback style'
+      });
+    }
+    
+    if (!validChallengeLevels.includes(preferences.challengeLevel)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challenge level'
+      });
+    }
+    
+    if (!validFrequencies.includes(preferences.practiceFrequency)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid practice frequency'
+      });
+    }
+    
+    // Save to Firebase
+    const preferencesRef = doc(db, 'learner_preferences', userId);
+    await setDoc(preferencesRef, {
+      ...preferences,
+      updatedAt: serverTimestamp(),
+      userId: userId
+    }, { merge: true });
+    
+    console.log(`✅ Preferences saved successfully for user: ${userId}`);
+    
+    res.json({
+      success: true,
+      message: 'Preferences saved successfully',
+      preferences: preferences
+    });
+    
+  } catch (error) {
+    console.error('❌ Error saving preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save preferences',
+      details: error.message
+    });
+  }
+});
+
+// Get Learning Preferences API
+app.get('/api/adaptive/preferences/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`📋 Getting preferences for user: ${userId}`);
+    
+    const preferencesRef = doc(db, 'learner_preferences', userId);
+    const preferencesSnap = await getDoc(preferencesRef);
+    
+    if (preferencesSnap.exists()) {
+      const preferences = preferencesSnap.data();
+      console.log(`✅ Preferences found for user: ${userId}`);
+      
+      res.json({
+        success: true,
+        preferences: preferences
+      });
+    } else {
+      console.log(`ℹ️ No preferences found for user: ${userId}, returning defaults`);
+      
+      // Return default preferences
+      const defaultPreferences = {
+        learningPace: 'self-paced',
+        feedbackStyle: 'encouraging',
+        challengeLevel: 'moderate',
+        practiceFrequency: 'few-times-week'
+      };
+      
+      res.json({
+        success: true,
+        preferences: defaultPreferences,
+        isDefault: true
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error getting preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get preferences',
+      details: error.message
+    });
+  }
+});
+
+// Mount adaptive learning routes
+app.use('/api/adaptive', adaptiveLearningRoutes);
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🧠 Adaptive Learning API: http://localhost:${PORT}/api/adaptive`);
 });

@@ -45,11 +45,17 @@ export default function AIPracticeSession({ category, gradeLevel, onComplete }) 
         confidenceLevel: 'building'
       };
       
-      const aiFeedback = await apiService.getPersonalizedFeedback(
-        scenarios[currentQuestionIndex].options[index].text,
-        scenarios[currentQuestionIndex].context,
-        userHistory
-      );
+      const aiFeedback = await apiService.generatePersonalizedFeedback({
+        scenarioContext: scenarios[currentQuestionIndex].context,
+        question: scenarios[currentQuestionIndex].question,
+        studentChoice: scenarios[currentQuestionIndex].options[index].text,
+        correctAnswer: scenarios[currentQuestionIndex].options.find(opt => opt.quality === 'excellent')?.text,
+        choiceQuality: scenarios[currentQuestionIndex].options[index].quality,
+        gradeLevel: gradeLevel,
+        studentStrengths: [],
+        studentWeaknesses: [],
+        previousPerformance: userHistory
+      });
       
       setFeedback(aiFeedback);
     } catch (err) {
@@ -68,7 +74,12 @@ export default function AIPracticeSession({ category, gradeLevel, onComplete }) 
     } else {
       // All questions completed
       console.log(`🎉 Practice session completed! All ${scenarios.length} questions finished.`);
-      onComplete?.();
+      // Call onComplete to navigate back to home
+      if (onComplete) {
+        onComplete();
+      } else {
+        console.warn('onComplete prop not provided to AIPracticeSession');
+      }
     }
   };
 
@@ -137,7 +148,14 @@ export default function AIPracticeSession({ category, gradeLevel, onComplete }) 
               Practice Again
             </button>
             <button
-              onClick={() => onComplete?.()}
+              onClick={() => {
+                console.log('🏠 Back to Home button clicked!');
+                if (onComplete) {
+                  onComplete();
+                } else {
+                  console.warn('onComplete prop not provided');
+                }
+              }}
               className="w-full bg-white/10 text-white font-bold py-4 px-6 rounded-full hover:bg-white/20 transition-colors"
             >
               Back to Home
@@ -229,7 +247,15 @@ export default function AIPracticeSession({ category, gradeLevel, onComplete }) 
             )}
 
             <button
-              onClick={nextQuestion}
+              onClick={() => {
+                console.log('🎯 Finish Practice button clicked!', {
+                  currentQuestionIndex,
+                  totalScenarios: scenarios.length,
+                  isLastQuestion: currentQuestionIndex >= scenarios.length - 1,
+                  onComplete: !!onComplete
+                });
+                nextQuestion();
+              }}
               className="w-full mt-6 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-full flex items-center justify-center gap-2 hover:shadow-lg transition-all"
             >
               {currentQuestionIndex < scenarios.length - 1 ? 'Next Question' : 'Finish Practice'}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, AlertCircle } from 'lucide-react';
+import { ArrowRight, AlertCircle, Target, Clock, Heart, Zap } from 'lucide-react';
 import ErrorToast from './ErrorToast';
+import QuickTutorialModal from './socialcue/QuickTutorialModal';
 
 function OnboardingScreen({ onComplete }) {
   const [step, setStep] = useState(1);
@@ -11,10 +12,22 @@ function OnboardingScreen({ onComplete }) {
     email: '',
     password: ''
   });
+  const [onboardingAnswers, setOnboardingAnswers] = useState({
+    learningGoal: '',
+    practiceFrequency: '',
+    pace: '',
+    feedbackStyle: '',
+    challengeLevel: ''
+  });
   const [isVisible, setIsVisible] = useState(false);
   const [errors, setErrors] = useState({});
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [childUserId, setChildUserId] = useState('');
+  const [childConnectionError, setChildConnectionError] = useState('');
+  const [verifyingChild, setVerifyingChild] = useState(false);
 
   useEffect(() => {
     setIsVisible(false);
@@ -128,6 +141,7 @@ function OnboardingScreen({ onComplete }) {
     if (roleId === 'learner') {
       setStep(2);
     } else {
+      // Parents skip grade selection and go directly to name
       setStep(3);
     }
   };
@@ -140,26 +154,10 @@ function OnboardingScreen({ onComplete }) {
 
   const handleNameSubmit = () => {
     if (validateStep(2)) {
-      setStep(4);
-    } else {
-      setErrorMessage('Please fix the errors above');
-      setShowErrorToast(true);
-    }
-  };
-
-  const handleSignUp = () => {
-    if (validateStep(4)) {
-      try {
-        const finalData = { 
-          ...userData, 
-          gradeLevel: userData.gradeLevel || 'adult',
-          accountType: 'registered'
-        };
-        onComplete(finalData);
-      } catch (error) {
-        console.error('Error completing signup:', error);
-        setErrorMessage('Failed to complete signup. Please try again.');
-        setShowErrorToast(true);
+      if (userData.role === 'learner') {
+        setStep(4); // Go to learning goal for learners
+      } else {
+        setStep(4); // Go to child connection for parents
       }
     } else {
       setErrorMessage('Please fix the errors above');
@@ -167,13 +165,121 @@ function OnboardingScreen({ onComplete }) {
     }
   };
 
-  const handleGuestContinue = () => {
-    const finalData = { 
-      ...userData, 
-      gradeLevel: userData.gradeLevel || 'adult',
-      accountType: 'guest'
-    };
-    onComplete(finalData);
+  const handleChildConnection = async () => {
+    if (!childUserId.trim()) {
+      setChildConnectionError('Please enter a User ID');
+      return;
+    }
+
+    setVerifyingChild(true);
+    setChildConnectionError('');
+
+    try {
+      // For demo purposes, accept any user ID
+      // In production, you would verify against Firebase
+      if (childUserId.length < 3) {
+        setChildConnectionError('Please enter a valid User ID');
+        setVerifyingChild(false);
+        return;
+      }
+
+      // Success - store child ID and proceed to sign up
+      setUserData({ ...userData, childId: childUserId });
+      setStep(7); // Go to sign up step
+      
+    } catch (error) {
+      console.error('Error verifying child:', error);
+      setChildConnectionError('Something went wrong. Please try again.');
+      setVerifyingChild(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (validateStep(4)) {
+      setIsInitializing(true);
+      try {
+        const userId = `user_${Date.now()}`;
+        const finalData = { 
+          ...userData, 
+          gradeLevel: userData.gradeLevel || 'adult',
+          accountType: 'registered',
+          userId: userId
+        };
+
+        // Initialize adaptive learning system
+        await initializeAdaptiveLearning(userId, finalData, onboardingAnswers);
+        
+        onComplete(finalData);
+      } catch (error) {
+        console.error('Error completing signup:', error);
+        setErrorMessage('Failed to complete signup. Please try again.');
+        setShowErrorToast(true);
+      } finally {
+        setIsInitializing(false);
+      }
+    } else {
+      setErrorMessage('Please fix the errors above');
+      setShowErrorToast(true);
+    }
+  };
+
+  const handleGuestContinue = async () => {
+    setIsInitializing(true);
+    try {
+      const userId = `guest_${Date.now()}`;
+      const finalData = { 
+        ...userData, 
+        gradeLevel: userData.gradeLevel || 'adult',
+        accountType: 'guest',
+        userId: userId
+      };
+
+      // Initialize adaptive learning system for guest users too
+      await initializeAdaptiveLearning(userId, finalData, onboardingAnswers);
+      
+      onComplete(finalData);
+    } catch (error) {
+      console.error('Error completing guest signup:', error);
+      setErrorMessage('Failed to complete setup. Please try again.');
+      setShowErrorToast(true);
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  const initializeAdaptiveLearning = async (userId, userData, answers) => {
+    try {
+      console.log('🚀 Initializing adaptive learning for user:', userId);
+      
+      const response = await fetch('http://localhost:3001/api/adaptive/init', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          userData: {
+            name: userData.name,
+            gradeLevel: userData.gradeLevel
+          },
+          onboardingAnswers: answers
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to initialize adaptive learning');
+      }
+
+      const result = await response.json();
+      console.log('✅ Adaptive learning initialized:', result);
+      
+      // Store user ID for future use
+      localStorage.setItem('userId', userId);
+      
+    } catch (error) {
+      console.error('❌ Error initializing adaptive learning:', error);
+      // Don't throw error - let user continue even if initialization fails
+    }
   };
 
   return (
@@ -194,7 +300,7 @@ function OnboardingScreen({ onComplete }) {
       >
         {/* Progress Indicator */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {[1, 2, 3, 4].map((num) => (
+          {[1, 2, 3, 4, 5, 6].map((num) => (
             <div 
               key={num}
               className={`h-2 rounded-full transition-all duration-300 ${
@@ -334,8 +440,191 @@ function OnboardingScreen({ onComplete }) {
             </div>
           )}
 
-          {/* Step 4: Sign Up or Guest */}
+          {/* Step 4: Learning Goal */}
           {step === 4 && (
+            userData.role === 'parent' ? (
+              // Parent: Child Connection Step
+              <div>
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl md:text-4xl font-bold mb-3">Connect to Your Child</h2>
+                  <p className="text-gray-400 text-lg">Enter your child's User ID to view their progress</p>
+                </div>
+
+                <div className="backdrop-blur-xl border rounded-2xl p-6 bg-white/5 border-white/20">
+                  <label className="block text-sm font-bold mb-2 text-gray-300">
+                    Child's User ID
+                  </label>
+                  <input
+                    type="text"
+                    value={childUserId}
+                    onChange={(e) => setChildUserId(e.target.value)}
+                    placeholder="test-user-123"
+                    className="w-full px-4 py-3 rounded-xl border border-white/20 bg-black/40 text-white focus:border-blue-500 transition-colors"
+                  />
+                  <p className="text-xs mt-2 text-gray-500">
+                    Your child can find their User ID in Settings → Account Info
+                  </p>
+
+                  {childConnectionError && (
+                    <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm">
+                      {childConnectionError}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleChildConnection}
+                    disabled={verifyingChild}
+                    className={`w-full mt-6 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-xl transition-all ${
+                      verifyingChild ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg'
+                    }`}
+                  >
+                    {verifyingChild ? 'Verifying...' : 'Connect & Continue'}
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setStep(3)}
+                  className="mt-6 text-gray-400 hover:text-white transition-colors"
+                >
+                  ← Back
+                </button>
+              </div>
+            ) : (
+              // Learner: Learning Goal Step
+              <div>
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl md:text-4xl font-bold mb-3">What's your learning goal?</h2>
+                  <p className="text-gray-400 text-lg">This helps us personalize your experience</p>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { id: 'make-friends', label: 'Make New Friends', description: 'Learn to start conversations and build friendships' },
+                    { id: 'confidence', label: 'Build Confidence', description: 'Feel more comfortable in social situations' },
+                    { id: 'communication', label: 'Better Communication', description: 'Express yourself clearly and listen well' },
+                    { id: 'teamwork', label: 'Teamwork Skills', description: 'Work better with others in groups' }
+                  ].map((goal) => (
+                    <button
+                      key={goal.id}
+                      onClick={() => {
+                        setOnboardingAnswers({ ...onboardingAnswers, learningGoal: goal.id });
+                        setStep(5);
+                      }}
+                      className="w-full p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 hover:bg-white/10 transition-all text-left group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xl font-bold mb-1">{goal.label}</div>
+                          <div className="text-gray-400 text-sm">{goal.description}</div>
+                        </div>
+                        <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setStep(3)}
+                  className="mt-6 text-gray-400 hover:text-white transition-colors"
+                >
+                  ← Back
+                </button>
+              </div>
+            )
+          )}
+
+          {/* Step 5: Practice Frequency */}
+          {step === 5 && (
+            <div>
+              <div className="text-center mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold mb-3">How often do you want to practice?</h2>
+                <p className="text-gray-400 text-lg">We'll remind you based on your preference</p>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { id: 'daily', label: 'Daily', description: 'Practice every day for quick progress', icon: <Clock className="w-6 h-6" /> },
+                  { id: 'few-times-week', label: 'Few Times a Week', description: 'Practice 3-4 times per week', icon: <Target className="w-6 h-6" /> },
+                  { id: 'weekly', label: 'Weekly', description: 'Practice once per week', icon: <Heart className="w-6 h-6" /> }
+                ].map((freq) => (
+                  <button
+                    key={freq.id}
+                    onClick={() => {
+                      setOnboardingAnswers({ ...onboardingAnswers, practiceFrequency: freq.id });
+                      setStep(6);
+                    }}
+                    className="w-full p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-white/10 transition-all text-left group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-emerald-400">{freq.icon}</div>
+                        <div>
+                          <div className="text-xl font-bold mb-1">{freq.label}</div>
+                          <div className="text-gray-400 text-sm">{freq.description}</div>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setStep(4)}
+                className="mt-6 text-gray-400 hover:text-white transition-colors"
+              >
+                ← Back
+              </button>
+            </div>
+          )}
+
+          {/* Step 6: Learning Pace */}
+          {step === 6 && (
+            <div>
+              <div className="text-center mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold mb-3">Do you prefer gentle guidance or quick challenges?</h2>
+                <p className="text-gray-400 text-lg">This sets your learning pace</p>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { id: 'self-paced', label: 'Gentle Guidance', description: 'Take your time, build confidence slowly', icon: <Heart className="w-6 h-6" /> },
+                  { id: 'guided', label: 'Balanced Approach', description: 'Steady progress with support', icon: <Target className="w-6 h-6" /> },
+                  { id: 'accelerated', label: 'Quick Challenges', description: 'Fast-paced, push yourself hard', icon: <Zap className="w-6 h-6" /> }
+                ].map((pace) => (
+                  <button
+                    key={pace.id}
+                    onClick={() => {
+                      setOnboardingAnswers({ ...onboardingAnswers, pace: pace.id });
+                      setStep(7);
+                    }}
+                    className="w-full p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-white/10 transition-all text-left group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-purple-400">{pace.icon}</div>
+                        <div>
+                          <div className="text-xl font-bold mb-1">{pace.label}</div>
+                          <div className="text-gray-400 text-sm">{pace.description}</div>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setStep(5)}
+                className="mt-6 text-gray-400 hover:text-white transition-colors"
+              >
+                ← Back
+              </button>
+            </div>
+          )}
+
+          {/* Step 7: Sign Up or Guest */}
+          {step === 7 && (
             <div>
               <div className="text-center mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold mb-3">Almost there, {userData.name}!</h2>
@@ -362,11 +651,20 @@ function OnboardingScreen({ onComplete }) {
 
               <button
                 onClick={handleSignUp}
-                disabled={!userData.email.trim() || !userData.password.trim()}
+                disabled={!userData.email.trim() || !userData.password.trim() || isInitializing}
                 className="w-full bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-xl hover:shadow-lg hover:shadow-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4"
               >
-                Create Account
-                <ArrowRight className="w-5 h-5" />
+                {isInitializing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    Setting up your learning...
+                  </>
+                ) : (
+                  <>
+                    Create Account
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
               </button>
 
               <div className="relative my-6">
@@ -380,17 +678,36 @@ function OnboardingScreen({ onComplete }) {
 
               <button
                 onClick={handleGuestContinue}
-                className="w-full bg-white/5 border border-white/10 text-white font-semibold py-4 px-6 rounded-xl hover:bg-white/10 transition-all"
+                disabled={isInitializing}
+                className="w-full bg-white/5 border border-white/10 text-white font-semibold py-4 px-6 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Continue as Guest
+                {isInitializing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    Setting up your learning...
+                  </>
+                ) : (
+                  'Continue as Guest'
+                )}
               </button>
 
               <button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(userData.role === 'learner' ? 6 : 3)}
                 className="mt-6 text-gray-400 hover:text-white transition-colors"
               >
                 ← Back
               </button>
+
+              {userData.role === 'learner' && (
+                <div className="text-center mt-6">
+                  <button
+                    onClick={() => setShowTutorial(true)}
+                    className="text-blue-400 hover:text-blue-300 text-sm underline"
+                  >
+                    Take a quick tour of how adaptive learning works
+                  </button>
+                </div>
+              )}
 
               <p className="text-center text-gray-500 text-xs mt-6">
                 By continuing, you agree to our Terms of Service and Privacy Policy
@@ -441,6 +758,12 @@ function OnboardingScreen({ onComplete }) {
           duration={4000}
         />
       )}
+
+      <QuickTutorialModal 
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+        darkMode={true}
+      />
     </div>
   );
 }

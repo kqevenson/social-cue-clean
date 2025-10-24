@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader } from 'lucide-react';
 import { getSessionProgress } from './utils/storage';
 import { getLearnerProfile, getSessionStats, getAllTopicMastery, getLessonProgressStats } from '../../firebaseHelpers';
+import { DifficultyBadge } from './utils/difficultyLevels.jsx';
 
 function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
   // Debug: Log userData to see what we're getting
@@ -181,6 +182,59 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
           </div>
         </section>
 
+        {/* Parent Dashboard Access */}
+        {userData?.role === 'parent' && (
+          <section className="mb-8">
+            <div className={`backdrop-blur-xl border rounded-2xl p-6 ${
+              darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200'
+            }`}>
+              <div className="flex items-center gap-3 mb-4">
+                <Users className="w-6 h-6 text-blue-500" />
+                <h3 className="text-xl font-bold">Parent Dashboard</h3>
+              </div>
+              <p className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Monitor your child's learning progress and get insights to support their social skills development.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const savedChildId = localStorage.getItem('selectedChildId');
+                    if (savedChildId) {
+                      onNavigate('parent-dashboard');
+                    } else {
+                      const childId = prompt('Enter your child\'s user ID (or use test-user-123 for demo):');
+                      if (childId) {
+                        localStorage.setItem('selectedChildId', childId);
+                        onNavigate('parent-dashboard');
+                      }
+                    }
+                  }}
+                  className="bg-gradient-to-r from-blue-500 to-emerald-400 text-white px-6 py-3 rounded-full font-bold hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  View Progress Dashboard
+                </button>
+                <button
+                  onClick={() => {
+                    const childId = prompt('Enter your child\'s user ID (or use test-user-123 for demo):');
+                    if (childId) {
+                      localStorage.setItem('selectedChildId', childId);
+                      onNavigate('parent-dashboard');
+                    }
+                  }}
+                  className={`px-6 py-3 rounded-full font-bold border transition-all ${
+                    darkMode 
+                      ? 'border-white/20 text-white hover:bg-white/10' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Select Child
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="mb-8">
           <div className="grid grid-cols-3 gap-3">
             {firebaseData.isLoading ? (
@@ -266,7 +320,7 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
                 <div className="p-5 flex-1 flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <span className={`text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{session.category}</span>
-                    <span className="text-sm font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">{session.level}</span>
+                    <DifficultyBadge level={session.difficultyLevel || 1} darkMode={darkMode} size="xs" />
                   </div>
                   <div className="flex-1"></div>
                   <button onClick={() => onNavigate('practice', session.id)} className="w-full bg-blue-500 text-white font-bold py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-blue-600 transition-all text-sm mb-4">
