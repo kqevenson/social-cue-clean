@@ -147,7 +147,8 @@ function ProgressScreen({ userData, darkMode }) {
         console.error('❌ Error fetching mastery dashboard:', err);
         setError(err.message);
         
-        // Fallback data for demo purposes
+        // COMMENTED OUT: Fallback data with fake 2024 dates
+        /*
         setMasteryData({
           summary: {
             totalTopics: 8,
@@ -238,6 +239,7 @@ function ProgressScreen({ userData, darkMode }) {
             }
           ]
         });
+        */
       } finally {
         setLoading(false);
       }
