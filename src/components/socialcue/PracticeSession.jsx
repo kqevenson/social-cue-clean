@@ -17,6 +17,9 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   const [autoRead, setAutoRead] = useState(autoReadText);
   const [showCelebration, setShowCelebration] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionResponses, setSessionResponses] = useState([]);
+  const [aiEvaluation, setAiEvaluation] = useState(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   const gradeRange = getGradeRange(gradeLevel);
   const scenario = scenarios[sessionId] || scenarios[1];
@@ -46,6 +49,56 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       setOriginalCorrectIndex(correctIndex);
     }
   }, [currentSituation, situation]);
+
+  // AI Evaluation function
+  const evaluateResponse = async (scenario, userResponse, learnerContext) => {
+    try {
+      setIsEvaluating(true);
+      
+      const response = await fetch('/api/adaptive/evaluate-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: localStorage.getItem('userId') || 'guest_' + Date.now(),
+          scenario: {
+            id: scenario.id,
+            title: scenario.title,
+            context: scenario.context,
+            prompt: scenario.prompt,
+            options: scenario.options
+          },
+          userResponse: userResponse,
+          learnerContext: {
+            grade: gradeLevel,
+            topicId: sessionId,
+            topicName: scenario.title
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const evaluation = await response.json();
+      return evaluation;
+    } catch (error) {
+      console.error('Error evaluating response:', error);
+      // Return fallback evaluation if API fails
+      return {
+        score: 0.5,
+        feedback: "Unable to evaluate response at this time.",
+        comprehensionLevel: "basic",
+        strengths: [],
+        areasForImprovement: [],
+        personalizedFeedback: "Keep practicing! Every attempt helps you learn."
+      };
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
 
   // Sound effect functions
   const playSound = (type) => {
@@ -181,7 +234,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     return typeof content === 'object' ? content[gradeRange] : content;
   };
 
-  const handleOptionSelect = (optionIndex) => {
+  const handleOptionSelect = async (optionIndex) => {
     if (showFeedback) return;
     
     playSound('click');
@@ -190,6 +243,34 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     
     // Use shuffled options instead of original order
     const option = shuffledOptions[optionIndex];
+    const startTime = Date.now();
+    
+    // Get the user's response text
+    const userResponse = getContent(option.text);
+    
+    // Create learner context
+    const learnerContext = {
+      grade: gradeLevel,
+      topicId: sessionId,
+      topicName: getContent(scenario.title)
+    };
+    
+    // Evaluate response with AI
+    const evaluation = await evaluateResponse(situation, userResponse, learnerContext);
+    setAiEvaluation(evaluation);
+    
+    // Store response data
+    const responseData = {
+      scenarioId: situation.id,
+      scenarioText: getContent(situation.prompt),
+      userResponse: userResponse,
+      isCorrect: option.isGood,
+      responseTime: Date.now() - startTime,
+      aiEvaluation: evaluation
+    };
+    
+    setSessionResponses(prev => [...prev, responseData]);
+    
     if (option && option.isGood) {
       setTotalPoints(prev => prev + option.points);
       playSound('correct');
@@ -207,6 +288,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       setCurrentSituation(prev => prev + 1);
       setSelectedOption(null);
       setShowFeedback(false);
+      setAiEvaluation(null); // Clear AI evaluation for next question
     } else {
       // Session complete - navigate to progress screen
       setSessionComplete(true);
@@ -218,6 +300,39 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       
       // Navigate to progress screen after a short delay to show completion
       setTimeout(async () => {
+        // Send complete session data to backend
+        try {
+          const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
+          
+          // Send session completion data to adaptive learning API
+          const sessionData = {
+            userId: userId,
+            sessionId: sessionId,
+            topicId: sessionId,
+            topicName: getContent(scenario.title),
+            gradeLevel: gradeLevel,
+            responses: sessionResponses,
+            totalPoints: totalPoints,
+            finalScore: Math.round((totalPoints / (scenario.situations.length * 10)) * 100),
+            sessionDuration: Date.now() - (sessionResponses.length > 0 ? sessionResponses[0].responseTime : Date.now()),
+            completedAt: new Date().toISOString()
+          };
+
+          const response = await fetch('/api/adaptive/complete-session', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sessionData)
+          });
+
+          if (!response.ok) {
+            console.error('Failed to send session data to backend');
+          }
+        } catch (error) {
+          console.error('Error sending session data:', error);
+        }
+
         // Save completion date to Firebase
         try {
           const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
@@ -244,6 +359,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       setCurrentSituation(prev => prev - 1);
       setSelectedOption(null);
       setShowFeedback(false);
+      setAiEvaluation(null); // Clear AI evaluation when going back
     }
   };
 
@@ -431,6 +547,58 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                     <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
                       {getContent(shuffledOptions[selectedOption].proTip)}
                     </p>
+                  </div>
+                )}
+
+                {/* AI Evaluation Feedback */}
+                {aiEvaluation && !isEvaluating && (
+                  <div className={`flex items-start gap-3 p-4 rounded-xl mt-4 ${
+                    darkMode ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'
+                  }`}>
+                    <div className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5">🤖</div>
+                    <div className="flex-1">
+                      <h4 className={`font-semibold mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
+                        AI Feedback (Score: {Math.round(aiEvaluation.score * 100)}%)
+                      </h4>
+                      <p className={`text-sm mb-2 ${darkMode ? 'text-purple-200' : 'text-purple-700'}`}>
+                        {aiEvaluation.personalizedFeedback}
+                      </p>
+                      {aiEvaluation.strengths && aiEvaluation.strengths.length > 0 && (
+                        <div className="mb-2">
+                          <span className={`text-xs font-semibold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                            Strengths: 
+                          </span>
+                          <span className={`text-xs ml-1 ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
+                            {aiEvaluation.strengths.join(', ')}
+                          </span>
+                        </div>
+                      )}
+                      {aiEvaluation.areasForImprovement && aiEvaluation.areasForImprovement.length > 0 && (
+                        <div>
+                          <span className={`text-xs font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                            Areas to improve: 
+                          </span>
+                          <span className={`text-xs ml-1 ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+                            {aiEvaluation.areasForImprovement.join(', ')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading indicator for AI evaluation */}
+                {isEvaluating && (
+                  <div className={`flex items-center gap-3 p-4 rounded-xl mt-4 ${
+                    darkMode ? 'bg-gray-500/10 border border-gray-500/30' : 'bg-gray-50 border border-gray-200'
+                  }`}>
+                    <div className="w-5 h-5 text-gray-500 flex-shrink-0">🤖</div>
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                      <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        AI is analyzing your response...
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

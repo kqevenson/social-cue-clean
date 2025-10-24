@@ -246,7 +246,6 @@ function ProgressScreen({ userData, darkMode }) {
 
     fetchMasteryData();
   }, []);
-  */
 
   // Set default data for demo purposes (no API calls)
   useEffect(() => {
