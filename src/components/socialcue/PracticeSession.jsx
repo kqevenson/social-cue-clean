@@ -496,6 +496,36 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                   </div>
                 </div>
               )}
+
+              {/* Navigation Buttons */}
+              {!isCompletingSession && (
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      // Reset and try again
+                      setCurrentSituation(0);
+                      setSelectedOption(null);
+                      setShowFeedback(false);
+                      setTotalPoints(0);
+                      setSessionComplete(false);
+                    }}
+                    className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all ${
+                      darkMode 
+                        ? 'border-white/20 text-white hover:bg-white/10'
+                        : 'border-gray-300 text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    Try Again
+                  </button>
+                  
+                  <button
+                    onClick={() => onNavigate('progress')}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg transition-all"
+                  >
+                    View Progress →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
