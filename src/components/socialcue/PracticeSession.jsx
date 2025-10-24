@@ -20,6 +20,9 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   const [sessionResponses, setSessionResponses] = useState([]);
   const [aiEvaluation, setAiEvaluation] = useState(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [sessionResults, setSessionResults] = useState(null);
+  const [showSessionResults, setShowSessionResults] = useState(false);
+  const [isCompletingSession, setIsCompletingSession] = useState(false);
 
   const gradeRange = getGradeRange(gradeLevel);
   const scenario = scenarios[sessionId] || scenarios[1];
@@ -97,6 +100,90 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       };
     } finally {
       setIsEvaluating(false);
+    }
+  };
+
+  // Complete Practice Session function
+  const completePracticeSession = async () => {
+    try {
+      setIsCompletingSession(true);
+      
+      // Calculate session metrics
+      const scenariosCompleted = sessionResponses.length;
+      const correctResponses = sessionResponses.filter(response => response.isCorrect).length;
+      const accuracy = scenariosCompleted > 0 ? (correctResponses / scenariosCompleted) * 100 : 0;
+      const averageResponseTime = scenariosCompleted > 0 
+        ? sessionResponses.reduce((sum, response) => sum + response.responseTime, 0) / scenariosCompleted 
+        : 0;
+      
+      // Calculate session duration (from first response to now)
+      const sessionStartTime = sessionResponses.length > 0 ? sessionResponses[0].responseTime : Date.now();
+      const sessionDuration = Date.now() - sessionStartTime;
+      
+      // Collect session data
+      const sessionData = {
+        difficulty: 1, // Current difficulty level (could be dynamic)
+        scenariosCompleted: scenariosCompleted,
+        responses: sessionResponses,
+        accuracy: accuracy,
+        averageResponseTime: averageResponseTime,
+        sessionDuration: sessionDuration
+      };
+      
+      // Get learner profile
+      const userData = getUserData();
+      const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
+      
+      const learnerProfile = {
+        name: userData.name || 'Student',
+        grade: gradeLevel,
+        overallAccuracy: userData.confidenceScore || 0,
+        totalSessions: userData.totalSessions || 0
+      };
+      
+      // Send completion data to backend
+      const response = await fetch('/api/adaptive/complete-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          topicId: sessionId,
+          topicName: getContent(scenario.title),
+          sessionData: sessionData,
+          learnerProfile: learnerProfile
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const results = await response.json();
+      setSessionResults(results);
+      setShowSessionResults(true);
+      
+      return results;
+    } catch (error) {
+      console.error('Error completing practice session:', error);
+      // Return fallback results if API fails
+      const fallbackResults = {
+        aiAnalysis: {
+          overallPerformance: "Good work completing the session!",
+          personalizedEncouragement: "Keep practicing to improve your social skills!",
+          conceptsUnderstood: ["Basic social interactions"],
+          areasToReview: ["Continue practicing"]
+        },
+        nextDifficulty: 1,
+        masteryLevel: 25,
+        topicCompleted: false
+      };
+      setSessionResults(fallbackResults);
+      setShowSessionResults(true);
+      return fallbackResults;
+    } finally {
+      setIsCompletingSession(false);
     }
   };
 
@@ -290,65 +377,18 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       setShowFeedback(false);
       setAiEvaluation(null); // Clear AI evaluation for next question
     } else {
-      // Session complete - navigate to progress screen
+      // Session complete - call completePracticeSession
       setSessionComplete(true);
       playSound('complete');
+      
+      // Update local user data
       const userData = getUserData();
       userData.totalSessions += 1;
       userData.confidenceScore = Math.min(100, userData.confidenceScore + 2);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
       
-      // Navigate to progress screen after a short delay to show completion
-      setTimeout(async () => {
-        // Send complete session data to backend
-        try {
-          const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
-          
-          // Send session completion data to adaptive learning API
-          const sessionData = {
-            userId: userId,
-            sessionId: sessionId,
-            topicId: sessionId,
-            topicName: getContent(scenario.title),
-            gradeLevel: gradeLevel,
-            responses: sessionResponses,
-            totalPoints: totalPoints,
-            finalScore: Math.round((totalPoints / (scenario.situations.length * 10)) * 100),
-            sessionDuration: Date.now() - (sessionResponses.length > 0 ? sessionResponses[0].responseTime : Date.now()),
-            completedAt: new Date().toISOString()
-          };
-
-          const response = await fetch('/api/adaptive/complete-session', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(sessionData)
-          });
-
-          if (!response.ok) {
-            console.error('Failed to send session data to backend');
-          }
-        } catch (error) {
-          console.error('Error sending session data:', error);
-        }
-
-        // Save completion date to Firebase
-        try {
-          const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
-          const userRef = doc(getFirestore(), 'users', userId);
-          await updateDoc(userRef, {
-            lastPracticeDate: new Date().toISOString(),
-            totalSessions: userData.totalSessions
-          });
-        } catch (error) {
-          console.log('Could not save to Firebase:', error);
-        }
-        
-        if (onNavigate) {
-          onNavigate('progress');
-        }
-      }, 1500);
+      // Complete the session and show results
+      await completePracticeSession();
     }
   };
 
@@ -378,7 +418,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   const situationContext = getContent(situation.context);
   const situationPrompt = getContent(situation.prompt);
 
-  if (sessionComplete) {
+  if (sessionComplete && !showSessionResults) {
     return (
       <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
         <div className="fixed inset-0 opacity-20" style={{ background: scenario.background }}></div>
@@ -396,21 +436,172 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                 <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{scenarioTitle}</p>
               </div>
 
-              <div className="mb-8">
-                <div className="text-6xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-2">
-                  {finalScore}%
+              {isCompletingSession ? (
+                <div className="mb-8">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Analyzing your performance...
+                  </p>
                 </div>
-                <div className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {totalPoints} out of {scenario.situations.length * 10} points earned
+              ) : (
+                <div className="mb-8">
+                  <div className="text-6xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-2">
+                    {finalScore}%
+                  </div>
+                  <div className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {totalPoints} out of {scenario.situations.length * 10} points earned
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Session Results Modal
+  if (sessionComplete && showSessionResults && sessionResults) {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="fixed inset-0 opacity-20" style={{ background: scenario.background }}></div>
+        
+        <div className="relative z-10 flex items-center justify-center min-h-screen p-6 pb-24">
+          <div className="max-w-4xl w-full">
+            <div className={`backdrop-blur-xl border rounded-3xl p-8 ${
+              darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'
+            }`}>
+              {/* Header */}
+              <div className="text-center mb-8">
+                <div className="text-7xl mb-4">
+                  {sessionResults.topicCompleted ? '🏆' : '🎯'}
+                </div>
+                <h1 className={`text-4xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {sessionResults.topicCompleted ? 'Topic Mastered!' : 'Session Complete!'}
+                </h1>
+                <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{scenarioTitle}</p>
+              </div>
+
+              {/* AI Analysis */}
+              {sessionResults.aiAnalysis && (
+                <div className="mb-8">
+                  <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+                    darkMode ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                  }`}>
+                    <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
+                      🤖 AI Analysis
+                    </h2>
+                    <p className={`text-lg mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {sessionResults.aiAnalysis.overallPerformance}
+                    </p>
+                    <p className={`text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {sessionResults.aiAnalysis.personalizedEncouragement}
+                    </p>
+                  </div>
+
+                  {/* Concepts Understood */}
+                  {sessionResults.aiAnalysis.conceptsUnderstood && sessionResults.aiAnalysis.conceptsUnderstood.length > 0 && (
+                    <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+                      darkMode ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'
+                    }`}>
+                      <h3 className={`text-xl font-bold mb-3 ${darkMode ? 'text-green-300' : 'text-green-800'}`}>
+                        ✅ Concepts You Understood
+                      </h3>
+                      <ul className="space-y-2">
+                        {sessionResults.aiAnalysis.conceptsUnderstood.map((concept, index) => (
+                          <li key={index} className={`flex items-center gap-2 ${darkMode ? 'text-green-200' : 'text-green-700'}`}>
+                            <span className="text-green-500">•</span>
+                            {concept}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Areas to Review */}
+                  {sessionResults.aiAnalysis.areasToReview && sessionResults.aiAnalysis.areasToReview.length > 0 && (
+                    <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+                      darkMode ? 'bg-orange-500/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'
+                    }`}>
+                      <h3 className={`text-xl font-bold mb-3 ${darkMode ? 'text-orange-300' : 'text-orange-800'}`}>
+                        📚 Areas to Review
+                      </h3>
+                      <ul className="space-y-2">
+                        {sessionResults.aiAnalysis.areasToReview.map((area, index) => (
+                          <li key={index} className={`flex items-center gap-2 ${darkMode ? 'text-orange-200' : 'text-orange-700'}`}>
+                            <span className="text-orange-500">•</span>
+                            {area}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Progress Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className={`backdrop-blur-xl border rounded-2xl p-6 text-center ${
+                  darkMode ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-2">
+                    {finalScore}%
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Overall Score</div>
+                </div>
+                
+                <div className={`backdrop-blur-xl border rounded-2xl p-6 text-center ${
+                  darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
+                }`}>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-2">
+                    {sessionResults.nextDifficulty || 1}
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-emerald-300' : 'text-emerald-700'}`}>Next Difficulty</div>
+                </div>
+                
+                <div className={`backdrop-blur-xl border rounded-2xl p-6 text-center ${
+                  darkMode ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                }`}>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+                    {sessionResults.masteryLevel || 25}%
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Mastery Level</div>
                 </div>
               </div>
 
+              {/* Mastery Progress Bar */}
+              <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-8 ${
+                darkMode ? 'bg-gray-500/10 border-gray-500/30' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Mastery Progress
+                </h3>
+                <div className={`w-full rounded-full h-4 mb-2 ${
+                  darkMode ? 'bg-gray-700' : 'bg-gray-200'
+                }`}>
+                  <div 
+                    className="bg-gradient-to-r from-blue-400 to-emerald-400 h-4 rounded-full transition-all duration-1000"
+                    style={{ width: `${sessionResults.masteryLevel || 25}%` }}
+                  ></div>
+                </div>
+                <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {sessionResults.masteryLevel || 25}% Complete
+                </div>
+              </div>
+
+              {/* Action Buttons */}
               <div className="flex gap-4">
                 <button onClick={handleRestart} className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 ${
                   darkMode ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'
                 }`}>
                   <RotateCcw className="w-5 h-5" />
                   Try Again
+                </button>
+                <button onClick={() => onNavigate('progress')} className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 ${
+                  darkMode ? 'border-blue-500/30 text-blue-400 hover:bg-blue-500/10' : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                }`}>
+                  <Info className="w-5 h-5" />
+                  View Progress
                 </button>
                 <button onClick={() => onNavigate('home')} className="flex-1 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg transition-all flex items-center justify-center gap-2">
                   <Home className="w-5 h-5" />
