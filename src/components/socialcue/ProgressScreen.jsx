@@ -239,7 +239,6 @@ function ProgressScreen({ userData, darkMode }) {
             }
           ]
         });
-        */
       } finally {
         setLoading(false);
       }
