@@ -6,12 +6,13 @@ import scenarios from './utils/scenarios';
 import SuccessAnimation from './animations/SuccessAnimation';
 import LoadingSpinner from './animations/LoadingSpinner';
 import SessionResults from './SessionResults';
-import { useToast } from './animations';
+import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animations';
 import { getFirestore, doc, updateDoc, collection, addDoc } from 'firebase/firestore';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   const [currentSituation, setCurrentSituation] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const { showSuccess, showError } = useToast();
   const [totalPoints, setTotalPoints] = useState(0);
@@ -534,10 +535,22 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     
     if (scenario.situations?.length > 0 && currentSituation < scenario.situations.length - 1) {
       console.log('🔵 Advancing to next situation:', currentSituation + 1);
-      setCurrentSituation(prev => prev + 1);
-      setSelectedOption(null);
-      setShowFeedback(false);
-      setAiEvaluation(null); // Clear AI evaluation for next question
+      
+      // Start transition
+      setIsTransitioning(true);
+      
+      // Fade out current scenario
+      setTimeout(() => {
+        setCurrentSituation(prev => prev + 1);
+        setSelectedOption(null);
+        setShowFeedback(false);
+        setAiEvaluation(null); // Clear AI evaluation for next question
+        
+        // Fade in next scenario
+        setTimeout(() => {
+          setIsTransitioning(false);
+        }, 100);
+      }, 200);
     } else {
       // Session complete - call completePracticeSession
       setSessionComplete(true);
@@ -767,16 +780,22 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
           </div>
           
           <div className="mb-2">
-            <div className={`h-3 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
-              <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
-            </div>
+            <SmoothProgressBar 
+              progress={progressPercentage} 
+              duration={800}
+              height="h-3"
+              darkMode={darkMode}
+              className="rounded-full overflow-hidden"
+            />
           </div>
           <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Situation {currentSituation + 1} of {scenario.situations?.length || 0}
           </div>
         </div>
 
-        <div className={`backdrop-blur-xl border rounded-3xl p-8 mb-6 ${darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'}`}>
+        <div className={`backdrop-blur-xl border rounded-3xl p-8 mb-6 transition-all duration-300 ${
+          isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+        } ${darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'}`}>
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -810,8 +829,8 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
             {shuffledOptions.map((option, index) => {
               const optionText = getContent(option.text);
               return (
-                <button key={index} onClick={() => handleOptionSelect(index)} disabled={showFeedback} className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-lg ${
-                  selectedOption === index ? (option.isGood ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-500 bg-red-500/10') :
+                <button key={index} onClick={() => handleOptionSelect(index)} disabled={showFeedback} className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                  selectedOption === index ? (option.isGood ? 'border-emerald-500 bg-emerald-500/10 scale-105 shadow-lg' : 'border-red-500 bg-red-500/10 scale-105 shadow-lg') :
                   darkMode ? 'border-white/20 hover:border-white/40 hover:bg-white/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 } ${showFeedback && selectedOption !== index ? 'opacity-50' : ''}`}>
                   <div className="flex items-start gap-3">
@@ -941,10 +960,16 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                 Previous
               </button>
             )}
-            <button onClick={handleNext} className={`${currentSituation > 0 ? 'flex-1' : 'w-full'} bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg hover:shadow-blue-500/50 transition-all flex items-center justify-center gap-2`}>
+            <Button 
+              onClick={handleNext} 
+              variant="primary"
+              size="lg"
+              className={`${currentSituation > 0 ? 'flex-1' : 'w-full'} bg-gradient-to-r from-blue-500 to-emerald-400 hover:from-blue-600 hover:to-emerald-500 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg hover:shadow-blue-500/50 transition-all flex items-center justify-center gap-2`}
+              darkMode={darkMode}
+            >
               {scenario.situations?.length > 0 && currentSituation < scenario.situations.length - 1 ? 'Next Situation' : 'Complete'}
               <ArrowRight className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
         )}
 
