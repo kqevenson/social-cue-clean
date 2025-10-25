@@ -5,6 +5,7 @@ import { getGradeRange } from './utils/helpers';
 import scenarios from './utils/scenarios';
 import SuccessAnimation from './animations/SuccessAnimation';
 import LoadingSpinner from './animations/LoadingSpinner';
+import SessionResults from './SessionResults';
 import { getFirestore, doc, updateDoc, collection, addDoc } from 'firebase/firestore';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
@@ -688,155 +689,14 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   // Session Results Modal
   if (sessionComplete && showSessionResults && sessionResults) {
     return (
-      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="fixed inset-0 opacity-20" style={{ background: scenario.background }}></div>
-        
-        <div className="relative z-10 flex items-center justify-center min-h-screen p-6 pb-24">
-          <div className="max-w-4xl w-full">
-            <div className={`backdrop-blur-xl border rounded-3xl p-8 ${
-              darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              {/* Header */}
-              <div className="text-center mb-8">
-                <div className="text-7xl mb-4">
-                  {sessionResults.topicCompleted ? '🏆' : '🎯'}
-                </div>
-                <h1 className={`text-4xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {sessionResults.topicCompleted ? 'Topic Mastered!' : 'Session Complete!'}
-                </h1>
-                <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{scenarioTitle}</p>
-              </div>
-
-              {/* AI Analysis */}
-              {sessionResults.aiAnalysis && (
-                <div className="mb-8">
-                  <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
-                    darkMode ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
-                  }`}>
-                    <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
-                      🤖 AI Analysis
-                    </h2>
-                    <p className={`text-lg mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {sessionResults.aiAnalysis.overallPerformance}
-                    </p>
-                    <p className={`text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {sessionResults.aiAnalysis.personalizedEncouragement}
-                    </p>
-                  </div>
-
-                  {/* Concepts Understood */}
-                  {sessionResults.aiAnalysis.conceptsUnderstood && sessionResults.aiAnalysis.conceptsUnderstood.length > 0 && (
-                    <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
-                      darkMode ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'
-                    }`}>
-                      <h3 className={`text-xl font-bold mb-3 ${darkMode ? 'text-green-300' : 'text-green-800'}`}>
-                        ✅ Concepts You Understood
-                      </h3>
-                      <ul className="space-y-2">
-                        {sessionResults.aiAnalysis.conceptsUnderstood.map((concept, index) => (
-                          <li key={index} className={`flex items-center gap-2 ${darkMode ? 'text-green-200' : 'text-green-700'}`}>
-                            <span className="text-green-500">•</span>
-                            {concept}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Areas to Review */}
-                  {sessionResults.aiAnalysis.areasToReview && sessionResults.aiAnalysis.areasToReview.length > 0 && (
-                    <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
-                      darkMode ? 'bg-orange-500/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'
-                    }`}>
-                      <h3 className={`text-xl font-bold mb-3 ${darkMode ? 'text-orange-300' : 'text-orange-800'}`}>
-                        📚 Areas to Review
-                      </h3>
-                      <ul className="space-y-2">
-                        {sessionResults.aiAnalysis.areasToReview.map((area, index) => (
-                          <li key={index} className={`flex items-center gap-2 ${darkMode ? 'text-orange-200' : 'text-orange-700'}`}>
-                            <span className="text-orange-500">•</span>
-                            {area}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Progress Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className={`backdrop-blur-xl border rounded-2xl p-6 text-center ${
-                  darkMode ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
-                }`}>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-2">
-                    {finalScore}%
-                  </div>
-                  <div className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Overall Score</div>
-                </div>
-                
-                <div className={`backdrop-blur-xl border rounded-2xl p-6 text-center ${
-                  darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
-                }`}>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-2">
-                    {sessionResults.nextDifficulty || 1}
-                  </div>
-                  <div className={`text-sm ${darkMode ? 'text-emerald-300' : 'text-emerald-700'}`}>Next Difficulty</div>
-                </div>
-                
-                <div className={`backdrop-blur-xl border rounded-2xl p-6 text-center ${
-                  darkMode ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
-                }`}>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
-                    {sessionResults.masteryLevel || 25}%
-                  </div>
-                  <div className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Mastery Level</div>
-                </div>
-              </div>
-
-              {/* Mastery Progress Bar */}
-              <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-8 ${
-                darkMode ? 'bg-gray-500/10 border-gray-500/30' : 'bg-gray-50 border-gray-200'
-              }`}>
-                <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Mastery Progress
-                </h3>
-                <div className={`w-full rounded-full h-4 mb-2 ${
-                  darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                }`}>
-                  <div 
-                    className="bg-gradient-to-r from-blue-400 to-emerald-400 h-4 rounded-full transition-all duration-1000"
-                    style={{ width: `${sessionResults.masteryLevel || 25}%` }}
-                  ></div>
-                </div>
-                <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {sessionResults.masteryLevel || 25}% Complete
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4">
-                <button onClick={handleRestart} className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 ${
-                  darkMode ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'
-                }`}>
-                  <RotateCcw className="w-5 h-5" />
-                  Try Again
-                </button>
-                <button onClick={() => onNavigate('progress')} className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 ${
-                  darkMode ? 'border-blue-500/30 text-blue-400 hover:bg-blue-500/10' : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-                }`}>
-                  <Info className="w-5 h-5" />
-                  View Progress
-                </button>
-                <button onClick={() => onNavigate('home')} className="flex-1 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                  <Home className="w-5 h-5" />
-                  Home
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <SessionResults
+        sessionResults={sessionResults}
+        scenarioTitle={scenarioTitle}
+        finalScore={finalScore}
+        darkMode={darkMode}
+        onNavigate={onNavigate}
+        onRestart={handleRestart}
+      />
     );
   }
 
