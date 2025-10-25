@@ -709,6 +709,37 @@ router.get('/preferences/:userId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/adaptive/session-history/:userId
+ * Gets session history for a learner
+ */
+router.get('/session-history/:userId', async (req, res) => {
+  try {
+    console.log('📚 Getting session history...');
+    
+    const { userId } = req.params;
+    const { limit = 20 } = req.query;
+    
+    // Get session history using existing function
+    const sessions = await getSessionHistory(userId, parseInt(limit));
+    
+    console.log('✅ Session history retrieved successfully');
+    
+    res.json({
+      success: true,
+      sessions: sessions
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting session history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get session history',
+      details: error.message
+    });
+  }
+});
+
 // ============================================================================
 // ANALYTICS ENDPOINTS
 // ============================================================================

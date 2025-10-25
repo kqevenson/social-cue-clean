@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar } from 'lucide-react';
+import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter } from 'lucide-react';
 import { getUserData } from './utils/storage';
 
 function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [masteryData, setMasteryData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionHistory, setSessionHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [expandedSession, setExpandedSession] = useState(null);
 
   // Set basic demo data (no API calls)
   useEffect(() => {
@@ -110,6 +115,123 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
     setLoading(false);
   }, []);
 
+  // Fetch session history
+  const fetchSessionHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      
+      const currentUserData = getUserData();
+      const userId = currentUserData.userId || 'guest_' + Date.now();
+      
+      console.log('📚 Fetching session history for user:', userId);
+      
+      const response = await fetch(`http://localhost:3001/api/adaptive/session-history/${userId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.sessions) {
+        console.log('✅ Session history received:', data.sessions.length, 'sessions');
+        // Sort by most recent first and limit to 20
+        const sortedSessions = data.sessions
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 20);
+        setSessionHistory(sortedSessions);
+      } else {
+        console.log('ℹ️ No session history found, using demo data');
+        // Use demo data for new users
+        setSessionHistory([
+          {
+            sessionId: 'demo-1',
+            topicName: 'Small Talk Basics',
+            date: new Date().toISOString(),
+            accuracy: 80,
+            correctAnswers: 4,
+            totalQuestions: 5,
+            duration: 8,
+            difficultyLevel: 2,
+            scenarios: [
+              { correct: true, question: 'How to start a conversation' },
+              { correct: true, question: 'Asking about someone\'s day' },
+              { correct: false, question: 'Handling awkward silence' },
+              { correct: true, question: 'Ending a conversation politely' },
+              { correct: true, question: 'Following up on shared interests' }
+            ]
+          },
+          {
+            sessionId: 'demo-2',
+            topicName: 'Active Listening',
+            date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            accuracy: 60,
+            correctAnswers: 3,
+            totalQuestions: 5,
+            duration: 12,
+            difficultyLevel: 2,
+            scenarios: [
+              { correct: true, question: 'Showing you\'re paying attention' },
+              { correct: false, question: 'Asking follow-up questions' },
+              { correct: true, question: 'Avoiding interrupting' },
+              { correct: false, question: 'Reflecting back what you heard' },
+              { correct: true, question: 'Maintaining eye contact' }
+            ]
+          },
+          {
+            sessionId: 'demo-3',
+            topicName: 'Building Confidence',
+            date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            accuracy: 40,
+            correctAnswers: 2,
+            totalQuestions: 5,
+            duration: 15,
+            difficultyLevel: 1,
+            scenarios: [
+              { correct: false, question: 'Speaking up in group settings' },
+              { correct: true, question: 'Making eye contact' },
+              { correct: false, question: 'Trying new social activities' },
+              { correct: false, question: 'Asking for help when needed' },
+              { correct: true, question: 'Celebrating small wins' }
+            ]
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error('❌ Error fetching session history:', err);
+      setHistoryError(err.message);
+      
+      // Fallback to demo data
+      setSessionHistory([
+        {
+          sessionId: 'fallback-1',
+          topicName: 'Small Talk Basics',
+          date: new Date().toISOString(),
+          accuracy: 80,
+          correctAnswers: 4,
+          totalQuestions: 5,
+          duration: 8,
+          difficultyLevel: 2,
+          scenarios: [
+            { correct: true, question: 'How to start a conversation' },
+            { correct: true, question: 'Asking about someone\'s day' },
+            { correct: false, question: 'Handling awkward silence' },
+            { correct: true, question: 'Ending a conversation politely' },
+            { correct: true, question: 'Following up on shared interests' }
+          ]
+        }
+      ]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Fetch session history when component mounts
+  useEffect(() => {
+    fetchSessionHistory();
+  }, []);
+
   // Helper functions
   const getDifficultyLabel = (level) => {
     const labels = {
@@ -160,6 +282,34 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
     if (level >= 60) return 'from-blue-500 to-cyan-500';
     if (level >= 40) return 'from-yellow-500 to-orange-500';
     return 'from-orange-500 to-red-500';
+  };
+
+  // Helper functions for session history
+  const formatSessionDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getAccuracyColor = (accuracy) => {
+    if (accuracy >= 70) return darkMode ? 'text-green-400' : 'text-green-600';
+    if (accuracy >= 50) return darkMode ? 'text-yellow-400' : 'text-yellow-600';
+    return darkMode ? 'text-red-400' : 'text-red-600';
+  };
+
+  const getAccuracyBgColor = (accuracy) => {
+    if (accuracy >= 70) return darkMode ? 'bg-green-500/20 border-green-500/30' : 'bg-green-50 border-green-200';
+    if (accuracy >= 50) return darkMode ? 'bg-yellow-500/20 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200';
+    return darkMode ? 'bg-red-500/20 border-red-500/30' : 'bg-red-50 border-red-200';
+  };
+
+  const toggleSessionExpansion = (sessionId) => {
+    setExpandedSession(expandedSession === sessionId ? null : sessionId);
   };
 
   if (loading) {
@@ -358,7 +508,7 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
       </div>
 
       {/* User Stats */}
-      <div className={`backdrop-blur-xl border rounded-2xl p-6 ${
+      <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
         darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
       }`}>
         <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -390,6 +540,163 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Session History Section */}
+      <div className={`backdrop-blur-xl border rounded-2xl p-6 ${
+        darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+      }`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <History className="w-6 h-6 text-purple-400" />
+            <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Session History
+            </h2>
+            <span className={`text-sm px-2 py-1 rounded-full ${
+              darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
+            }`}>
+              {sessionHistory.length} sessions
+            </span>
+          </div>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+              darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            {showHistory ? (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                <span className="text-sm font-medium">Hide</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="w-4 h-4" />
+                <span className="text-sm font-medium">Show</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {showHistory && (
+          <>
+            {historyLoading ? (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 mx-auto mb-3 relative">
+                  <div className="absolute inset-0 border-2 border-purple-500/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-2 border-transparent border-t-purple-500 rounded-full animate-spin"></div>
+                </div>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Loading session history...
+                </p>
+              </div>
+            ) : historyError ? (
+              <div className={`text-center py-8 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                <p className="text-sm">Error loading session history: {historyError}</p>
+                <button
+                  onClick={fetchSessionHistory}
+                  className="mt-2 px-4 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : sessionHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <History className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                <p className={`text-lg font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  No sessions yet
+                </p>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Complete your first practice session to see your history here
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sessionHistory.map((session) => (
+                  <div
+                    key={session.sessionId}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                      expandedSession === session.sessionId
+                        ? darkMode ? 'bg-white/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                        : darkMode ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => toggleSessionExpansion(session.sessionId)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          session.accuracy >= 70 ? 'bg-green-500/20' : 
+                          session.accuracy >= 50 ? 'bg-yellow-500/20' : 'bg-red-500/20'
+                        }`}>
+                          <BookOpen className={`w-4 h-4 ${
+                            session.accuracy >= 70 ? 'text-green-400' : 
+                            session.accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'
+                          }`} />
+                        </div>
+                        <div>
+                          <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {session.topicName}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {formatSessionDate(session.date)}
+                            </span>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                              darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              Level {session.difficultyLevel}: {getDifficultyLabel(session.difficultyLevel)}
+                            </span>
+                            {session.duration && (
+                              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {session.duration}m
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className={`text-xl font-bold ${getAccuracyColor(session.accuracy)}`}>
+                          {session.correctAnswers}/{session.totalQuestions} ({session.accuracy}%)
+                        </div>
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {expandedSession === session.sessionId ? 'Click to collapse' : 'Click to expand'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Session Details */}
+                    {expandedSession === session.sessionId && (
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <h4 className={`text-sm font-semibold mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Scenario Breakdown:
+                        </h4>
+                        <div className="space-y-2">
+                          {session.scenarios?.map((scenario, index) => (
+                            <div key={index} className="flex items-center gap-3">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                scenario.correct ? 'bg-green-500/20' : 'bg-red-500/20'
+                              }`}>
+                                {scenario.correct ? (
+                                  <CheckCircle className="w-4 h-4 text-green-400" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full bg-red-400" />
+                                )}
+                              </div>
+                              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {scenario.question}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

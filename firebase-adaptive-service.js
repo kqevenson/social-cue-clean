@@ -931,3 +931,79 @@ export const performBatchOperations = async (operations) => {
     throw error;
   }
 };
+
+/**
+ * Gets session history for a learner
+ * @param {string} learnerId - Learner ID
+ * @param {Object} options - Query options
+ * @returns {Promise<Array>} - Session history
+ */
+export const getSessionHistory = async (learnerId, options = {}) => {
+  try {
+    console.log('📚 Getting session history:', learnerId);
+    
+    const {
+      limit = 20,
+      topicId,
+      startDate,
+      endDate,
+      performance
+    } = options;
+    
+    let query = collection(db, 'PRACTICE_SESSIONS');
+    let constraints = [where('learnerId', '==', learnerId)];
+    
+    // Add topic filter if specified
+    if (topicId) {
+      constraints.push(where('topicId', '==', topicId));
+    }
+    
+    // Add date range filters if specified
+    if (startDate) {
+      constraints.push(where('date', '>=', startDate));
+    }
+    if (endDate) {
+      constraints.push(where('date', '<=', endDate));
+    }
+    
+    // Add performance filter if specified
+    if (performance) {
+      let accuracyThreshold;
+      switch (performance) {
+        case 'high':
+          accuracyThreshold = 70;
+          break;
+        case 'medium':
+          accuracyThreshold = 50;
+          break;
+        case 'low':
+          accuracyThreshold = 0;
+          break;
+      }
+      if (accuracyThreshold !== undefined) {
+        constraints.push(where('accuracyPercentage', '>=', accuracyThreshold));
+      }
+    }
+    
+    // Build the query
+    const q = query(
+      ...constraints,
+      orderBy('date', 'desc'),
+      limit(limit)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    const sessions = snapshot.docs.map(doc => ({
+      sessionId: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log('✅ Session history retrieved successfully:', sessions.length, 'sessions');
+    return sessions;
+    
+  } catch (error) {
+    console.error('❌ Error getting session history:', error);
+    throw error;
+  }
+};
