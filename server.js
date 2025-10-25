@@ -573,7 +573,7 @@ app.post('/api/generate-lesson-simple', async (req, res) => {
     const topicContext = topicExamples[String(topic)?.toLowerCase()] || 'general social situations';
     const age = parseInt(gradeLevel) + 5; // Approximate age
 
-    const prompt = `You are a social skills expert. Generate ${numScenarios || 5} DIFFERENT practice scenarios for grade ${gradeLevel} students.
+    const prompt = `Generate 5 DIFFERENT social skills practice scenarios for grade ${gradeLevel} students.
 
 RANDOM SEED: ${topic}-${timestamp}-${Math.random()}
 REQUEST ID: ${requestId}
@@ -583,15 +583,13 @@ Topic: ${topic}
 Grade: ${gradeLevel} (age ${age})
 Focus: ${topicContext}
 
-IMPORTANT: You MUST respond with ONLY valid JSON. No explanations, no markdown, no code blocks.
-
-Create ${numScenarios || 5} COMPLETELY DIFFERENT realistic school situations. Each scenario must be unique and different from the others. Use names like Alex, Sam, Jordan, Casey, Taylor, Morgan.
+Create 5 COMPLETELY DIFFERENT realistic school situations. Each scenario must be unique and different from the others. Use names like Alex, Sam, Jordan, Casey, Taylor, Morgan.
 
 Vary the settings: cafeteria, playground, classroom, hallway, library, gym, art room, music room, bus stop, after-school club.
 
 Vary the situations: meeting new people, helping someone, dealing with conflict, working together, sharing, taking turns, being inclusive.
 
-RESPOND WITH ONLY THIS EXACT JSON FORMAT (no other text):
+Return ONLY this JSON format:
 {
   "title": "${topic}",
   "scenarios": [
@@ -631,8 +629,8 @@ RESPOND WITH ONLY THIS EXACT JSON FORMAT (no other text):
     
     const message = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
-      max_tokens: 2000,
-      temperature: 1.0,
+      max_tokens: 4000,
+      temperature: 0.9, // Higher temperature for more variety
       messages: [
         {
           role: 'user',
