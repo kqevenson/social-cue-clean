@@ -604,9 +604,14 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                 <LoadingSpinner size="large" />
               </div>
               
-              <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                This may take a few moments...
-              </p>
+              <div className="space-y-2">
+                <p className={`text-lg font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>
+                  Creating 5 unique scenarios...
+                </p>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  This usually takes 2-4 seconds
+                </p>
+              </div>
             </div>
           </div>
         </div>

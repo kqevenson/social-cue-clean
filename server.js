@@ -573,52 +573,46 @@ app.post('/api/generate-lesson-simple', async (req, res) => {
     const topicContext = topicExamples[String(topic)?.toLowerCase()] || 'general social situations';
     const age = parseInt(gradeLevel) + 5; // Approximate age
 
-    const prompt = `Generate 5 DIFFERENT social skills practice scenarios for grade ${gradeLevel} students.
+    const prompt = `Generate 5 DIFFERENT social skills scenarios for grade ${gradeLevel} students.
 
 RANDOM SEED: ${topic}-${timestamp}-${Math.random()}
-REQUEST ID: ${requestId}
-TIMESTAMP: ${timestamp}
 
-Topic: ${topic}
-Grade: ${gradeLevel} (age ${age})
+Topic: ${topic} (age ${age})
 Focus: ${topicContext}
 
-Create 5 COMPLETELY DIFFERENT realistic school situations. Each scenario must be unique and different from the others. Use names like Alex, Sam, Jordan, Casey, Taylor, Morgan.
+Create 5 unique school situations. Use names: Alex, Sam, Jordan, Casey, Taylor, Morgan.
+Settings: cafeteria, playground, classroom, hallway, library, gym, art room, bus stop.
 
-Vary the settings: cafeteria, playground, classroom, hallway, library, gym, art room, music room, bus stop, after-school club.
-
-Vary the situations: meeting new people, helping someone, dealing with conflict, working together, sharing, taking turns, being inclusive.
-
-Return ONLY this JSON format:
+RESPOND WITH ONLY THIS EXACT JSON FORMAT (no other text):
 {
   "title": "${topic}",
   "scenarios": [
     {
-      "scenario": "unique situation description",
+      "scenario": "situation description",
       "options": [
         {
           "text": "response option",
           "isGood": true,
           "points": 10,
-          "feedback": "specific feedback"
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option", 
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
         },
         {
           "text": "response option",
-          "isGood": true,
-          "points": 7,
-          "feedback": "specific feedback"
+          "isGood": false, 
+          "points": 0,
+          "feedback": "feedback"
         },
         {
           "text": "response option",
           "isGood": false,
-          "points": 4,
-          "feedback": "specific feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false,
-          "points": 2,
-          "feedback": "specific feedback"
+          "points": 0,
+          "feedback": "feedback"
         }
       ]
     }
@@ -626,11 +620,12 @@ Return ONLY this JSON format:
 }`;
 
     console.log(`📝 Making API call to Claude for lesson generation...`);
+    const startTime = Date.now();
     
     const message = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
-      max_tokens: 4000,
-      temperature: 0.9, // Higher temperature for more variety
+      max_tokens: 1000, // Further reduced for faster generation
+      temperature: 0.7, // Reduced from 0.9 for faster generation
       messages: [
         {
           role: 'user',
@@ -638,6 +633,9 @@ Return ONLY this JSON format:
         }
       ],
     });
+    
+    const apiTime = Date.now() - startTime;
+    console.log(`⚡ Claude API call completed in ${apiTime}ms`);
     
     let responseText = message.content[0].text;
     console.log(`📊 API response received, validating for age-appropriateness...`);
