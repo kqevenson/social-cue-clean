@@ -321,11 +321,12 @@ export const DEFAULT_VALUES = {
     nextRecommendedLevel: DIFFICULTY_LEVELS.BEGINNER
   },
   ADAPTIVE_SETTINGS: {
+    learningPace: 'self-paced',
+    feedbackStyle: 'encouraging',
+    challengeLevel: 'moderate',
+    practiceFrequencyGoal: 'few-times-week',
     autoAdjustDifficulty: true,
     preferredDifficulty: DIFFICULTY_LEVELS.BEGINNER,
-    learningPace: 'moderate',
-    challengeFrequency: 'weekly',
-    feedbackStyle: 'encouraging',
     reminderSettings: {
       dailyReminder: true,
       weeklyReport: true,

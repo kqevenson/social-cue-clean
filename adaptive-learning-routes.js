@@ -638,14 +638,25 @@ router.put('/preferences/:userId', async (req, res) => {
     const { userId } = req.params;
     const preferences = req.body;
     
+    // Map frontend field names to backend field names
+    const mappedPreferences = {
+      learningPace: preferences.learningPace,
+      feedbackStyle: preferences.feedbackStyle,
+      challengeLevel: preferences.challengeLevel,
+      practiceFrequency: preferences.practiceFrequencyGoal || preferences.practiceFrequency,
+      autoAdjustDifficulty: preferences.autoAdjustDifficulty !== undefined ? preferences.autoAdjustDifficulty : true,
+      preferredDifficulty: preferences.preferredDifficulty || 'beginner'
+    };
+    
     // Update adaptive settings
-    await updateAdaptiveSettings(userId, preferences);
+    await updateAdaptiveSettings(userId, mappedPreferences);
     
     console.log('✅ Adaptive preferences updated successfully');
     
     res.json({
       success: true,
-      message: 'Preferences updated successfully'
+      message: 'Preferences updated successfully',
+      preferences: mappedPreferences
     });
     
   } catch (error) {
@@ -653,6 +664,46 @@ router.put('/preferences/:userId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update preferences',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/adaptive/preferences/:userId
+ * Gets adaptive learning preferences for a learner
+ */
+router.get('/preferences/:userId', async (req, res) => {
+  try {
+    console.log('⚙️ Getting adaptive preferences...');
+    
+    const { userId } = req.params;
+    
+    // Get adaptive settings
+    const preferences = await getAdaptiveSettings(userId);
+    
+    // Map backend field names to frontend field names
+    const mappedPreferences = {
+      learningPace: preferences.learningPace || 'self-paced',
+      feedbackStyle: preferences.feedbackStyle || 'encouraging',
+      challengeLevel: preferences.challengeLevel || 'moderate',
+      practiceFrequencyGoal: preferences.practiceFrequency || 'few-times-week',
+      autoAdjustDifficulty: preferences.autoAdjustDifficulty !== undefined ? preferences.autoAdjustDifficulty : true,
+      preferredDifficulty: preferences.preferredDifficulty || 'beginner'
+    };
+    
+    console.log('✅ Adaptive preferences retrieved successfully');
+    
+    res.json({
+      success: true,
+      preferences: mappedPreferences
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get preferences',
       details: error.message
     });
   }

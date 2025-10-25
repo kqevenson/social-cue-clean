@@ -12,6 +12,7 @@ import PracticeSession from './socialcue/PracticeSession';
 import AILessonSession from './socialcue/AILessonSession';
 import AIPracticeSession from './AIPracticeSession';
 import LessonsScreen from './socialcue/LessonsScreen';
+import LearningPreferencesScreen from './socialcue/LearningPreferencesScreen';
 import BottomNav from './socialcue/BottomNav';
 
 function SocialCueApp({ onLogout }) {
@@ -294,6 +295,7 @@ function SocialCueApp({ onLogout }) {
           <LearningPreferencesScreen 
             onNavigate={handleNavigate}
             darkMode={darkMode}
+            gradeLevel={userData?.gradeLevel || '5'}
           />
         )}
 

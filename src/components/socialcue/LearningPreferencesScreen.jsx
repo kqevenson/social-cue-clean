@@ -1,180 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Settings, Clock, MessageCircle, Target, Calendar, Star, CheckCircle, Info, Zap, GraduationCap, Heart, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Save, Clock, MessageCircle, Target, Calendar, CheckCircle, Star } from 'lucide-react';
 import { getUserData } from './utils/storage';
 
-const LearningPreferencesScreen = ({ onNavigate, darkMode }) => {
+const LearningPreferencesScreen = ({ darkMode, onNavigate, gradeLevel }) => {
   const [preferences, setPreferences] = useState({
     learningPace: 'self-paced',
     feedbackStyle: 'encouraging',
     challengeLevel: 'moderate',
     practiceFrequency: 'few-times-week'
   });
-  
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [userData, setUserData] = useState(null);
 
   useEffect(() => {
-    const user = getUserData();
-    setUserData(user);
-    
-    // Load saved preferences from localStorage
-    const savedPrefs = localStorage.getItem('learningPreferences');
-    if (savedPrefs) {
-      setPreferences(JSON.parse(savedPrefs));
-    }
+    loadPreferences();
   }, []);
 
-  const learningPaceOptions = [
-    {
-      id: 'self-paced',
-      label: 'Self-Paced',
-      description: 'Learn at your own speed',
-      icon: <Clock className="w-5 h-5" />,
-      color: 'blue',
-      details: 'Take your time with each concept. Perfect for building confidence and understanding.',
-      recommended: userData?.gradeLevel === 'k2' || userData?.gradeLevel === '3-5'
-    },
-    {
-      id: 'guided',
-      label: 'Guided',
-      description: 'Moderate progression with support',
-      icon: <GraduationCap className="w-5 h-5" />,
-      color: 'purple',
-      details: 'Balanced learning with gentle nudges forward. Great for steady progress.',
-      recommended: userData?.gradeLevel === '6-8'
-    },
-    {
-      id: 'accelerated',
-      label: 'Accelerated',
-      description: 'Fast advancement when ready',
-      icon: <Zap className="w-5 h-5" />,
-      color: 'orange',
-      details: 'Move quickly through concepts when you master them. For confident learners.',
-      recommended: userData?.gradeLevel === '9-12'
-    }
-  ];
-
-  const feedbackStyleOptions = [
-    {
-      id: 'encouraging',
-      label: 'Encouraging',
-      description: 'Lots of positive reinforcement',
-      icon: <Heart className="w-5 h-5" />,
-      color: 'pink',
-      details: 'Focus on what you did well with gentle guidance for improvement.',
-      recommended: userData?.gradeLevel === 'k2' || userData?.gradeLevel === '3-5'
-    },
-    {
-      id: 'direct',
-      label: 'Direct',
-      description: 'Straightforward, matter-of-fact',
-      icon: <Target className="w-5 h-5" />,
-      color: 'blue',
-      details: 'Clear, honest feedback without extra fluff. Gets straight to the point.',
-      recommended: userData?.gradeLevel === '6-8' || userData?.gradeLevel === '9-12'
-    },
-    {
-      id: 'detailed',
-      label: 'Detailed',
-      description: 'Comprehensive explanations',
-      icon: <Lightbulb className="w-5 h-5" />,
-      color: 'yellow',
-      details: 'In-depth explanations of why answers are right or wrong with learning tips.',
-      recommended: userData?.gradeLevel === '9-12'
-    }
-  ];
-
-  const challengeLevelOptions = [
-    {
-      id: 'gradual',
-      label: 'Gradual',
-      description: 'Slow difficulty increases',
-      icon: <Clock className="w-5 h-5" />,
-      color: 'green',
-      details: 'Take small steps up in difficulty. Build confidence with steady progress.',
-      recommended: userData?.gradeLevel === 'k2' || userData?.gradeLevel === '3-5'
-    },
-    {
-      id: 'moderate',
-      label: 'Moderate',
-      description: 'Balanced progression',
-      icon: <Target className="w-5 h-5" />,
-      color: 'blue',
-      details: 'Challenge yourself appropriately. Good balance of comfort and growth.',
-      recommended: true // Default recommendation
-    },
-    {
-      id: 'aggressive',
-      label: 'Aggressive',
-      description: 'Rapid advancement when ready',
-      icon: <Zap className="w-5 h-5" />,
-      color: 'red',
-      details: 'Push yourself hard when you master concepts. For ambitious learners.',
-      recommended: userData?.gradeLevel === '9-12'
-    }
-  ];
-
-  const practiceFrequencyOptions = [
-    {
-      id: 'daily',
-      label: 'Daily',
-      description: 'Practice every day',
-      icon: <Calendar className="w-5 h-5" />,
-      color: 'green',
-      details: 'Build strong habits with daily practice. Best for rapid skill development.',
-      recommended: userData?.gradeLevel === 'k2' || userData?.gradeLevel === '3-5'
-    },
-    {
-      id: 'few-times-week',
-      label: 'Few Times a Week',
-      description: 'Practice 3-4 times per week',
-      icon: <Clock className="w-5 h-5" />,
-      color: 'blue',
-      details: 'Balanced approach. Good for steady progress without overwhelming.',
-      recommended: userData?.gradeLevel === '6-8'
-    },
-    {
-      id: 'weekly',
-      label: 'Weekly',
-      description: 'Practice once per week',
-      icon: <Calendar className="w-5 h-5" />,
-      color: 'purple',
-      details: 'Gentle pace. Perfect for busy schedules or casual learning.',
-      recommended: userData?.gradeLevel === '9-12'
-    }
-  ];
-
-  const getColorClasses = (color) => {
-    const colorMap = {
-      blue: darkMode ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-600',
-      purple: darkMode ? 'bg-purple-500/20 border-purple-500/30 text-purple-400' : 'bg-purple-50 border-purple-200 text-purple-600',
-      orange: darkMode ? 'bg-orange-500/20 border-orange-500/30 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-600',
-      pink: darkMode ? 'bg-pink-500/20 border-pink-500/30 text-pink-400' : 'bg-pink-50 border-pink-200 text-pink-600',
-      yellow: darkMode ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400' : 'bg-yellow-50 border-yellow-200 text-yellow-600',
-      green: darkMode ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-green-50 border-green-200 text-green-600',
-      red: darkMode ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-600'
-    };
-    return colorMap[color] || colorMap.blue;
-  };
-
-  const handlePreferenceChange = (category, value) => {
-    setPreferences(prev => ({
-      ...prev,
-      [category]: value
-    }));
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveStatus(null);
-    
+  const loadPreferences = async () => {
     try {
-      // Save to localStorage first
-      localStorage.setItem('learningPreferences', JSON.stringify(preferences));
+      const currentUserData = getUserData();
+      setUserData(currentUserData);
       
-      // Save to backend API
-      const userId = localStorage.getItem('userId') || 'guest_' + Date.now();
+      const userId = currentUserData.userId || 'guest_' + Date.now();
+      
+      const response = await fetch(`http://localhost:3001/api/adaptive/preferences/${userId}`);
+      const data = await response.json();
+      
+      if (data.success && data.preferences) {
+        setPreferences({
+          learningPace: data.preferences.learningPace || 'self-paced',
+          feedbackStyle: data.preferences.feedbackStyle || 'encouraging',
+          challengeLevel: data.preferences.challengeLevel || 'moderate',
+          practiceFrequency: data.preferences.practiceFrequency || 'few-times-week'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const savePreferences = async () => {
+    setSaving(true);
+    try {
+      const userId = userData.userId || 'guest_' + Date.now();
+      
       const response = await fetch(`http://localhost:3001/api/adaptive/preferences/${userId}`, {
         method: 'PUT',
         headers: {
@@ -183,232 +55,375 @@ const LearningPreferencesScreen = ({ onNavigate, darkMode }) => {
         body: JSON.stringify(preferences),
       });
       
-      if (response.ok) {
-        setSaveStatus('success');
-        setTimeout(() => setSaveStatus(null), 3000);
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Preferences saved successfully! ✅');
       } else {
-        throw new Error('Failed to save preferences');
+        alert('Error saving preferences. Please try again.');
       }
     } catch (error) {
       console.error('Error saving preferences:', error);
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus(null), 3000);
+      alert('Error saving preferences. Please try again.');
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  const renderOptionCard = (option, category, isSelected) => (
-    <div
-      key={option.id}
-      onClick={() => handlePreferenceChange(category, option.id)}
-      className={`cursor-pointer transition-all duration-200 ${
-        isSelected 
-          ? `${getColorClasses(option.color)} border-2` 
-          : `${darkMode ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-gray-200 hover:bg-gray-50'} border`
-      } rounded-xl p-4 relative`}
-    >
-      {option.recommended && (
-        <div className="absolute -top-2 -right-2">
-          <div className={`${darkMode ? 'bg-green-500' : 'bg-green-500'} text-white text-xs px-2 py-1 rounded-full flex items-center gap-1`}>
-            <Star className="w-3 h-3" />
-            Recommended
+  const updatePreference = (key, value) => {
+    setPreferences(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const getRecommendation = (option, category) => {
+    const grade = parseInt(gradeLevel) || 5;
+    
+    if (category === 'learningPace') {
+      if (grade <= 3 && option === 'self-paced') return 'Recommended for younger learners';
+      if (grade >= 6 && option === 'accelerated') return 'Recommended for older learners';
+    }
+    
+    if (category === 'challengeLevel') {
+      if (grade <= 3 && option === 'gradual') return 'Recommended for younger learners';
+      if (grade >= 6 && option === 'aggressive') return 'Recommended for older learners';
+    }
+    
+    if (category === 'practiceFrequency') {
+      if (grade <= 3 && option === 'daily') return 'Recommended for younger learners';
+      if (grade >= 6 && option === 'few-times-week') return 'Recommended for older learners';
+    }
+    
+    return null;
+  };
+
+  if (loading) {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-8 h-8 mx-auto mb-3 relative">
+              <div className="absolute inset-0 border-2 border-purple-500/20 rounded-full"></div>
+              <div className="absolute inset-0 border-2 border-transparent border-t-purple-500 rounded-full animate-spin"></div>
+            </div>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Loading preferences...
+            </p>
           </div>
-        </div>
-      )}
-      
-      <div className="flex items-start gap-3">
-        <div className={`${getColorClasses(option.color)} p-2 rounded-lg`}>
-          {option.icon}
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {option.label}
-            </h3>
-            {isSelected && <CheckCircle className="w-4 h-4 text-green-500" />}
-          </div>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-            {option.description}
-          </p>
-          <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-            {option.details}
-          </p>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <div className="p-6 pb-24">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center gap-4 mb-8">
-            <button
-              onClick={() => onNavigate('home')}
-              className={`p-2 rounded-full transition-all ${
-                darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'
-              }`}
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-xl ${darkMode ? 'bg-white/10' : 'bg-white'} border ${darkMode ? 'border-white/20' : 'border-gray-200'}`}>
-                <Settings className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Learning Preferences
-                </h1>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Customize your learning experience
-                </p>
-              </div>
-            </div>
-          </div>
+      <div className="pb-24 px-6 py-8">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => onNavigate('settings')}
+            className={`p-2 rounded-xl transition-all ${
+              darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Learning Preferences
+          </h1>
+        </div>
 
-          {/* Save Status */}
-          {saveStatus && (
-            <div className={`mb-6 p-4 rounded-xl ${
-              saveStatus === 'success' 
-                ? `${darkMode ? 'bg-green-500/20 border-green-500/30' : 'bg-green-50 border-green-200'} border`
-                : `${darkMode ? 'bg-red-500/20 border-red-500/30' : 'bg-red-50 border-red-200'} border`
-            }`}>
-              <div className="flex items-center gap-2">
-                {saveStatus === 'success' ? (
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                ) : (
-                  <Info className="w-5 h-5 text-red-500" />
-                )}
-                <span className={`font-semibold ${
-                  saveStatus === 'success' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {saveStatus === 'success' ? 'Preferences saved successfully!' : 'Failed to save preferences. Using local storage.'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Learning Pace */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Clock className="w-5 h-5 text-blue-500" />
-              <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Learning Pace
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {learningPaceOptions.map(option => 
-                renderOptionCard(option, 'learningPace', preferences.learningPace === option.id)
-              )}
-            </div>
+        {/* Learning Pace Section */}
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Clock className={`w-6 h-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+            <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Learning Pace
+            </h2>
           </div>
-
-          {/* Feedback Style */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <MessageCircle className="w-5 h-5 text-purple-500" />
-              <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Feedback Style
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {feedbackStyleOptions.map(option => 
-                renderOptionCard(option, 'feedbackStyle', preferences.feedbackStyle === option.id)
-              )}
-            </div>
+          <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Choose how quickly you want to progress through lessons
+          </p>
+          
+          <div className="space-y-3">
+            {[
+              { value: 'self-paced', label: 'Self-Paced', description: 'Progress at your own speed' },
+              { value: 'guided', label: 'Guided', description: 'Balanced progression with guidance' },
+              { value: 'accelerated', label: 'Accelerated', description: 'Rapid advancement when ready' }
+            ].map((option) => {
+              const isSelected = preferences.learningPace === option.value;
+              const recommendation = getRecommendation(option.value, 'learningPace');
+              
+              return (
+                <div
+                  key={option.value}
+                  onClick={() => updatePreference('learningPace', option.value)}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? darkMode
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-blue-500 bg-blue-50'
+                      : darkMode
+                      ? 'border-white/20 hover:border-white/40'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {option.label}
+                        </h3>
+                        {recommendation && (
+                          <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {option.description}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <CheckCircle className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Challenge Level */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Target className="w-5 h-5 text-orange-500" />
-              <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Challenge Level
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {challengeLevelOptions.map(option => 
-                renderOptionCard(option, 'challengeLevel', preferences.challengeLevel === option.id)
-              )}
-            </div>
+        {/* Feedback Style Section */}
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="flex items-center gap-3 mb-4">
+            <MessageCircle className={`w-6 h-6 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+            <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Feedback Style
+            </h2>
           </div>
+          <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Choose how you prefer to receive feedback on your responses
+          </p>
+          
+          <div className="space-y-3">
+            {[
+              { 
+                value: 'encouraging', 
+                label: 'Encouraging', 
+                description: 'Lots of positive reinforcement and support',
+                example: '"Great job! You\'re really improving!"'
+              },
+              { 
+                value: 'direct', 
+                label: 'Direct', 
+                description: 'Straightforward, matter-of-fact feedback',
+                example: '"That\'s correct. Good answer."'
+              },
+              { 
+                value: 'detailed', 
+                label: 'Detailed', 
+                description: 'Comprehensive explanations and insights',
+                example: '"Excellent! This shows you understand..."'
+              }
+            ].map((option) => {
+              const isSelected = preferences.feedbackStyle === option.value;
+              
+              return (
+                <div
+                  key={option.value}
+                  onClick={() => updatePreference('feedbackStyle', option.value)}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? darkMode
+                        ? 'border-green-500 bg-green-500/10'
+                        : 'border-green-500 bg-green-50'
+                      : darkMode
+                      ? 'border-white/20 hover:border-white/40'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {option.label}
+                    </h3>
+                    {isSelected && (
+                      <CheckCircle className={`w-5 h-5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                    )}
+                  </div>
+                  <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {option.description}
+                  </p>
+                  <p className={`text-xs italic ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    Example: {option.example}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* Practice Frequency */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-5 h-5 text-green-500" />
-              <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Practice Frequency Goal
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {practiceFrequencyOptions.map(option => 
-                renderOptionCard(option, 'practiceFrequency', preferences.practiceFrequency === option.id)
-              )}
-            </div>
+        {/* Challenge Level Section */}
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Target className={`w-6 h-6 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+            <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Challenge Level
+            </h2>
           </div>
+          <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Choose how quickly difficulty increases
+          </p>
+          
+          <div className="space-y-3">
+            {[
+              { value: 'gradual', label: 'Gradual', description: 'Slow difficulty increases' },
+              { value: 'moderate', label: 'Moderate', description: 'Balanced progression (recommended)' },
+              { value: 'aggressive', label: 'Aggressive', description: 'Rapid advancement when ready' }
+            ].map((option) => {
+              const isSelected = preferences.challengeLevel === option.value;
+              const recommendation = getRecommendation(option.value, 'challengeLevel');
+              
+              return (
+                <div
+                  key={option.value}
+                  onClick={() => updatePreference('challengeLevel', option.value)}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? darkMode
+                        ? 'border-orange-500 bg-orange-500/10'
+                        : 'border-orange-500 bg-orange-50'
+                      : darkMode
+                      ? 'border-white/20 hover:border-white/40'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {option.label}
+                        </h3>
+                        {recommendation && (
+                          <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {option.description}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <CheckCircle className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* Save Button */}
-          <div className="flex justify-center">
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className={`px-8 py-4 rounded-full font-bold text-lg transition-all flex items-center gap-3 ${
-                isSaving
-                  ? `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-300 text-gray-500'} cursor-not-allowed`
-                  : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg hover:shadow-blue-500/50'
-              }`}
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Save Preferences
-                </>
-              )}
-            </button>
+        {/* Practice Frequency Section */}
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Calendar className={`w-6 h-6 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+            <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Practice Frequency Goal
+            </h2>
           </div>
+          <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            How often would you like to practice?
+          </p>
+          
+          <div className="space-y-3">
+            {[
+              { value: 'daily', label: 'Daily', description: 'Practice every day' },
+              { value: 'few-times-week', label: 'Few Times Per Week', description: 'Practice 2-3 times per week' },
+              { value: 'weekly', label: 'Weekly', description: 'Practice once per week' }
+            ].map((option) => {
+              const isSelected = preferences.practiceFrequency === option.value;
+              const recommendation = getRecommendation(option.value, 'practiceFrequency');
+              
+              return (
+                <div
+                  key={option.value}
+                  onClick={() => updatePreference('practiceFrequency', option.value)}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? darkMode
+                        ? 'border-purple-500 bg-purple-500/10'
+                        : 'border-purple-500 bg-purple-50'
+                      : darkMode
+                      ? 'border-white/20 hover:border-white/40'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {option.label}
+                        </h3>
+                        {recommendation && (
+                          <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {option.description}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <CheckCircle className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* Preview Section */}
-          <div className={`mt-12 p-6 rounded-xl border ${
-            darkMode ? 'bg-white/5 border-white/20' : 'bg-white border-gray-200'
-          }`}>
-            <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              How Your Preferences Will Affect Your Learning
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <strong>Learning Pace:</strong> {learningPaceOptions.find(opt => opt.id === preferences.learningPace)?.details}
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-purple-500 mt-2"></div>
-                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <strong>Feedback Style:</strong> {feedbackStyleOptions.find(opt => opt.id === preferences.feedbackStyle)?.details}
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-orange-500 mt-2"></div>
-                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <strong>Challenge Level:</strong> {challengeLevelOptions.find(opt => opt.id === preferences.challengeLevel)?.details}
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-green-500 mt-2"></div>
-                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <strong>Practice Frequency:</strong> {practiceFrequencyOptions.find(opt => opt.id === preferences.practiceFrequency)?.details}
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Save Button */}
+        <div className="flex gap-4">
+          <button
+            onClick={() => onNavigate('settings')}
+            className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all ${
+              darkMode ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={savePreferences}
+            disabled={saving}
+            className="flex-1 bg-gradient-to-r from-blue-500 to-emerald-400 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Preferences
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
