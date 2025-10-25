@@ -720,10 +720,13 @@ router.get('/session-history/:userId', async (req, res) => {
     const { userId } = req.params;
     const { limit = 20 } = req.query;
     
+    console.log('📚 Fetching session history for user:', userId);
+    console.log('📚 Limit:', limit);
+    
     // Get session history using existing function
     const sessions = await getSessionHistory(userId, parseInt(limit));
     
-    console.log('✅ Session history retrieved successfully');
+    console.log('✅ Session history retrieved successfully:', sessions.length, 'sessions');
     
     res.json({
       success: true,
@@ -732,6 +735,12 @@ router.get('/session-history/:userId', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error getting session history:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to get session history',
