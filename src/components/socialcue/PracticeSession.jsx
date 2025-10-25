@@ -609,7 +609,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                   Creating 5 unique scenarios...
                 </p>
                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  This usually takes 2-4 seconds
+                  This usually takes 8-12 seconds
                 </p>
               </div>
             </div>
