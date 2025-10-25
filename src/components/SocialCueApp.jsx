@@ -16,6 +16,9 @@ import LessonsScreen from './socialcue/LessonsScreen';
 import LearningPreferencesScreen from './socialcue/LearningPreferencesScreen';
 import GoalsScreen from './socialcue/GoalsScreen';
 import BottomNav from './socialcue/BottomNav';
+import VoiceTestPage from './voice/VoiceTestPage';
+import VoicePracticeScreen from './socialcue/VoicePracticeScreen';
+import VoicePracticeSelection from './socialcue/VoicePracticeSelection';
 
 function SocialCueApp({ onLogout }) {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -26,6 +29,7 @@ function SocialCueApp({ onLogout }) {
   const [notifications, setNotifications] = useState(true);
   const [sessionId, setSessionId] = useState(1);
   const [selectedChildId, setSelectedChildId] = useState(null);
+  const [sessionData, setSessionData] = useState(null);
   
   // Calculate new goals count (goals created in the last 5 minutes)
   const getNewGoalsCount = () => {
@@ -62,6 +66,7 @@ function SocialCueApp({ onLogout }) {
         { id: 'practice', label: 'Practice', icon: Target },
         { id: 'goals', label: 'Goals', icon: Star },
         { id: 'progress', label: 'Progress', icon: TrendingUp },
+        { id: 'voice-test', label: 'Voice Test', icon: Settings },
         { id: 'settings', label: 'Settings', icon: Settings }
       ];
     }
@@ -181,6 +186,13 @@ function SocialCueApp({ onLogout }) {
   const handleNavigate = (screen, sid) => {
     console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
     setCurrentScreen(screen);
+    
+    // Handle voice practice navigation
+    if (screen === 'voice-practice' && typeof sid === 'object') {
+      setSessionData(sid);
+      return;
+    }
+    
     if (sid) {
       setSessionId(sid);
       // Set topicName based on sessionId
@@ -345,6 +357,42 @@ function SocialCueApp({ onLogout }) {
             childUserId={selectedChildId || 'test-user-123'}
             darkMode={darkMode}
           />
+        )}
+
+        {currentScreen === 'voice-test' && (
+          <VoiceTestPage />
+        )}
+
+        {/* Voice Practice Selection Screen */}
+        {currentScreen === 'voice-practice-selection' && userData?.role !== 'parent' && (
+          <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
+            <VoicePracticeSelection 
+              onNavigate={handleNavigate}
+              darkMode={darkMode}
+              userData={userData}
+            />
+          </ErrorBoundary>
+        )}
+
+        {/* Voice Practice Screen */}
+        {currentScreen === 'voice-practice' && userData?.role !== 'parent' && (
+          <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
+            <VoicePracticeScreen
+              scenario={sessionData?.scenario}
+              gradeLevel={userData?.grade || userData?.gradeLevel || '6'}
+              voiceGender={userData?.voiceGender || 'female'}
+              onComplete={(results) => {
+                console.log('Voice practice completed:', results);
+                handleNavigate('progress');
+                setSessionData(null);
+              }}
+              onExit={() => {
+                console.log('Voice practice exited');
+                handleNavigate('voice-practice-selection');
+                setSessionData(null);
+              }}
+            />
+          </ErrorBoundary>
         )}
       </div>
 

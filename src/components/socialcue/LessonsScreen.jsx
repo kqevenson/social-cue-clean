@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Clock, Star, Target, Users, Heart, Zap, Shield, ArrowRight, CheckCircle, PlayCircle, RotateCcw, Eye, HelpCircle, User } from 'lucide-react';
+import { BookOpen, Clock, Star, Target, Users, Heart, Zap, Shield, ArrowRight, CheckCircle, PlayCircle, RotateCcw, Eye, HelpCircle, User, Volume2, VolumeX, Lightbulb } from 'lucide-react';
 import { getAllLessonProgress, getLessonProgressStats, clearLessonProgress, getActiveChallenges, updateChallengeStatus, updateChallengeStats } from '../../firebaseHelpers';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
@@ -10,6 +10,7 @@ import StatusBadge from './progress/StatusBadge';
 import ProgressStats from './progress/ProgressStats';
 import CelebrationAnimation from './progress/CelebrationAnimation';
 import ActiveChallengesSection from './ActiveChallengesSection';
+import { VoiceOutput } from '../voice';
 
 // Challenge Card Component
 const ChallengeCard = ({ challenge, onComplete, onSkip, onLogAttempt, darkMode }) => {
@@ -166,6 +167,15 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
   const [firebaseLessonProgress, setFirebaseLessonProgress] = useState([]);
   const [loadingProgress, setLoadingProgress] = useState(true);
 
+  // Voice state management
+  const [voiceGender, setVoiceGender] = useState(() => {
+    const userData = JSON.parse(localStorage.getItem('socialcue_user') || '{}');
+    const gender = userData.voicePreference || 'female';
+    console.log('📚 LessonsScreen voiceGender initialized:', gender);
+    return gender;
+  });
+  const [playingSection, setPlayingSection] = useState(null);
+
   // getUserId function to generate consistent user IDs
   const getUserId = () => {
     // Try to get existing guest ID from localStorage (NOT sessionStorage)
@@ -188,7 +198,6 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
   };
 
   const learnerId = getUserId();
-
 
   const [lessons, setLessons] = useState([
     {
@@ -732,8 +741,8 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                   onComplete={handleChallengeComplete}
                   onSkip={handleChallengeSkip}
                   onLogAttempt={setLoggingAttempt}
-                  darkMode={darkMode}
-                />
+        darkMode={darkMode}
+      />
               ))}
             </div>
             
@@ -750,7 +759,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
         {/* Loading State for Challenges */}
         {loadingChallenges && (
           <section className="mb-8">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-6">
               <Target className="w-6 h-6 text-purple-400" />
               <h2 className="text-2xl font-bold text-purple-400">Your Active Challenges</h2>
             </div>
@@ -763,7 +772,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                     <div className="flex-1">
                       <div className="bg-gray-700 rounded h-4 w-32 mb-2"></div>
                       <div className="bg-gray-700 rounded h-3 w-20"></div>
-                    </div>
+          </div>
                   </div>
                   <div className="space-y-2 mb-4">
                     <div className="bg-gray-700 rounded h-4 w-full"></div>
@@ -786,7 +795,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               <div className="flex items-center justify-center gap-3 mb-2">
                 <Target className="w-5 h-5 text-red-400" />
                 <span className="text-red-300 font-medium">Unable to load challenges</span>
-              </div>
+            </div>
               <p className="text-red-200 text-sm mb-4">
                 Your challenges will appear here once you complete a lesson.
               </p>
@@ -805,10 +814,10 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
           <div className={`mb-6 p-4 rounded-2xl border ${darkMode ? 'bg-orange-500/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'}`}>
             <div className="flex items-center gap-3">
               <div className="text-2xl">⚠️</div>
-              <div className="flex-1">
+            <div className="flex-1">
                 <h3 className={`font-semibold ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
                   Progress Unavailable
-                </h3>
+              </h3>
                 <p className={`text-sm ${darkMode ? 'text-orange-200' : 'text-orange-600'}`}>
                   {progressError}. You can still start and continue lessons.
                 </p>
@@ -817,7 +826,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                 {isLoadingProgress ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-400"></div>
                 ) : (
-                  <button
+            <button
                     onClick={() => {
                       setProgressError(null);
                       setIsLoadingProgress(true);
@@ -833,10 +842,10 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                     }`}
                   >
                     Retry
-                  </button>
+            </button>
                 )}
-              </div>
-            </div>
+          </div>
+        </div>
           </div>
         )}
 
@@ -872,8 +881,8 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                         </span>
                         <span className={`text-sm font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                           {Math.round(lesson.progress)}%
-                        </span>
-                      </div>
+              </span>
+            </div>
                       <div className={`w-full h-2 rounded-full overflow-hidden ${
                         darkMode ? 'bg-white/10' : 'bg-gray-200'
                       }`}>
@@ -947,83 +956,118 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
 
         {/* Lessons Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
-          {lessons.map((lesson) => {
-            const Icon = lesson.icon;
+            {lessons.map((lesson) => {
+              const Icon = lesson.icon;
             const completed = isCompleted(lesson.id);
             const lessonStatus = getLessonStatus(lesson.id);
             const StatusIcon = lessonStatus.buttonIcon;
-            
-            return (
-              <div
-                key={lesson.id}
+              
+              return (
+                <div
+                  key={lesson.id}
                 className={`backdrop-blur-xl border rounded-3xl p-6 transition-all hover:shadow-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 ${
-                  darkMode 
-                    ? 'bg-white/8 border-white/20 hover:border-blue-500/50 hover:bg-white/10' 
-                    : 'bg-white border-gray-200 shadow-sm hover:border-blue-300 hover:shadow-lg'
-                } ${lessonStatus.status === 'completed' ? 'ring-2 ring-emerald-500/50' : ''} ${
-                  lessonStatus.status === 'in_progress' ? 'ring-1 ring-blue-500/30' : ''
-                }`}
-                onClick={() => handleStartLesson(lesson.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleStartLesson(lesson.id);
-                  }
-                }}
-                tabIndex={0}
-                role="button"
-                aria-label={`${lesson.title} lesson - ${lessonStatus.statusText}. Click to ${(lessonStatus.buttonText || '').toLowerCase()}.`}
-              >
-                {/* Header Section */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-                      <Icon className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{lesson.title}</h3>
-                      <div className="flex items-center gap-2">
+                    darkMode 
+                      ? 'bg-white/8 border-white/20 hover:border-blue-500/50 hover:bg-white/10' 
+                      : 'bg-white border-gray-200 shadow-sm hover:border-blue-300 hover:shadow-lg'
+                  } ${lessonStatus.status === 'completed' ? 'ring-2 ring-emerald-500/50' : ''} ${
+                    lessonStatus.status === 'in_progress' ? 'ring-1 ring-blue-500/30' : ''
+                  }`}
+                  onClick={() => handleStartLesson(lesson.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleStartLesson(lesson.id);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${lesson.title} lesson - ${lessonStatus.statusText}. Click to ${(lessonStatus.buttonText || '').toLowerCase()}.`}
+                >
+                  {/* Header Section */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                        <Icon className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{lesson.title}</h3>
+                        <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${getDifficultyColor(lesson.difficulty)}`}>
                           {lesson.difficulty}
                         </span>
-                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {lesson.duration}
-                        </span>
+                          <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {lesson.duration}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Status Badge and Restart Button */}
-                  <div className="flex flex-col gap-2 items-end">
-                    <StatusBadge 
-                      status={lessonStatus.status} 
-                      size="sm" 
-                      animated={true}
-                    />
-                    {(lessonStatus.status === 'in_progress' || lessonStatus.status === 'completed') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRestartLesson(lesson);
-                        }}
-                        className={`p-1 rounded-full transition-all hover:scale-110 ${
+                    
+                    {/* Status Badge and Restart Button */}
+                    <div className="flex flex-col gap-2 items-end">
+                      <StatusBadge 
+                        status={lessonStatus.status} 
+                        size="sm" 
+                        animated={true}
+                      />
+                      {(lessonStatus.status === 'in_progress' || lessonStatus.status === 'completed') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRestartLesson(lesson);
+                          }}
+                          className={`p-1 rounded-full transition-all hover:scale-110 ${
                           darkMode 
                             ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/20' 
                             : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
-                        }`}
+                          }`}
                         title="Restart Lesson"
                         aria-label="Restart lesson"
-                      >
+                        >
                         <RotateCcw className="w-3 h-3" />
-                      </button>
-                    )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                 {/* Description Section */}
-                <p className={`text-sm mb-4 leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  {lesson.description}
-                </p>
+                <div className="mb-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <p className={`text-sm leading-relaxed flex-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {lesson.description}
+                  </p>
+                    
+                    {/* Voice toggle for this lesson */}
+                    <button
+                      onClick={() => setPlayingSection(playingSection === lesson.id ? null : lesson.id)}
+                      className={`ml-3 p-2 rounded-lg transition-all ${
+                        playingSection === lesson.id 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                      }`}
+                      title={playingSection === lesson.id ? 'Stop reading' : 'Read lesson'}
+                    >
+                      {playingSection === lesson.id ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Voice Output for Description */}
+                  {playingSection === lesson.id && (
+                    <div className="mt-3">
+                      <VoiceOutput
+                        text={`${lesson.title}. ${lesson.description}`}
+                        voiceGender={voiceGender}
+                        autoPlay={true}
+                        onComplete={() => setPlayingSection(null)}
+                        onError={(error) => console.error('Voice error:', error)}
+                        onStart={() => console.log('🎤 Starting lesson audio with voiceGender:', voiceGender)}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Topics Section */}
                 <div className="mb-4">
@@ -1042,16 +1086,16 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                   </div>
                 </div>
 
-                {/* Progress Section */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {/* Progress Section */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                       Progress
-                    </span>
+                      </span>
                     <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                       {lessonStatus.progressPercentage}%
-                    </span>
-                  </div>
+                      </span>
+                    </div>
                   <ProgressBar 
                     progress={lessonStatus.progressPercentage}
                     status={lessonStatus.status}
@@ -1060,8 +1104,8 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                     currentStep={lessonStatus.currentStep}
                     totalSteps={lessonStatus.totalSteps}
                     animated={true}
-                  />
-                </div>
+                      />
+                    </div>
 
                 {/* Footer Section */}
                 <div className="flex items-center justify-between">
@@ -1078,7 +1122,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               </div>
             );
           })}
-        </div>
+                  </div>
 
         {/* Bottom Info */}
         <div className={`mt-8 p-4 rounded-2xl border ${darkMode ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
@@ -1090,10 +1134,10 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                 Each lesson is generated specifically for your grade level and learning style. 
                 Start any lesson to begin your personalized learning journey!
               </p>
-            </div>
-          </div>
-        </div>
-      </div>
+                    </div>
+                    </div>
+                    </div>
+                  </div>
 
       {/* Restart Confirmation Modal */}
       {showRestartModal && lessonToRestart && (
@@ -1115,7 +1159,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               </p>
               
               <div className="flex gap-3">
-                <button
+                  <button
                   onClick={cancelRestartLesson}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
                     darkMode 
@@ -1131,10 +1175,10 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                   className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors"
                 >
                   Restart
-                </button>
-              </div>
-            </div>
+                  </button>
+                </div>
           </div>
+        </div>
         </div>
       )}
 
@@ -1169,7 +1213,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 {activeChallenges.find(c => c.id === completingChallenge)?.challengeText}
               </p>
-            </div>
+              </div>
 
             <div className="mb-6">
               <label className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1187,7 +1231,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                 Share what worked well or what you'd like to improve next time
               </p>
-            </div>
+              </div>
 
             <div className="flex gap-3">
               <button
@@ -1208,8 +1252,8 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                 Complete ✨
               </button>
             </div>
-          </div>
-        </div>
+              </div>
+              </div>
       )}
 
       {/* Attempt Logging Modal */}
@@ -1228,7 +1272,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                 <Target className="w-6 h-6 text-white" />
-              </div>
+            </div>
               <div>
                 <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   Log Practice Attempt
@@ -1237,7 +1281,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                   Great job trying!
                 </p>
               </div>
-            </div>
+              </div>
 
             <div className={`p-4 rounded-xl mb-4 ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1261,7 +1305,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                 Keep practicing! Each attempt helps you improve
               </p>
-            </div>
+          </div>
 
             <div className="flex gap-3">
               <button
@@ -1281,8 +1325,8 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
               >
                 Log Attempt 🎯
               </button>
-            </div>
-          </div>
+        </div>
+      </div>
         </div>
       )}
     </div>
