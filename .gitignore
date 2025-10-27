@@ -30,9 +30,10 @@ dist-ssr
 *.sln
 *.sw?
 
-# Documentation and backup files
+# Documentation and backup files (keep important ones)
 *.md
 !README.md
+!docs/*.md
 backups/
 .cursor/
 
