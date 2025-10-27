@@ -272,7 +272,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
   }, []);
 
   const handleStartLesson = (lessonId) => {
-    console.log('Starting lesson:', lessonId);
+    console.log('📖 Starting lesson:', lessonId);
     
     if (!lessonId) {
       console.error('Lesson ID is undefined');
@@ -285,35 +285,39 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
       setShowCelebration(true);
     }
     
-    // Navigate to practice session with the lesson topic
+    // Find the lesson
     const lesson = lessons.find(l => l.id === lessonId);
     if (!lesson) {
       console.error('Lesson not found:', lessonId);
       return;
     }
     
-    if (!lesson.topic) {
-      console.error('Lesson topic is missing for lesson:', lessonId);
-      return;
-    }
+    console.log('📚 Opening lesson for LESSON SESSION:', lesson.title);
     
-    console.log('Starting lesson with topic:', lesson.topic);
-    
-    // Map lesson ID to session ID for PracticeSession and pass topicName
+    // Map lesson ID to session ID (1-5 for LessonSession scenarios
     const sessionIdMap = {
+      'intro-social-skills': 1,
+      'starting-conversations': 2,
+      'active-listening': 3,
+      'body-language': 4,
+      'making-friends': 5,
       'small-talk': 1,
       'active-listening': 2,
-      'body-language': 3,
       'confidence-building': 4,
       'conflict-resolution': 5
     };
     
-    // Update user data with the correct topicName before navigating
-    const userData = getUserData();
-    const updatedUserData = { ...userData, topicName: lesson.topic };
-    saveUserData(updatedUserData);
+    const sessionId = sessionIdMap[lessonId] || 1;
     
-    onNavigate('practice', sessionIdMap[lessonId] || 1);
+    // Save session info to localStorage for LessonSession
+    const userData = getUserData();
+    userData.currentSessionId = sessionId;
+    userData.topicName = lesson.title;
+    saveUserData(userData);
+    
+    // Navigate to lessonSession (NOT practice)
+    // This opens LessonSession component with text-based multiple choice scenarios
+    onNavigate('lessonSession');
   };
 
   const handleRestartLesson = (lesson) => {
@@ -476,7 +480,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
           const backupProgress = JSON.parse(localStorage.getItem('lessonProgressBackup') || '[]');
           if (backupProgress.length > 0) {
             console.log('🔄 Found backup progress, attempting to sync...');
-            // The sync will happen in PracticeSession when user starts a lesson
+            // The sync will happen in LessonSession when user starts a lesson
           }
         } catch (error) {
           console.error('❌ Error checking backup progress:', error);

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter, Play } from 'lucide-react';
+import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter, Play, Mic, Trophy } from 'lucide-react';
 import { getUserData } from './utils/storage';
 import SessionReplayModal from './SessionReplayModal';
+import voiceProgressService from '../../services/voiceProgressService';
 
 function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [masteryData, setMasteryData] = useState(null);
@@ -13,6 +14,8 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [expandedSession, setExpandedSession] = useState(null);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [showReplayModal, setShowReplayModal] = useState(false);
+  const [voiceProgress, setVoiceProgress] = useState(null);
+  const [weeklyStats, setWeeklyStats] = useState(null);
 
   // Set basic demo data (no API calls)
   useEffect(() => {
@@ -116,6 +119,22 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
       ]
     });
     setLoading(false);
+  }, []);
+
+  // Load voice practice progress
+  useEffect(() => {
+    try {
+      const progress = voiceProgressService.getProgress();
+      setVoiceProgress(progress);
+      
+      const weekly = voiceProgressService.getWeeklyStats();
+      setWeeklyStats(weekly);
+      
+      console.log('📊 Loaded voice progress:', progress);
+      console.log('📅 Weekly stats:', weekly);
+    } catch (error) {
+      console.error('Error loading voice progress:', error);
+    }
   }, []);
 
   // Fetch session history
@@ -409,6 +428,204 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
           </div>
         </div>
       </div>
+
+      {/* Voice Practice Progress Section */}
+      {voiceProgress && voiceProgress.totalSessions > 0 && (
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="flex items-center gap-3 mb-6">
+            <Mic className="w-6 h-6 text-purple-400" />
+            <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Voice Practice
+            </h2>
+          </div>
+          
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            {/* Total Sessions */}
+            <div className="p-4 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl border border-blue-500/30">
+              <div className="text-3xl font-bold text-blue-400">
+                {voiceProgress.totalSessions}
+              </div>
+              <div className="text-sm text-gray-400">Sessions</div>
+            </div>
+            
+            {/* Total Minutes */}
+            <div className="p-4 bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 rounded-xl border border-emerald-500/30">
+              <div className="text-3xl font-bold text-emerald-400">
+                {voiceProgress.totalMinutes}
+              </div>
+              <div className="text-sm text-gray-400">Minutes</div>
+            </div>
+            
+            {/* Current Streak */}
+            <div className="p-4 bg-gradient-to-br from-orange-500/20 to-orange-600/20 rounded-xl border border-orange-500/30">
+              <div className="text-3xl font-bold text-orange-400 flex items-center justify-center gap-2">
+                {voiceProgress.streak}
+                {voiceProgress.streak > 0 && <span className="text-2xl">🔥</span>}
+              </div>
+              <div className="text-sm text-gray-400">Day Streak</div>
+            </div>
+            
+            {/* Total Points */}
+            <div className="p-4 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-xl border border-purple-500/30">
+              <div className="text-3xl font-bold text-purple-400">
+                {voiceProgress.totalPoints}
+              </div>
+              <div className="text-sm text-gray-400">Points</div>
+            </div>
+          </div>
+          
+          {/* Progress by Difficulty */}
+          <div className="p-4 bg-white/5 rounded-xl mb-4">
+            <h3 className="font-bold mb-3 text-sm">Practice by Difficulty</h3>
+            <div className="space-y-3">
+              {/* Beginner */}
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-green-400">Beginner</span>
+                  <span className="text-gray-400">
+                    {voiceProgress.stats.byDifficulty.beginner} sessions
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all"
+                    style={{ 
+                      width: voiceProgress.totalSessions > 0
+                        ? `${(voiceProgress.stats.byDifficulty.beginner / voiceProgress.totalSessions) * 100}%`
+                        : '0%'
+                    }}
+                  />
+                </div>
+              </div>
+              
+              {/* Intermediate */}
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-yellow-400">Intermediate</span>
+                  <span className="text-gray-400">
+                    {voiceProgress.stats.byDifficulty.intermediate} sessions
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all"
+                    style={{ 
+                      width: voiceProgress.totalSessions > 0
+                        ? `${(voiceProgress.stats.byDifficulty.intermediate / voiceProgress.totalSessions) * 100}%`
+                        : '0%'
+                    }}
+                  />
+                </div>
+              </div>
+              
+              {/* Advanced */}
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-red-400">Advanced</span>
+                  <span className="text-gray-400">
+                    {voiceProgress.stats.byDifficulty.advanced} sessions
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-red-500 to-red-400 transition-all"
+                    style={{ 
+                      width: voiceProgress.totalSessions > 0
+                        ? `${(voiceProgress.stats.byDifficulty.advanced / voiceProgress.totalSessions) * 100}%`
+                        : '0%'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Milestones */}
+          <div className="p-4 bg-white/5 rounded-xl mb-4">
+            <h3 className="font-bold mb-3 text-sm flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-yellow-400" />
+              Milestones
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: 'firstSession', label: '🎉 First Practice', unlocked: voiceProgress.milestones.firstSession },
+                { key: 'tenSessions', label: '🌟 10 Sessions', unlocked: voiceProgress.milestones.tenSessions },
+                { key: 'thirtyMinutes', label: '⏱️ 30 Minutes', unlocked: voiceProgress.milestones.thirtyMinutes },
+                { key: 'hundredMinutes', label: '🏆 100 Minutes', unlocked: voiceProgress.milestones.hundredMinutes },
+                { key: 'sevenDayStreak', label: '🔥 7 Day Streak', unlocked: voiceProgress.milestones.sevenDayStreak },
+                { key: 'allBeginner', label: '📚 Beginner Master', unlocked: voiceProgress.milestones.allBeginner }
+              ].map(milestone => (
+                <div
+                  key={milestone.key}
+                  className={`p-3 rounded-lg text-xs text-center transition-all ${
+                    milestone.unlocked
+                      ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30'
+                      : 'bg-white/5 border border-white/10 opacity-40'
+                  }`}
+                >
+                  {milestone.label}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Weekly Summary */}
+          {weeklyStats && weeklyStats.sessionsCount > 0 && (
+            <div className="p-4 bg-gradient-to-r from-blue-500/10 to-emerald-500/10 rounded-xl border border-white/10">
+              <h3 className="font-bold mb-3 text-sm flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-400" />
+                This Week
+              </h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-blue-400">
+                    {weeklyStats.sessionsCount}
+                  </div>
+                  <div className="text-xs text-gray-400">Sessions</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-emerald-400">
+                    {weeklyStats.totalMinutes}
+                  </div>
+                  <div className="text-xs text-gray-400">Minutes</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-400">
+                    {weeklyStats.totalPoints}
+                  </div>
+                  <div className="text-xs text-gray-400">Points</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Show message if no voice practice yet */}
+      {voiceProgress && voiceProgress.totalSessions === 0 && (
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="text-center">
+            <Mic className="w-12 h-12 text-purple-400 mx-auto mb-3" />
+            <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              No Voice Practice Yet
+            </h3>
+            <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Start practicing to see your progress here!
+            </p>
+            <button
+              onClick={() => onNavigate('voice-practice-selection')}
+              className="px-6 py-2 bg-purple-500 rounded-lg font-medium hover:bg-purple-600 transition-all text-white"
+            >
+              Start Voice Practice
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Topic Mastery List */}
       <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${

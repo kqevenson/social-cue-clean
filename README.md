@@ -1,177 +1,141 @@
-# Social Cue - AI-Powered Social Skills Learning Platform
+# Social Cue - AI-Powered Social Skills Practice App
 
-A comprehensive React-based application designed to help students develop essential social skills through AI-powered practice sessions, adaptive learning, and personalized feedback.
+An interactive application helping students practice real-world social interactions through voice conversations with AI.
 
-## 🚀 Current Status
+## 🌟 Features
 
-**Phase:** 3 - Advanced Features  
-**Week:** 12 - Voice Chatbot Implementation  
-**Progress:** Ready to start voice chatbot development
-
-## ✨ Key Features
-
-### ✅ Completed Features
-- **AI-Powered Practice Sessions**: Dynamic scenario generation using Claude API
-- **Adaptive Learning Engine**: Personalized difficulty adjustment based on performance
-- **Progress Tracking**: Comprehensive analytics and mastery tracking
-- **Goals System**: Auto-generated learning goals with AI recommendations
-- **Parent Dashboard**: Real-time progress monitoring for parents
-- **Session History**: Detailed practice session analytics and replay
-- **Settings & Preferences**: Customizable learning experience
-- **Real-World Challenges**: AI-generated practical exercises
-
-### 🔄 In Development
-- **Live AI Voice Chatbot**: Real-time voice conversations for social skills practice
-- **Speech-to-Text Integration**: Voice input for natural interaction
-- **Text-to-Speech System**: AI-powered voice responses
-- **Voice Practice Interface**: Immersive conversation practice
-
-## 📚 Documentation
-
-Implementation guides and project documentation can be found in the [docs](./docs) folder.
-
-### Current Development Phase
-
-**Week 12: Live AI Voice Chatbot** 🎤
-- [View Implementation Guide](./docs/implementation-guides/Week-12-Voice-Chatbot-Implementation-Guide.md)
-- Status: Ready to start
-- Timeline: 10 days
-
-See [docs/README.md](./docs/README.md) for complete documentation index.
-
-## 🛠️ Technology Stack
-
-### Frontend
-- **React 18** with Vite for fast development
-- **Tailwind CSS** for responsive styling
-- **Lucide React** for consistent iconography
-- **Firebase/Firestore** for real-time data
-- **Web Speech API** for voice functionality
-
-### Backend
-- **Express.js** server with Claude API integration
-- **Firebase/Firestore** for data persistence
-- **Anthropic Claude API** for AI-powered content generation
-- **RESTful API** design with comprehensive error handling
-
-### Development Tools
-- **Vite** for fast build and hot reload
-- **ESLint** for code quality
-- **PostCSS** for CSS processing
-- **Git** for version control
+- **Voice Practice Sessions**: Real-time conversation practice with AI coach "Cue"
+- **Multi-Language Support**: English and Spanish
+- **Grade-Adaptive Content**: K-2, 3-5, 6-8, and 9-12 scenarios
+- **Continuous Conversation**: Natural back-and-forth dialogue with conversation limits
+- **Progress Tracking**: Streaks, confidence scores, and session history
+- **Scenario Library**: 12+ real-world social situations
+- **Dark Mode**: Eye-friendly interface
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js (v16 or higher)
 - npm or yarn
-- Firebase project setup
 - Anthropic Claude API key
+- ElevenLabs API key (optional, falls back to browser TTS)
 
 ### Installation
 
+1. Clone the repository:
 ```bash
-# Clone the repository
-git clone <repository-url>
+git clone https://github.com/YOUR_USERNAME/social-cue-clean.git
 cd social-cue-clean
+```
 
-# Install dependencies
+2. Install dependencies:
+```bash
 npm install
+```
 
-# Set up environment variables
-cp .env.example .env
-# Add your API keys to .env
+3. Set up environment variables:
+Create a `.env` file in the root directory:
+```
+VITE_CLAUDE_API_KEY=your_claude_api_key_here
+VITE_ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+```
 
-# Start development server
+4. Start the development server:
+```bash
 npm run dev
+```
 
-# Start backend server (in separate terminal)
+5. Start the backend server (in another terminal):
+```bash
 node server.js
 ```
 
-### Environment Variables
-```env
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-ANTHROPIC_API_KEY=your_claude_api_key
-```
+6. Open your browser to `http://localhost:5173`
 
 ## 📁 Project Structure
 
 ```
 social-cue-clean/
-├── docs/                           # Documentation
-│   ├── implementation-guides/      # Development guides
-│   ├── phase-plans/               # Project phase documentation
-│   └── README.md                  # Documentation index
 ├── src/
 │   ├── components/
-│   │   ├── socialcue/            # Main app components
-│   │   └── LandingPage.tsx       # Landing page
-│   ├── services/                 # API and utility services
-│   ├── hooks/                    # Custom React hooks
-│   └── utils/                    # Utility functions
-├── server.js                     # Backend API server
-├── package.json                  # Dependencies and scripts
-└── README.md                     # This file
+│   │   ├── socialcue/        # Main app components
+│   │   │   ├── HomeScreen.jsx
+│   │   │   ├── LessonsScreen.jsx
+│   │   │   ├── ProgressScreen.jsx
+│   │   │   └── SettingsScreen.jsx
+│   │   └── voice/            # Voice practice components
+│   │       ├── VoicePracticeScreen.jsx
+│   │       ├── VoiceInput.jsx
+│   │       └── VoiceOutput.jsx
+│   ├── services/             # API and service integrations
+│   ├── utils/                # Utility functions
+│   └── main.jsx              # App entry point
+├── server.js                 # Backend API server
+├── package.json
+└── README.md
 ```
 
-## 🎯 Development Phases
+## 🎯 Core Features
 
-### Phase 1: Core MVP (Weeks 1-4) ✅ COMPLETE
-- Foundation screens and navigation
-- Practice session system
-- Progress tracking
-- Onboarding flow
+### Voice Practice
+- Practice social skills through natural voice conversations
+- AI coach "Cue" provides guidance and feedback
+- Conversation automatically wraps up after 8 exchanges
+- Supports both English and Spanish
 
-### Phase 2: AI-Powered Learning (Weeks 5-8) ✅ COMPLETE
-- Backend infrastructure
-- Claude API integration
-- Firebase/Firestore setup
-- AI scenario generation
-- Adaptive learning engine
-- Goals auto-generation
+### Lessons
+- Browse and complete interactive lessons
+- Multiple choice scenarios with AI feedback
+- Progress tracking across topics
 
-### Phase 3: Advanced Features (Weeks 9-12) 🔄 IN PROGRESS
-- **Week 11**: Teacher Portal
-- **Week 12**: Live AI Voice Chatbot ⬅️ CURRENT
-- **Week 13+**: Multi-language support, advanced analytics
+### Progress Tracking
+- Visual progress dashboard
+- Streak tracking
+- Session history
+- Mastery indicators
+
+### Settings
+- Language selection (English/Spanish)
+- Voice gender preference (Male/Female)
+- Dark mode toggle
+- Sound effects and notifications
+
+## 🛠️ Technology Stack
+
+- **Frontend**: React, Vite, Tailwind CSS
+- **Backend**: Node.js, Express
+- **AI**: Anthropic Claude API
+- **Voice**: ElevenLabs API (with Web Speech API fallback)
+- **Storage**: LocalStorage (Firebase integration in progress)
+
+## 📝 Development
+
+### Running in Development Mode
+```bash
+npm run dev
+```
+
+### Building for Production
+```bash
+npm run build
+```
+
+### Linting
+```bash
+npm run lint
+```
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
-- **Anthropic** for Claude AI API
-- **Firebase** for backend infrastructure
-- **React** and **Vite** communities for excellent tooling
-- **Tailwind CSS** for rapid UI development
-
----
-
-## React + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Anthropic for Claude API
+- ElevenLabs for voice synthesis
+- React community

@@ -10,7 +10,7 @@ import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animation
 import { getFirestore, doc, updateDoc, collection, addDoc, getDoc, setDoc } from 'firebase/firestore';
 import VoiceOutput from '../voice/VoiceOutput';
 
-function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
+function LessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
   const USE_AI_EVALUATION = false; // Set to true when backend is deployed
   const USE_API = false; // Set to true when backend is ready
@@ -1385,4 +1385,4 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   );
 }
 
-export default PracticeSession;
+export default LessonSession;

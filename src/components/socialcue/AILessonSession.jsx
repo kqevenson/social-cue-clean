@@ -6,7 +6,7 @@ import LessonLoader from './animations/LessonLoader';
 import LessonIntroduction from './lessons/LessonIntroduction';
 import LessonExplanation from './lessons/LessonExplanation';
 import LessonSummary from './lessons/LessonSummary';
-import PracticeSession from './PracticeSession';
+import LessonSession from './LessonSession';
 import { ErrorBoundaryFallback } from './animations/ErrorBoundaryFallback';
 import { ToastNotification } from './animations';
 import { LessonSkeleton } from './animations/SkeletonScreens';
@@ -324,7 +324,7 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   // Show practice session
   if (lessonState === 'practice') {
     return (
-      <PracticeSession
+      <LessonSession
         sessionId={sessionId}
         onNavigate={onNavigate}
         darkMode={darkMode}

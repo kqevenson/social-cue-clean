@@ -3,6 +3,71 @@ import { getUserData, STORAGE_KEY } from './utils/storage';
 import { Settings, Shield, Lock, Download, Trash2, Users, Clock, Bell, Mail } from 'lucide-react';
 import { useToast } from './animations';
 
+// Helper functions for saving data
+const saveUserData = (data) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    console.log('✅ User data saved:', data);
+    return true;
+  } catch (error) {
+    console.error('❌ Error saving user data:', error);
+    return false;
+  }
+};
+
+// Show toast notification
+const showToast = (message, type = 'success') => {
+  console.log('📢 Toast:', message);
+  
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: ${type === 'success' ? 'linear-gradient(to right, #10b981, #3b82f6)' : 'linear-gradient(to right, #ef4444, #dc2626)'};
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    z-index: 99999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: slideDown 0.3s ease-out;
+  `;
+  
+  // Add animation if not already present
+  if (!document.getElementById('toast-animation-style')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animation-style';
+    style.textContent = `
+      @keyframes slideDown {
+        from {
+          transform: translateX(-50%) translateY(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(toast);
+  
+  // Remove after 2 seconds
+  setTimeout(() => {
+    toast.style.animation = 'slideDown 0.3s ease-out reverse';
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 2000);
+};
+
 function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, onToggleSoundEffects, onLogout, onNavigate }) {
   const [localDarkMode, setLocalDarkMode] = useState(darkMode);
   const [notifications, setNotifications] = useState(true);
@@ -210,26 +275,29 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
     }
   };
 
-  const handleVoiceSettingChange = async (setting, value) => {
+  const handleVoiceSettingChange = (setting, value) => {
     const newSettings = { ...voiceSettings, [setting]: value };
     setVoiceSettings(newSettings);
 
     try {
-      // Save to localStorage for now (in production, this would be saved to backend)
+      // Save to localStorage
       localStorage.setItem('voiceSettings', JSON.stringify(newSettings));
       
       // Update user data with voice preferences
       const currentData = getUserData();
       const updatedData = { ...currentData, voiceSettings: newSettings };
       
-      // Also update accentPreference for VoiceOutput component
-      if (setting === 'voiceAccent') {
-        updatedData.accentPreference = value;
+      // Also update voice preferences for VoiceOutput component
+      if (setting === 'voiceGender') {
+        updatedData.voicePreference = value;
       }
       
-      saveUserData(updatedData);
-      
-      showToast('Voice settings updated', 'success');
+      // Save the updated data
+      if (saveUserData(updatedData)) {
+        showToast('Voice settings updated', 'success');
+      } else {
+        showToast('Failed to save settings', 'error');
+      }
     } catch (error) {
       console.error('Error updating voice settings:', error);
       showToast('Failed to update voice settings', 'error');
@@ -510,53 +578,79 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
             </div>
           </div>
           
+          {/* Language Preference */}
           <div>
-            <label className={`text-sm block mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Voice Accent</label>
+            <label className={`text-sm block mb-2 font-bold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              🌍 Practice Language
+            </label>
             <p className={`text-xs mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-              Choose the accent for your AI teacher voice
+              Choose your practice language
             </p>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer">
-                <input
-                  type="radio"
-                  name="voiceAccent"
-                  value="english"
-                  checked={voiceSettings.voiceAccent === 'english'}
-                  onChange={(e) => handleVoiceSettingChange('voiceAccent', e.target.value)}
-                  className="w-4 h-4"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">English Accent</div>
-                  <div className="text-xs text-gray-400">
-                    {voiceSettings.voiceGender === 'female' 
-                      ? 'Charlotte - Warm, professional English female' 
-                      : 'Callum - Clear, encouraging Scottish male'
-                    }
-                  </div>
-                </div>
-                <div className="text-2xl">🇬🇧</div>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer">
-                <input
-                  type="radio"
-                  name="voiceAccent"
-                  value="american"
-                  checked={voiceSettings.voiceAccent === 'american'}
-                  onChange={(e) => handleVoiceSettingChange('voiceAccent', e.target.value)}
-                  className="w-4 h-4"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">American Accent</div>
-                  <div className="text-xs text-gray-400">
-                    {voiceSettings.voiceGender === 'female' 
-                      ? 'Rachel - Calm, clear American female' 
-                      : 'Adam - Friendly, clear American male'
-                    }
-                  </div>
-                </div>
-                <div className="text-2xl">🇺🇸</div>
-              </label>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  console.log('🇺🇸 English button clicked');
+                  
+                  // Save current screen so we return here after reload
+                  localStorage.setItem('socialcue_return_screen', 'settings');
+                  
+                  // Update user data
+                  const currentData = getUserData();
+                  const updated = { ...currentData, language: 'english' };
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                  
+                  console.log('✅ Settings saved:', updated);
+                  console.log('✅ Will return to: settings');
+                  
+                  // Reload page
+                  window.location.reload();
+                }}
+                className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all text-lg ${
+                  (!userData.language || userData.language === 'english')
+                    ? 'bg-gradient-to-r from-blue-500 to-emerald-400 text-white shadow-lg scale-105'
+                    : darkMode
+                    ? 'bg-white/10 text-gray-400 hover:bg-white/20'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                🇺🇸 English
+                {(!userData.language || userData.language === 'english') && ' ✓'}
+              </button>
+              
+              <button
+                onClick={() => {
+                  console.log('🇪🇸 Spanish button clicked');
+                  
+                  // Save current screen so we return here after reload
+                  localStorage.setItem('socialcue_return_screen', 'settings');
+                  
+                  // Update user data
+                  const currentData = getUserData();
+                  const updated = { ...currentData, language: 'spanish' };
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                  
+                  console.log('✅ Settings saved:', updated);
+                  console.log('✅ Will return to: settings');
+                  
+                  // Reload page
+                  window.location.reload();
+                }}
+                className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all text-lg ${
+                  userData.language === 'spanish'
+                    ? 'bg-gradient-to-r from-red-500 to-yellow-400 text-white shadow-lg scale-105'
+                    : darkMode
+                    ? 'bg-white/10 text-gray-400 hover:bg-white/20'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                🇪🇸 Español
+                {userData.language === 'spanish' && ' ✓'}
+              </button>
             </div>
+            
+            <p className={`text-xs mt-3 text-center ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              Currently selected: {userData.language === 'spanish' ? 'Español 🇪🇸' : 'English 🇺🇸'}
+            </p>
           </div>
           
           <div>
