@@ -1,54 +1,130 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { apiConfig } from '../config/env.js';
+import voiceAnalytics from '../services/voiceAnalytics.js';
 
 /**
- * useVoiceConversation - Custom hook for managing voice chatbot conversations
+ * @typedef {Object} Message
+ * @property {string} id - Unique message ID
+ * @property {'user'|'ai'} role - Message role
+ * @property {string} text - Message text content
+ * @property {Date} timestamp - Message timestamp
+ * @property {string} phase - Current conversation phase
+ * @property {boolean} audioPlayed - Whether audio has been played
+ * @property {Object} metadata - Additional message metadata
+ */
+
+/**
+ * @typedef {Object} ConversationPhase
+ * @property {'intro'|'practice'|'feedback'|'complete'} name - Phase name
+ * @property {string} description - Phase description
+ */
+
+/**
+ * @typedef {Object} PerformanceMetrics
+ * @property {number} totalTurns - Total conversation turns
+ * @property {number} successfulExchanges - Number of successful exchanges
+ * @property {number} hesitations - Number of hesitations detected
+ * @property {number} hintsGiven - Number of hints provided
+ * @property {number} score - Performance score (0-100)
+ * @property {Date|null} startTime - Session start time
+ * @property {Date|null} endTime - Session end time
+ * @property {number} duration - Session duration in milliseconds
+ * @property {number[]} responseTimes - Array of response times in milliseconds
+ */
+
+/**
+ * @typedef {Object} UseVoiceConversationOptions
+ * @property {string|Object} scenario - Scenario name or scenario object
+ * @property {string} gradeLevel - Grade level (K-12 format)
+ * @property {string} userId - User ID
+ * @property {number} [maxTurns=8] - Maximum conversation turns
+ * @property {string} [initialDifficulty='moderate'] - Initial difficulty level
+ * @property {Function} [onComplete] - Callback when conversation completes
+ * @property {Function} [onError] - Callback for errors
+ * @property {boolean} [autoSave=true] - Whether to auto-save progress
+ */
+
+/**
+ * @typedef {Object} UseVoiceConversationReturn
+ * @property {string|null} sessionId - Current session ID
+ * @property {Message[]} messages - Conversation messages
+ * @property {string} currentPhase - Current conversation phase
+ * @property {boolean} isAISpeaking - Whether AI is currently speaking
+ * @property {boolean} isListening - Whether microphone is listening
+ * @property {number} exchangeCount - Number of exchanges completed
+ * @property {string} difficultyLevel - Current difficulty level
+ * @property {boolean} isComplete - Whether conversation is complete
+ * @property {Error|null} error - Current error, if any
+ * @property {Function} startConversation - Start a new conversation
+ * @property {Function} sendMessage - Send a user message
+ * @property {Function} endConversation - End the conversation
+ * @property {boolean} isLoading - Whether an operation is in progress
+ * @property {boolean} canSpeak - Whether user can speak (mic enabled)
+ */
+
+/**
+ * Custom React hook for managing voice conversation state and logic.
  * 
- * Features:
- * - Multi-phase conversation flow (intro, practice, feedback, complete)
- * - AI response generation with Claude API integration
- * - Performance tracking and analytics
- * - Error recovery and fallback responses
- * - Context-aware conversation management
- * - Grade-level appropriate responses
+ * Encapsulates all conversation logic including:
+ * - Session initialization and management
+ * - Message history tracking
+ * - Phase transitions
+ * - API communication
+ * - Voice input/output coordination
+ * - Error handling and recovery
+ * - Performance tracking
+ * - Auto-save functionality
  * 
- * Usage:
+ * @param {UseVoiceConversationOptions} options - Hook configuration options
+ * @returns {UseVoiceConversationReturn} Hook return value with state and actions
+ * 
+ * @example
+ * ```jsx
  * const {
+ *   sessionId,
  *   messages,
- *   isAIThinking,
- *   isListening,
  *   currentPhase,
+ *   isAISpeaking,
+ *   isListening,
  *   startConversation,
- *   sendUserMessage,
+ *   sendMessage,
  *   endConversation,
- *   performance
+ *   isLoading,
+ *   canSpeak
  * } = useVoiceConversation({
  *   scenario: "Making friends at lunch",
  *   gradeLevel: "6",
- *   onComplete: (results) => console.log(results)
+ *   userId: "user_123"
  * });
+ * ```
  */
-
 const useVoiceConversation = ({
   scenario,
   gradeLevel = '6',
-  onComplete,
+  userId,
   maxTurns = 8,
-  apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+  initialDifficulty = 'moderate',
+  onComplete,
+  onError,
+  autoSave = true
 }) => {
-  // Enable mock mode for testing when backend is unavailable
-  const USE_MOCK = false; // Set to false when backend is stable
+  // API Configuration
+  const apiBaseUrl = apiConfig.baseUrl || 'http://localhost:3001';
   
-  // Core state
-  const [messages, setMessages] = useState([]);
-  const [isAIThinking, setIsAIThinking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
+  // Core State
+  const [sessionId, setSessionId] = useState(/** @type {string|null} */ (null));
+  const [messages, setMessages] = useState(/** @type {Message[]} */ ([]));
   const [currentPhase, setCurrentPhase] = useState('intro');
-  const [conversationId, setConversationId] = useState(null);
-  const [isActive, setIsActive] = useState(false);
-  const [backendStatus, setBackendStatus] = useState('checking');
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [exchangeCount, setExchangeCount] = useState(0);
+  const [difficultyLevel, setDifficultyLevel] = useState(initialDifficulty);
+  const [isComplete, setIsComplete] = useState(false);
+  const [error, setError] = useState(/** @type {Error|null} */ (null));
+  const [isLoading, setIsLoading] = useState(false);
   
-  // Performance tracking
-  const [performance, setPerformance] = useState({
+  // Performance Metrics
+  const [performanceMetrics, setPerformanceMetrics] = useState(/** @type {PerformanceMetrics} */ ({
     totalTurns: 0,
     successfulExchanges: 0,
     hesitations: 0,
@@ -56,633 +132,810 @@ const useVoiceConversation = ({
     score: 0,
     startTime: null,
     endTime: null,
-    duration: 0
-  });
-  
-  // Error handling
-  const [error, setError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 2; // Reduced from 3 to prevent infinite loops
+    duration: 0,
+    responseTimes: []
+  }));
   
   // Refs for cleanup and tracking
-  const conversationStartTime = useRef(null);
-  const turnCount = useRef(0);
-  const lastUserMessage = useRef(null);
-  const lastRequestTime = useRef(0);
-  const conversationContext = useRef({
-    scenario,
-    gradeLevel,
-    userStrengths: [],
-    areasForImprovement: [],
-    practiceGoals: []
-  });
-
-  // Conversation phases configuration
-  const phases = {
-    intro: {
-      name: 'Introduction',
-      description: 'AI introduces scenario and explains what to practice',
-      maxTurns: 2,
-      nextPhase: 'practice'
-    },
-    practice: {
-      name: 'Practice',
-      description: 'Interactive back-and-forth dialogue',
-      maxTurns: maxTurns,
-      nextPhase: 'feedback'
-    },
-    feedback: {
-      name: 'Feedback',
-      description: 'AI provides specific feedback on performance',
-      maxTurns: 2,
-      nextPhase: 'complete'
-    },
-    complete: {
-      name: 'Complete',
-      description: 'Summary and encouragement',
-      maxTurns: 1,
-      nextPhase: null
+  const abortControllerRef = useRef(/** @type {AbortController|null} */ (null));
+  const sessionStartTimeRef = useRef(/** @type {number|null} */ (null));
+  const lastUserMessageTimeRef = useRef(/** @type {number|null} */ (null));
+  const retryCountRef = useRef(0);
+  const debounceTimeoutRef = useRef(/** @type {NodeJS.Timeout|null} */ (null));
+  const ttsCallbackRef = useRef(/** @type {Function|null} */ (null));
+  
+  // Maximum retry attempts
+  const MAX_RETRIES = 3;
+  const DEBOUNCE_DELAY = 500; // ms
+  const API_TIMEOUT = 10000; // 10 seconds
+  
+  /**
+   * Get scenario name from scenario object or string
+   * @returns {string} Scenario name
+   */
+  const getScenarioName = useCallback(() => {
+    if (typeof scenario === 'string') {
+      return scenario;
     }
-  };
-
-  // Generate unique conversation ID
-  const generateConversationId = useCallback(() => {
-    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }, []);
-
-  // Create message object
+    if (scenario && typeof scenario === 'object') {
+      return scenario.title || scenario.name || scenario.id || 'Social Skills Practice';
+    }
+    return 'Social Skills Practice';
+  }, [scenario]);
+  
+  /**
+   * Create a message object
+   * @param {string} role - Message role ('user' or 'ai')
+   * @param {string} text - Message text
+   * @param {string} [phase] - Conversation phase
+   * @param {Object} [metadata] - Additional metadata
+   * @returns {Message} Message object
+   */
   const createMessage = useCallback((role, text, phase = currentPhase, metadata = {}) => {
     return {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       role,
-      text,
+      text: text.trim(),
       timestamp: new Date(),
-      audioPlayed: false,
       phase,
-      metadata
-    };
-  }, [currentPhase]);
-
-  // Generate mock responses for testing
-  const generateMockResponse = useCallback((phase, turnCount) => {
-    const mockResponses = {
-      intro: [
-        "Hi there! I'm so excited to practice with you today. We're going to work on making friends at school. Are you ready to begin?",
-        "Welcome! I'm here to help you practice social skills. Let's work on this scenario together.",
-        "Hello! I'm your practice partner. Let's explore this social situation step by step."
-      ],
-      practice: [
-        "That's a really thoughtful response! I like how you're considering the other person's feelings. What would you say next?",
-        "Nice work! That shows you're paying attention. Can you tell me more about why you chose that approach?",
-        "That's interesting! How do you think the other person might respond to what you just said?",
-        "Great job! You're doing really well. Let's take it a step further - what could you add to make it even better?",
-        "I like where you're going with this! That's exactly the kind of thinking that helps in social situations.",
-        "Excellent! You're showing good understanding. Let me ask you this - what else could you try?",
-        "That's a good point! How might you handle this differently if you were feeling nervous?",
-        "I can see you're really thinking about this. What would make you feel more confident in this situation?"
-      ],
-      feedback: [
-        "You did such a wonderful job today! I noticed you were really thinking carefully about your responses and considering the other person's perspective. That's exactly what makes good conversations. Keep practicing these skills!",
-        "I'm really impressed with your effort! You showed great listening skills and gave thoughtful responses throughout our practice.",
-        "Fantastic work! You've made real progress today. The key things you did well were being respectful and asking good questions.",
-        "Amazing job! You demonstrated some really good social skills there. I can see you're growing in confidence."
-      ],
-      complete: [
-        "Amazing work today! You should be really proud of yourself. I can't wait to see you practice these skills with your friends. Keep it up!",
-        "Congratulations on finishing this scenario! You've learned a lot today and should feel confident about your social skills.",
-        "Well done! You've successfully worked through this social situation and I'm proud of your progress.",
-        "Excellent work! You've completed this practice session with flying colors. Keep practicing and you'll keep getting better!"
-      ]
-    };
-    
-    const phaseResponses = mockResponses[phase] || mockResponses.practice;
-    const index = Math.min(turnCount, phaseResponses.length - 1);
-    const responseText = phaseResponses[index];
-    
-    return {
-      text: responseText,
-      phase: phase,
-      shouldContinue: phase !== 'complete',
-      feedback: phase === 'feedback' ? "You showed great social skills today!" : null,
-      encouragement: "Keep up the great work!",
-      hints: [],
+      audioPlayed: false,
       metadata: {
-        confidence: 0.9,
-        responseTime: 1000,
-        tokensUsed: 0,
-        isMock: true
+        ...metadata,
+        exchangeNumber: exchangeCount + (role === 'user' ? 1 : 0)
       }
     };
+  }, [currentPhase, exchangeCount]);
+  
+  /**
+   * Calculate performance score
+   * @param {PerformanceMetrics} metrics - Performance metrics
+   * @returns {number} Score from 0-100
+   */
+  const calculatePerformanceScore = useCallback((metrics) => {
+    let score = 50; // Base score
+    
+    // Positive factors
+    const successRate = metrics.totalTurns > 0 
+      ? metrics.successfulExchanges / metrics.totalTurns 
+      : 0;
+    score += successRate * 30;
+    
+    // Response time bonus (faster = better, but not too fast)
+    if (metrics.responseTimes.length > 0) {
+      const avgResponseTime = metrics.responseTimes.reduce((a, b) => a + b, 0) / metrics.responseTimes.length;
+      if (avgResponseTime < 3000) score += 10;
+      else if (avgResponseTime > 8000) score -= 10;
+    }
+    
+    // Negative factors
+    const hesitationRate = metrics.totalTurns > 0 
+      ? metrics.hesitations / metrics.totalTurns 
+      : 0;
+    score -= hesitationRate * 15;
+    
+    const hintRate = metrics.totalTurns > 0 
+      ? metrics.hintsGiven / metrics.totalTurns 
+      : 0;
+    score -= hintRate * 10;
+    
+    return Math.max(0, Math.min(100, Math.round(score)));
   }, []);
-
-  // Generate AI response using Claude API or mock responses
-  const generateAIResponse = useCallback(async (conversationHistory, currentPhase, retryAttempt = 0) => {
+  
+  /**
+   * Update performance metrics
+   * @param {Partial<PerformanceMetrics>} updates - Metrics updates
+   */
+  const updatePerformanceMetrics = useCallback((updates) => {
+    setPerformanceMetrics(prev => {
+      const updated = { ...prev, ...updates };
+      updated.score = calculatePerformanceScore(updated);
+      return updated;
+    });
+  }, [calculatePerformanceScore]);
+  
+  /**
+   * Auto-save session to localStorage
+   */
+  const autoSaveSession = useCallback(() => {
+    if (!autoSave || !sessionId) return;
+    
     try {
-      setIsAIThinking(true);
-      setError(null);
-
-      // Use mock responses if enabled
-      if (USE_MOCK) {
-        console.log('🤖 Using mock responses (backend unavailable)');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-        return generateMockResponse(currentPhase, turnCount.current);
-      }
-
-      // Rate limiting - prevent too many requests
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTime.current;
-      const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
+      const sessionData = {
+        sessionId,
+        userId,
+        scenario: getScenarioName(),
+        gradeLevel,
+        messages,
+        currentPhase,
+        exchangeCount,
+        difficultyLevel,
+        performanceMetrics,
+        isComplete,
+        timestamp: new Date().toISOString()
+      };
       
-      if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-        await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+      const storageKey = `voice_session_${sessionId}`;
+      localStorage.setItem(storageKey, JSON.stringify(sessionData));
+      
+      // Update user's session list
+      const userSessionsKey = `user_${userId}_voice_sessions`;
+      const userSessions = JSON.parse(localStorage.getItem(userSessionsKey) || '[]');
+      const sessionIndex = userSessions.findIndex(s => s.sessionId === sessionId);
+      
+      const sessionSummary = {
+        sessionId,
+        scenario: getScenarioName(),
+        gradeLevel,
+        exchangeCount,
+        currentPhase,
+        performanceScore: performanceMetrics.score,
+        timestamp: new Date().toISOString()
+      };
+      
+      if (sessionIndex >= 0) {
+        userSessions[sessionIndex] = sessionSummary;
+      } else {
+        userSessions.push(sessionSummary);
       }
       
-      lastRequestTime.current = Date.now();
-
-      // Create abort controller for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-      const response = await fetch(`${apiBaseUrl}/api/voice/conversation`, {
-        method: 'POST',
+      // Keep only last 50 sessions
+      if (userSessions.length > 50) {
+        userSessions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        userSessions.splice(50);
+      }
+      
+      localStorage.setItem(userSessionsKey, JSON.stringify(userSessions));
+    } catch (error) {
+      console.error('Failed to auto-save session:', error);
+    }
+  }, [autoSave, sessionId, userId, getScenarioName, gradeLevel, messages, currentPhase, exchangeCount, difficultyLevel, performanceMetrics, isComplete]);
+  
+  /**
+   * Make API request with retry logic
+   * @param {string} endpoint - API endpoint
+   * @param {Object} options - Fetch options
+   * @param {number} [retryAttempt=0] - Current retry attempt
+   * @returns {Promise<Response>} Fetch response
+   */
+  const apiRequest = useCallback(async (endpoint, options = {}, retryAttempt = 0) => {
+    // Cancel previous request if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), API_TIMEOUT);
+    
+    try {
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+        ...options,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_CLAUDE_API_KEY || ''}`
+          ...options.headers
         },
-        body: JSON.stringify({
-          conversationHistory: conversationHistory.slice(-10), // Last 10 messages for context
-          scenario: conversationContext.current.scenario,
-          gradeLevel: conversationContext.current.gradeLevel,
-          phase: currentPhase,
-          performance: {
-            totalTurns: turnCount.current,
-            successfulExchanges: performance.successfulExchanges,
-            hesitations: performance.hesitations,
-            hintsGiven: performance.hintsGiven
-          },
-          conversationId,
-          timestamp: new Date().toISOString()
-        }),
-        signal: controller.signal
+        signal: abortControllerRef.current.signal
       });
-
+      
       clearTimeout(timeoutId);
-
+      
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
-
-      const data = await response.json();
       
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to generate AI response');
-      }
-
-      // Reset retry count on success
-      setRetryCount(0);
-      setBackendStatus('online');
+      retryCountRef.current = 0;
+      return response;
       
-      return {
-        text: data.response,
-        phase: data.nextPhase || currentPhase,
-        shouldContinue: data.shouldContinue !== false,
-        feedback: data.feedback || null,
-        encouragement: data.encouragement || null,
-        hints: data.hints || [],
-        metadata: {
-          confidence: data.confidence || 0.8,
-          responseTime: data.responseTime || 0,
-          tokensUsed: data.tokensUsed || 0
-        }
-      };
-
     } catch (error) {
-      console.error('Error generating AI response:', error);
+      clearTimeout(timeoutId);
       
-      // Set backend status to offline
-      setBackendStatus('offline');
-      
-      // Better error logging
-      if (error.name === 'AbortError') {
-        console.log('⏱️ Request timeout - using fallback');
-      } else if (error.message.includes('fetch') || error.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
-        console.log('🔌 Network error - backend may be down');
-      } else {
-        console.error('❌ Unexpected error:', error);
+      // Retry logic
+      if (retryAttempt < MAX_RETRIES && error.name !== 'AbortError') {
+        retryCountRef.current = retryAttempt + 1;
+        const delay = Math.pow(2, retryAttempt) * 1000; // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return apiRequest(endpoint, options, retryAttempt + 1);
       }
       
-      // Retry logic (reduced to prevent infinite loops)
-      if (retryAttempt < maxRetries) {
-        console.log(`Retrying AI response generation (attempt ${retryAttempt + 1}/${maxRetries})`);
-        setRetryCount(retryAttempt + 1);
-        
-        // Exponential backoff
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryAttempt) * 1000));
-        return generateAIResponse(conversationHistory, currentPhase, retryAttempt + 1);
-      }
-      
-      // Always return a valid response - use mock as fallback
-      console.log('🔄 Using mock response as fallback');
-      return generateMockResponse(currentPhase, turnCount.current);
-    } finally {
-      setIsAIThinking(false);
+      throw error;
     }
-  }, [apiBaseUrl, conversationId, performance, maxRetries, USE_MOCK, generateMockResponse]);
-
-  // Generate fallback response when API fails
-  const generateFallbackResponse = useCallback((phase, error) => {
-    const fallbackResponses = {
-      intro: [
-        "Hi there! I'm here to help you practice social skills. Let's work on this scenario together.",
-        "Welcome! I'm excited to practice with you today. Let's start with this situation.",
-        "Hello! I'm your practice partner. Let's explore this social scenario step by step."
-      ],
-      practice: [
-        "That's interesting! Can you tell me more about what you're thinking?",
-        "I see. How do you think the other person might feel in this situation?",
-        "Good point! What would you do next in this scenario?",
-        "I understand. Let's think about this from a different angle.",
-        "That's a thoughtful response. How might you handle this differently?"
-      ],
-      feedback: [
-        "You did a great job working through that scenario! You showed good thinking.",
-        "I'm proud of how you handled that situation. You're learning and growing!",
-        "Excellent work! You demonstrated some really good social skills there.",
-        "You're making great progress! Keep up the wonderful work."
-      ],
-      complete: [
-        "Great job completing this practice session! You've learned a lot today.",
-        "Congratulations on finishing this scenario! You should be proud of your progress.",
-        "Well done! You've successfully worked through this social situation.",
-        "Amazing work! You've completed this practice session with flying colors."
-      ]
+  }, [apiBaseUrl]);
+  
+  /**
+   * Generate fallback response when API fails
+   * @param {string} phase - Current phase
+   * @returns {string} Fallback response text
+   */
+  const getFallbackResponse = useCallback((phase) => {
+    const fallbacks = {
+      intro: "Hi there! I'm excited to practice with you today. Are you ready to begin?",
+      practice: "That's interesting! Can you tell me more about that?",
+      feedback: "Great job! You're doing really well. Keep practicing!",
+      complete: "Excellent work! You've completed this practice session. Well done!"
     };
-
-    const responses = fallbackResponses[phase] || fallbackResponses.practice;
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
     
-    return {
-      text: randomResponse,
-      phase: phase,
-      shouldContinue: phase !== 'complete',
-      feedback: null,
-      encouragement: "Keep up the great work!",
-      hints: [],
-      metadata: {
-        confidence: 0.5,
-        responseTime: 0,
-        tokensUsed: 0,
-        isFallback: true,
-        error: error.message
-      }
-    };
+    return fallbacks[phase] || fallbacks.practice;
   }, []);
-
-  // Update performance metrics
-  const updatePerformance = useCallback((type, value = 1) => {
-    setPerformance(prev => {
-      const updated = { ...prev };
-      
-      switch (type) {
-        case 'turn':
-          updated.totalTurns += value;
-          turnCount.current += value;
-          break;
-        case 'successfulExchange':
-          updated.successfulExchanges += value;
-          break;
-        case 'hesitation':
-          updated.hesitations += value;
-          break;
-        case 'hint':
-          updated.hintsGiven += value;
-          break;
-        case 'start':
-          updated.startTime = new Date();
-          conversationStartTime.current = Date.now();
-          break;
-        case 'end':
-          updated.endTime = new Date();
-          updated.duration = Date.now() - conversationStartTime.current;
-          updated.score = calculateScore(updated);
-          break;
-        default:
-          break;
-      }
-      
-      return updated;
-    });
-  }, []);
-
-  // Calculate performance score
-  const calculateScore = useCallback((perf) => {
-    const baseScore = 50;
-    const successBonus = perf.successfulExchanges * 10;
-    const hesitationPenalty = perf.hesitations * 5;
-    const hintPenalty = perf.hintsGiven * 3;
-    const completionBonus = perf.totalTurns >= 5 ? 20 : 0;
+  
+  /**
+   * Get error recovery suggestions
+   * @param {Error} error - Error object
+   * @returns {string[]} Array of recovery suggestions
+   */
+  const getRecoverySuggestions = useCallback((error) => {
+    const suggestions = [];
     
-    return Math.max(0, Math.min(100, baseScore + successBonus - hesitationPenalty - hintPenalty + completionBonus));
+    if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      suggestions.push('Check your internet connection');
+      suggestions.push('Try again in a few moments');
+    } else if (error.message?.includes('timeout')) {
+      suggestions.push('The request took too long');
+      suggestions.push('Try again with a shorter message');
+    } else if (error.message?.includes('401') || error.message?.includes('403')) {
+      suggestions.push('Authentication error');
+      suggestions.push('Please refresh the page');
+    } else if (error.message?.includes('500')) {
+      suggestions.push('Server error occurred');
+      suggestions.push('Please try again later');
+    } else {
+      suggestions.push('An unexpected error occurred');
+      suggestions.push('Please try again');
+    }
+    
+    return suggestions;
   }, []);
-
-  // Start a new conversation
+  
+  /**
+   * Start a new conversation session
+   * @returns {Promise<{success: boolean, sessionId?: string, error?: string}>}
+   */
   const startConversation = useCallback(async () => {
+    if (isLoading) {
+      return { success: false, error: 'Already initializing conversation' };
+    }
+    
     try {
-      const newConversationId = generateConversationId();
-      setConversationId(newConversationId);
-      setIsActive(true);
-      setCurrentPhase('intro');
-      setMessages([]);
+      setIsLoading(true);
       setError(null);
-      setRetryCount(0);
+      setIsComplete(false);
+      setMessages([]);
+      setExchangeCount(0);
+      setCurrentPhase('intro');
+      setDifficultyLevel(initialDifficulty);
       
-      // Reset performance tracking
-      setPerformance({
+      // Reset performance metrics
+      sessionStartTimeRef.current = Date.now();
+      updatePerformanceMetrics({
         totalTurns: 0,
         successfulExchanges: 0,
         hesitations: 0,
         hintsGiven: 0,
         score: 0,
-        startTime: null,
+        startTime: new Date(),
         endTime: null,
-        duration: 0
+        duration: 0,
+        responseTimes: []
       });
       
-      turnCount.current = 0;
-      conversationStartTime.current = Date.now();
-      updatePerformance('start');
+      // Get scenario name
+      const scenarioName = getScenarioName();
+      const scenarioId = typeof scenario === 'object' && scenario?.id ? scenario.id : scenarioName;
       
-      // Generate initial AI message
-      const aiResponse = await generateAIResponse([], 'intro');
+      // Track session start
+      voiceAnalytics.trackVoicePracticeStarted(scenarioId, gradeLevel);
       
-      const initialMessage = createMessage('ai', aiResponse.text, 'intro', {
-        conversationId: newConversationId,
-        ...aiResponse.metadata
+      // Call API to start conversation
+      const response = await apiRequest('/api/voice/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId,
+          gradeLevel,
+          scenarioId,
+          difficulty: initialDifficulty,
+          scenarioDetails: typeof scenario === 'object' ? scenario : {}
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to start conversation');
+      }
+      
+      // Set session ID
+      const newSessionId = data.sessionId;
+      setSessionId(newSessionId);
+      
+      // Create initial AI message
+      const initialMessage = createMessage('ai', data.aiResponse || getFallbackResponse('intro'), 'intro', {
+        sessionId: newSessionId,
+        isInitial: true
       });
       
       setMessages([initialMessage]);
+      setCurrentPhase(data.phase || 'intro');
+      
+      // Auto-save
+      if (autoSave) {
+        autoSaveSession();
+      }
       
       return {
         success: true,
-        conversationId: newConversationId,
+        sessionId: newSessionId,
         initialMessage
       };
       
     } catch (error) {
       console.error('Error starting conversation:', error);
-      setError(error.message);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }, [generateConversationId, generateAIResponse, createMessage, updatePerformance]);
-
-  // Send user message and get AI response
-  const sendUserMessage = useCallback(async (userText) => {
-    if (!isActive || !userText.trim()) {
-      return { success: false, error: 'No active conversation or empty message' };
-    }
-
-    try {
-      setIsListening(false);
-      updatePerformance('turn');
+      const errorMessage = error.message || 'Failed to start conversation';
       
-      // Create user message
-      const userMessage = createMessage('user', userText.trim(), currentPhase);
-      lastUserMessage.current = userMessage;
-      
-      // Add user message to conversation
-      const updatedMessages = [...messages, userMessage];
-      setMessages(updatedMessages);
-      
-      // Detect hesitation or confusion
-      if (userText.toLowerCase().includes('um') || userText.toLowerCase().includes('uh')) {
-        updatePerformance('hesitation');
-      }
-      
-      // Generate AI response
-      const aiResponse = await generateAIResponse(updatedMessages, currentPhase);
-      
-      // Create AI message
-      const aiMessage = createMessage('ai', aiResponse.text, aiResponse.phase, {
-        ...aiResponse.metadata,
-        feedback: aiResponse.feedback,
-        encouragement: aiResponse.encouragement,
-        hints: aiResponse.hints
+      // Track error
+      voiceAnalytics.trackError('conversation_start_error', errorMessage, {
+        scenarioId: typeof scenario === 'object' && scenario?.id ? scenario.id : getScenarioName(),
+        gradeLevel
       });
       
-      // Add AI message to conversation
-      const finalMessages = [...updatedMessages, aiMessage];
-      setMessages(finalMessages);
+      const errorWithSuggestions = /** @type {Error & {suggestions?: string[]}} */ (
+        new Error(errorMessage)
+      );
+      errorWithSuggestions.suggestions = getRecoverySuggestions(error);
+      setError(errorWithSuggestions);
       
-      // Update phase if needed
-      if (aiResponse.phase !== currentPhase) {
-        setCurrentPhase(aiResponse.phase);
+      if (onError) {
+        onError(error);
       }
       
-      // Check if conversation should continue
-      if (!aiResponse.shouldContinue || turnCount.current >= maxTurns) {
-        await endConversation();
-      }
+      // Return fallback response
+      const fallbackMessage = createMessage('ai', getFallbackResponse('intro'), 'intro', {
+        isFallback: true
+      });
+      setMessages([fallbackMessage]);
       
-      // Track successful exchange
-      updatePerformance('successfulExchange');
-      
-      return {
-        success: true,
-        userMessage,
-        aiMessage,
-        shouldContinue: aiResponse.shouldContinue,
-        phase: aiResponse.phase
-      };
-      
-    } catch (error) {
-      console.error('Error sending user message:', error);
-      setError(error.message);
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
+    } finally {
+      setIsLoading(false);
     }
-  }, [isActive, messages, currentPhase, generateAIResponse, createMessage, updatePerformance, maxTurns]);
-
-  // End the conversation
+  }, [
+    isLoading,
+    getScenarioName,
+    userId,
+    gradeLevel,
+    initialDifficulty,
+    apiRequest,
+    createMessage,
+    getFallbackResponse,
+    getRecoverySuggestions,
+    updatePerformanceMetrics,
+    autoSave,
+    autoSaveSession,
+    onError
+  ]);
+  
+  /**
+   * Send a user message and get AI response
+   * @param {string} userText - User's message text
+   * @returns {Promise<{success: boolean, aiMessage?: Message, error?: string}>}
+   */
+  const sendMessage = useCallback(async (userText) => {
+    if (!userText || !userText.trim()) {
+      return { success: false, error: 'Empty message' };
+    }
+    
+    if (!sessionId) {
+      return { success: false, error: 'No active session. Please start a conversation first.' };
+    }
+    
+    if (isComplete) {
+      return { success: false, error: 'Conversation is already complete' };
+    }
+    
+    if (isLoading) {
+      return { success: false, error: 'Already processing a message' };
+    }
+    
+    // Debounce rapid messages
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    return new Promise((resolve) => {
+      debounceTimeoutRef.current = setTimeout(async () => {
+        try {
+          setIsLoading(true);
+          setIsListening(false);
+          setError(null);
+          
+          // Track response time
+          const responseStartTime = Date.now();
+          if (lastUserMessageTimeRef.current) {
+            const responseTime = responseStartTime - lastUserMessageTimeRef.current;
+            updatePerformanceMetrics({
+              responseTimes: [...performanceMetrics.responseTimes, responseTime]
+            });
+            
+            // Track conversation length
+            voiceAnalytics.trackConversationLength(exchangeCount + 1);
+          }
+          
+          // Track message send (for latency tracking)
+          const messageSendTime = Date.now();
+          
+          // Create user message
+          const userMessage = createMessage('user', userText, currentPhase);
+          lastUserMessageTimeRef.current = Date.now();
+          
+          // Detect hesitation
+          const hasHesitation = userText.toLowerCase().includes('um') || 
+                               userText.toLowerCase().includes('uh') ||
+                               userText.toLowerCase().includes('like');
+          
+          if (hasHesitation) {
+            updatePerformanceMetrics({
+              hesitations: performanceMetrics.hesitations + 1
+            });
+          }
+          
+          // Add user message to conversation
+          setMessages(prev => [...prev, userMessage]);
+          
+          // Update exchange count
+          const newExchangeCount = exchangeCount + 1;
+          setExchangeCount(newExchangeCount);
+          
+          updatePerformanceMetrics({
+            totalTurns: newExchangeCount
+          });
+          
+          // Call API to get AI response
+          const response = await apiRequest('/api/voice/message', {
+            method: 'POST',
+            body: JSON.stringify({
+              sessionId,
+              userMessage: userText.trim(),
+              responseTime: lastUserMessageTimeRef.current - (sessionStartTimeRef.current || Date.now()),
+              performance: {
+                totalTurns: newExchangeCount,
+                hesitations: performanceMetrics.hesitations + (hasHesitation ? 1 : 0),
+                hintsGiven: performanceMetrics.hintsGiven
+              }
+            })
+          });
+          
+          const data = await response.json();
+          
+          // Track response latency
+          const responseLatency = Date.now() - messageSendTime;
+          voiceAnalytics.trackResponseLatency(responseLatency);
+          
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to get AI response');
+          }
+          
+          // Create AI message
+          const aiMessage = createMessage('ai', data.aiResponse || getFallbackResponse(currentPhase), data.phase || currentPhase, {
+            exchangeCount: data.exchangeCount,
+            difficultyLevel: data.difficultyLevel,
+            shouldContinue: data.shouldContinue
+          });
+          
+          // Add AI message to conversation
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // Update phase if changed
+          if (data.phase && data.phase !== currentPhase) {
+            setCurrentPhase(data.phase);
+          }
+          
+          // Update difficulty level
+          if (data.difficultyLevel) {
+            setDifficultyLevel(data.difficultyLevel);
+          }
+          
+          // Update performance metrics
+          updatePerformanceMetrics({
+            successfulExchanges: performanceMetrics.successfulExchanges + 1
+          });
+          
+          // Check if conversation should end
+          if (!data.shouldContinue || newExchangeCount >= maxTurns || data.phase === 'complete') {
+            setIsComplete(true);
+            await endConversation();
+          }
+          
+          // Auto-save
+          if (autoSave) {
+            autoSaveSession();
+          }
+          
+          // Trigger TTS callback
+          setIsAISpeaking(true);
+          if (ttsCallbackRef.current) {
+            ttsCallbackRef.current(aiMessage.text, () => {
+              setIsAISpeaking(false);
+              setIsListening(true); // Enable mic after TTS completes
+            });
+          } else {
+            // Fallback: enable mic after delay
+            setTimeout(() => {
+              setIsAISpeaking(false);
+              setIsListening(true);
+            }, 1000);
+          }
+          
+          resolve({
+            success: true,
+            userMessage,
+            aiMessage
+          });
+          
+        } catch (error) {
+          console.error('Error sending message:', error);
+          const errorMessage = error.message || 'Failed to send message';
+          
+          // Track error
+          voiceAnalytics.trackError('message_send_error', errorMessage, {
+            scenarioId: typeof scenario === 'object' && scenario?.id ? scenario.id : getScenarioName(),
+            exchangeCount,
+            sessionId
+          });
+          
+          const errorWithSuggestions = /** @type {Error & {suggestions?: string[]}} */ (
+            new Error(errorMessage)
+          );
+          errorWithSuggestions.suggestions = getRecoverySuggestions(error);
+          setError(errorWithSuggestions);
+          
+          if (onError) {
+            onError(error);
+          }
+          
+          // Fallback response
+          const fallbackMessage = createMessage('ai', getFallbackResponse(currentPhase), currentPhase, {
+            isFallback: true,
+            error: errorMessage
+          });
+          
+          setMessages(prev => [...prev, fallbackMessage]);
+          
+          setIsAISpeaking(true);
+          if (ttsCallbackRef.current) {
+            ttsCallbackRef.current(fallbackMessage.text, () => {
+              setIsAISpeaking(false);
+              setIsListening(true);
+            });
+          } else {
+            setTimeout(() => {
+              setIsAISpeaking(false);
+              setIsListening(true);
+            }, 1000);
+          }
+          
+          resolve({
+            success: false,
+            error: errorMessage,
+            aiMessage: fallbackMessage
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      }, DEBOUNCE_DELAY);
+    });
+  }, [
+    sessionId,
+    isComplete,
+    isLoading,
+    currentPhase,
+    exchangeCount,
+    performanceMetrics,
+    maxTurns,
+    apiRequest,
+    createMessage,
+    getFallbackResponse,
+    getRecoverySuggestions,
+    updatePerformanceMetrics,
+    autoSave,
+    autoSaveSession,
+    onError
+  ]);
+  
+  /**
+   * End the conversation session
+   * @returns {Promise<{success: boolean, summary?: Object, error?: string}>}
+   */
   const endConversation = useCallback(async () => {
+    if (!sessionId) {
+      return { success: false, error: 'No active session' };
+    }
+    
+    if (isComplete) {
+      return { success: true, summary: performanceMetrics };
+    }
+    
     try {
-      setIsActive(false);
+      setIsLoading(true);
       setIsListening(false);
-      updatePerformance('end');
+      setIsAISpeaking(false);
+      setError(null);
       
-      // Generate final summary message if not already in complete phase
-      if (currentPhase !== 'complete') {
-        const finalResponse = await generateAIResponse(messages, 'complete');
-        const finalMessage = createMessage('ai', finalResponse.text, 'complete', {
-          ...finalResponse.metadata,
-          isFinal: true
+      // Calculate final duration
+      const duration = sessionStartTimeRef.current 
+        ? Date.now() - sessionStartTimeRef.current 
+        : 0;
+      
+      updatePerformanceMetrics({
+        endTime: new Date(),
+        duration
+      });
+      
+      // Call API to end conversation
+      try {
+        const response = await apiRequest(`/api/voice/end/${sessionId}`, {
+          method: 'POST'
         });
         
-        setMessages(prev => [...prev, finalMessage]);
-        setCurrentPhase('complete');
+        const data = await response.json();
+        
+        if (data.success) {
+          updatePerformanceMetrics({
+            score: data.performanceScore || performanceMetrics.score
+          });
+        }
+      } catch (apiError) {
+        console.warn('Failed to end conversation via API:', apiError);
+        // Continue with local completion
       }
       
-      // Prepare completion data
-      const completionData = {
-        conversationId,
-        scenario: conversationContext.current.scenario,
-        gradeLevel: conversationContext.current.gradeLevel,
-        performance: {
-          ...performance,
-          totalTurns: turnCount.current,
-          duration: Date.now() - conversationStartTime.current,
-          score: calculateScore({ ...performance, totalTurns: turnCount.current })
-        },
-        messages: messages,
-        completedAt: new Date(),
-        success: true
+      setIsComplete(true);
+      setCurrentPhase('complete');
+      
+      // Auto-save final state
+      if (autoSave) {
+        autoSaveSession();
+      }
+      
+      const summary = {
+        sessionId,
+        scenario: getScenarioName(),
+        gradeLevel,
+        exchangeCount,
+        currentPhase: 'complete',
+        performanceScore: performanceMetrics.score,
+        duration,
+        completedAt: new Date()
       };
+      
+      // Track session completion
+      const scenarioId = typeof scenario === 'object' && scenario?.id ? scenario.id : getScenarioName();
+      const durationSeconds = Math.round(duration / 1000);
+      voiceAnalytics.trackVoicePracticeCompleted(scenarioId, durationSeconds, exchangeCount);
+      voiceAnalytics.trackCompletedPractice();
       
       // Call completion callback
       if (onComplete) {
-        onComplete(completionData);
+        onComplete(summary);
       }
       
-      return completionData;
+      return {
+        success: true,
+        summary
+      };
       
     } catch (error) {
       console.error('Error ending conversation:', error);
-      setError(error.message);
+      const errorMessage = error.message || 'Failed to end conversation';
+      const errorWithSuggestions = /** @type {Error & {suggestions?: string[]}} */ (
+        new Error(errorMessage)
+      );
+      errorWithSuggestions.suggestions = getRecoverySuggestions(error);
+      setError(errorWithSuggestions);
+      
+      if (onError) {
+        onError(error);
+      }
+      
+      setIsComplete(true);
+      
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
+    } finally {
+      setIsLoading(false);
     }
-  }, [isActive, currentPhase, messages, generateAIResponse, createMessage, updatePerformance, conversationId, performance, calculateScore, onComplete]);
-
-  // Handle conversation timeout
-  const handleTimeout = useCallback(() => {
-    if (isActive && turnCount.current > 0) {
-      console.log('Conversation timeout - ending session');
-      endConversation();
-    }
-  }, [isActive, endConversation]);
-
-  // Check backend health on mount
-  useEffect(() => {
-    const checkBackendHealth = async () => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        
-        const response = await fetch(`${apiBaseUrl}/api/health`, {
-          method: 'GET',
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        setBackendStatus(response.ok ? 'online' : 'offline');
-      } catch (error) {
-        console.log('Backend health check failed:', error.message);
-        setBackendStatus('offline');
-      }
-    };
-
-    checkBackendHealth();
-  }, [apiBaseUrl]);
-
-  // Auto-timeout after 10 minutes of inactivity
-  useEffect(() => {
-    if (isActive) {
-      const timeout = setTimeout(handleTimeout, 10 * 60 * 1000); // 10 minutes
-      return () => clearTimeout(timeout);
-    }
-  }, [isActive, handleTimeout]);
-
+  }, [
+    sessionId,
+    isComplete,
+    performanceMetrics,
+    apiRequest,
+    updatePerformanceMetrics,
+    autoSave,
+    autoSaveSession,
+    getScenarioName,
+    gradeLevel,
+    exchangeCount,
+    getRecoverySuggestions,
+    onComplete,
+    onError
+  ]);
+  
+  /**
+   * Register TTS callback for voice output coordination
+   * @param {Function} callback - Callback function(text, onComplete)
+   */
+  const registerTTSCallback = useCallback((callback) => {
+    ttsCallbackRef.current = callback;
+  }, []);
+  
+  /**
+   * Clear error state
+   */
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+  
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (isActive) {
-        endConversation();
+      // Cancel pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // Clear debounce timeout
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      
+      // Auto-save final state
+      if (autoSave && sessionId) {
+        autoSaveSession();
       }
     };
-  }, []);
-
-  // Reset conversation state
-  const resetConversation = useCallback(() => {
-    setMessages([]);
-    setIsAIThinking(false);
-    setIsListening(false);
-    setCurrentPhase('intro');
-    setConversationId(null);
-    setIsActive(false);
-    setError(null);
-    setRetryCount(0);
-    turnCount.current = 0;
-    lastUserMessage.current = null;
-    
-    setPerformance({
-      totalTurns: 0,
-      successfulExchanges: 0,
-      hesitations: 0,
-      hintsGiven: 0,
-      score: 0,
-      startTime: null,
-      endTime: null,
-      duration: 0
-    });
-  }, []);
-
-  // Get conversation statistics
-  const getStats = useCallback(() => {
-    return {
-      totalMessages: messages.length,
-      userMessages: messages.filter(m => m.role === 'user').length,
-      aiMessages: messages.filter(m => m.role === 'ai').length,
-      currentPhase,
-      isActive,
-      performance: {
-        ...performance,
-        totalTurns: turnCount.current,
-        duration: isActive ? Date.now() - conversationStartTime.current : performance.duration
-      },
-      error,
-      retryCount
-    };
-  }, [messages, currentPhase, isActive, performance, error, retryCount]);
-
+  }, [autoSave, sessionId, autoSaveSession]);
+  
+  // Memoized computed values
+  const canSpeak = useMemo(() => {
+    return !isAISpeaking && !isLoading && !isComplete && sessionId !== null;
+  }, [isAISpeaking, isLoading, isComplete, sessionId]);
+  
+  // Auto-save when messages change
+  useEffect(() => {
+    if (autoSave && sessionId && messages.length > 0) {
+      autoSaveSession();
+    }
+  }, [messages, autoSave, sessionId, autoSaveSession]);
+  
   return {
-    // Core state
+    // State
+    sessionId,
     messages,
-    isAIThinking,
-    isListening,
-    setIsListening,
     currentPhase,
-    conversationId,
-    isActive,
+    isAISpeaking,
+    isListening,
+    setIsListening, // Allow external control
+    exchangeCount,
+    difficultyLevel,
+    isComplete,
     error,
-    backendStatus,
     
-    // Performance tracking
-    performance: {
-      ...performance,
-      totalTurns: turnCount.current,
-      duration: isActive ? Date.now() - conversationStartTime.current : performance.duration
-    },
+    // Performance metrics
+    performanceMetrics,
     
     // Actions
     startConversation,
-    sendUserMessage,
+    sendMessage,
     endConversation,
-    resetConversation,
+    
+    // Status
+    isLoading,
+    canSpeak,
     
     // Utilities
-    getStats,
-    phases,
-    
-    // Configuration
-    maxTurns,
-    apiBaseUrl,
-    USE_MOCK
+    registerTTSCallback,
+    clearError
   };
 };
 

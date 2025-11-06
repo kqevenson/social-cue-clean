@@ -1,0 +1,213 @@
+name: Voice Practice E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/components/voice/**'
+      - 'src/hooks/useVoiceConversation.js'
+      - 'src/utils/voiceErrorHandling.js'
+      - 'tests/integration/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/components/voice/**'
+      - 'src/hooks/useVoiceConversation.js'
+      - 'src/utils/voiceErrorHandling.js'
+      - 'tests/integration/**'
+  workflow_dispatch:
+
+jobs:
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Setup environment variables
+        run: |
+          echo "E2E_BASE_URL=http://localhost:5173" >> $GITHUB_ENV
+          echo "E2E_API_URL=http://localhost:3001" >> $GITHUB_ENV
+          echo "VITE_API_URL=http://localhost:3001" >> $GITHUB_ENV
+
+      - name: Start development server
+        run: |
+          npm run dev &
+          sleep 10
+        env:
+          VITE_API_URL: http://localhost:3001
+
+      - name: Start API server
+        run: |
+          npm run server &
+          sleep 5
+        env:
+          NODE_ENV: test
+
+      - name: Wait for servers to be ready
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:5173 > /dev/null 2>&1; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3001/api/health > /dev/null 2>&1; do sleep 2; done'
+
+      - name: Run E2E tests
+        run: npm run test:e2e -- --project=${{ matrix.browser }}
+        env:
+          E2E_BASE_URL: http://localhost:5173
+          E2E_API_URL: http://localhost:3001
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7
+
+  visual-regression:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Setup environment variables
+        run: |
+          echo "E2E_BASE_URL=http://localhost:5173" >> $GITHUB_ENV
+          echo "E2E_API_URL=http://localhost:3001" >> $GITHUB_ENV
+
+      - name: Start servers
+        run: |
+          npm run dev &
+          npm run server &
+          sleep 15
+
+      - name: Run visual regression tests
+        run: npm run test:e2e -- --grep "Visual Regression"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-screenshots
+          path: test-results/
+          retention-days: 30
+
+  accessibility-tests:
+    name: Accessibility Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start servers
+        run: |
+          npm run dev &
+          npm run server &
+          sleep 15
+
+      - name: Run accessibility tests
+        run: npm run test:e2e -- --grep "Accessibility"
+
+      - name: Upload accessibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-report
+          path: test-results/
+          retention-days: 7
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start servers
+        run: |
+          npm run dev &
+          npm run server &
+          sleep 15
+
+      - name: Run performance tests
+        run: npm run test:e2e -- --grep "Performance"
+
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: test-results/
+          retention-days: 7
+

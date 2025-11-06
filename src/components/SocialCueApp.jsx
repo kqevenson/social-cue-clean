@@ -7,7 +7,7 @@ import { config, isFeatureEnabled } from '../config/appConfig';
 import { trackError, trackVoiceError, trackApiError } from '../services/errorTracker';
 import { trackEvent, trackVoicePracticeEvent, trackEngagement } from '../services/analyticsService';
 import { startMonitoring, optimizeVoicePractice } from '../services/performanceService';
-import { initializeMobileCompatibility } from '../services/mobileCompatibilityService';
+import { initializeMobileCompatibility, isMobile } from '../services/mobileCompatibilityService';
 import { initializeAccessibility } from '../services/accessibilityService';
 import HomeScreen from './socialcue/HomeScreen';
 import ProgressScreen from './socialcue/ProgressScreen';
@@ -20,6 +20,7 @@ import AIPracticeSession from './AIPracticeSession';
 import LessonsScreen from './socialcue/LessonsScreen';
 import LearningPreferencesScreen from './socialcue/LearningPreferencesScreen';
 import GoalsScreen from './socialcue/GoalsScreen';
+import PracticeScreen from './socialcue/PracticeScreen';
 import BottomNav from './socialcue/BottomNav';
 
 // Feature flags
@@ -27,7 +28,7 @@ const VOICE_PRACTICE_ENABLED = isFeatureEnabled('voicePractice');
 
 // Lazy load voice components for performance
 const VoiceTestPage = lazy(() => import('./voice/VoiceTestPage'));
-const VoicePracticeScreen = lazy(() => import('./voice/VoicePracticeScreen'));
+const VoicePracticeScreen = lazy(() => import('../screens/VoicePracticeScreen'));
 const VoicePracticeSelection = lazy(() => import('./voice/VoicePracticeSelection'));
 
 function SocialCueApp({ onLogout }) {
@@ -390,39 +391,6 @@ function SocialCueApp({ onLogout }) {
           </ErrorBoundary>
         )}
         
-        {/* PRACTICE TAB: Voice chatbot - opens immediately */}
-        {currentScreen === 'practice' && !sessionId && userData?.role !== 'parent' && VOICE_PRACTICE_ENABLED && (() => {
-          console.log('🔍 PRACTICE SCREEN CONDITIONS:', {
-            currentScreen,
-            hasSessionId: !!sessionId,
-            userRole: userData?.role,
-            VOICE_PRACTICE_ENABLED,
-            willRender: true
-          });
-          return (
-            <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
-            <Suspense fallback={
-              <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                  <p className="text-gray-400">Loading Voice Practice...</p>
-                </div>
-              </div>
-            }>
-              {console.log('✅ RENDERING VoicePracticeScreen - Showing voice chat')}
-              <VoicePracticeScreen 
-                key={`voice-practice-${voiceScenario?.id}`}
-                scenario={voiceScenario}
-                gradeLevel={stableGradeLevel}
-                voiceGender={stableVoiceGender}
-                onComplete={stableOnComplete}
-                onExit={stableOnExit}
-              />
-            </Suspense>
-          </ErrorBoundary>
-          );
-        })()}
-        
         {currentScreen === 'ai-practice' && (
           <AIPracticeSession 
             category="AI Practice" 
@@ -431,7 +399,40 @@ function SocialCueApp({ onLogout }) {
           />
         )}
         
-        {/* Progress - different for parents vs learners */}
+        {/* Practice Screen */}
+        {currentScreen === 'practice' && userData?.role !== 'parent' && (
+          <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
+            <PracticeScreen 
+              onNavigate={handleNavigate} 
+              darkMode={darkMode}
+            />
+          </ErrorBoundary>
+        )}
+        
+        {/* Voice Practice Selection Screen */}
+        {currentScreen === 'voice-practice-selection' && userData?.role !== 'parent' && VOICE_PRACTICE_ENABLED && (
+          <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-400">Loading Voice Practice...</p>
+                </div>
+              </div>
+            }>
+              <VoicePracticeSelection
+                gradeLevel={userData?.grade || userData?.gradeLevel || '6-8'}
+                onSelectScenario={(scenario) => {
+                  setSessionData({ scenario });
+                  handleNavigate('voice-practice');
+                }}
+                onBack={() => handleNavigate('practice')}
+                onNavigate={handleNavigate}
+                darkMode={darkMode}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        )}
         {currentScreen === 'progress' && (
           userData?.role === 'parent' ? (
             <ParentDashboard 
@@ -503,34 +504,28 @@ function SocialCueApp({ onLogout }) {
                 </div>
               </div>
             }>
-              <VoicePracticeScreen
-                scenario={sessionData?.scenario}
-                gradeLevel={userData?.grade || userData?.gradeLevel || '6'}
-                voiceGender={userData?.voiceGender || 'female'}
-                onComplete={(results) => {
-                  console.log('Voice practice completed:', results);
-                  trackVoicePracticeEvent('voice_practice_completed', {
-                    sessionDuration: results.duration,
-                    messagesExchanged: results.messageCount,
-                    gradeLevel: userData?.grade || userData?.gradeLevel,
-                    scenario: sessionData?.scenario
-                  });
-                  handleNavigate('progress');
-                  setSessionData(null);
-                }}
-                onExit={() => {
-                  console.log('Voice practice exited');
-                  trackVoicePracticeEvent('voice_practice_exited', {
-                    reason: 'user_exit',
-                    gradeLevel: userData?.grade || userData?.gradeLevel,
-                    scenario: sessionData?.scenario
-                  });
-                  handleNavigate('voice-practice-selection');
-                  setSessionData(null);
-                }}
-                onError={(error) => trackVoiceError(error, { scenario: sessionData?.scenario })}
-                onEvent={(eventName, properties) => trackVoicePracticeEvent(eventName, properties)}
-              />
+              {(() => {
+                // Use ElevenLabs Widget for voice practice
+                const ElevenLabsWidget = React.lazy(() => import('./ElevenLabsWidget'));
+                
+                return (
+                  <ElevenLabsWidget
+                    agentId={import.meta.env.VITE_ELEVENLABS_AGENT_ID}
+                    scenario={sessionData?.scenario}
+                    gradeLevel={userData?.grade || userData?.gradeLevel || '6-8'}
+                    onClose={() => {
+                      console.log('Voice practice widget closed');
+                      trackVoicePracticeEvent('voice_practice_exited', {
+                        reason: 'user_exit',
+                        gradeLevel: userData?.grade || userData?.gradeLevel,
+                        scenario: sessionData?.scenario
+                      });
+                      handleNavigate('voice-practice-selection');
+                      setSessionData(null);
+                    }}
+                  />
+                );
+              })()}
             </Suspense>
           </ErrorBoundary>
         )}

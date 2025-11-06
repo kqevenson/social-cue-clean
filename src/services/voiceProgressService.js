@@ -193,7 +193,10 @@ class VoiceProgressService {
   // Show milestone notification (can be enhanced with toast)
   showMilestoneNotification(message) {
     console.log('🎊 Milestone:', message);
-    // TODO: Show actual notification/toast in UI
+    // Show notification/toast in UI (implemented via toast service)
+    if (window.showToast && typeof window.showToast === 'function') {
+      window.showToast(message, 'success');
+    }
   }
   
   // Save session to history

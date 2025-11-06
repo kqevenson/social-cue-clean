@@ -4,6 +4,7 @@
 
 /* Import animations */
 @import './animations.css';
+@import './styles/voiceAnimations.css';
 
 * {
   margin: 0;

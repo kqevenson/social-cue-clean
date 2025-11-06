@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter, Play, Mic, Trophy } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter, Play, Mic, Trophy, MessageCircle } from 'lucide-react';
 import { getUserData } from './utils/storage';
 import SessionReplayModal from './SessionReplayModal';
 import voiceProgressService from '../../services/voiceProgressService';
+import { getScenarioById } from '../../data/voicePracticeScenarios';
 
 function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [masteryData, setMasteryData] = useState(null);
@@ -136,6 +137,105 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
       console.error('Error loading voice progress:', error);
     }
   }, []);
+
+  // Calculate voice practice statistics
+  const voiceStats = useMemo(() => {
+    if (!voiceProgress || voiceProgress.totalSessions === 0) {
+      return null;
+    }
+
+    const sessionHistory = voiceProgressService.getSessionHistory(100);
+    
+    // Calculate total minutes
+    const totalMinutes = voiceProgress.totalMinutes || 
+      sessionHistory.reduce((sum, session) => sum + (session.durationMinutes || 0), 0);
+    
+    // Format minutes display
+    const formatMinutes = (minutes) => {
+      if (!minutes || minutes === 0) return '0 min';
+      if (minutes >= 60) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        if (mins === 0) {
+          return `${hours} hrs`;
+        }
+        const decimalHours = (minutes / 60).toFixed(1);
+        return `${decimalHours} hrs`;
+      }
+      return `${minutes} min`;
+    };
+
+    // Find favorite scenario (most practiced)
+    const scenarioCounts = {};
+    sessionHistory.forEach(session => {
+      const scenarioId = session.scenarioId || session.scenario?.id;
+      if (scenarioId) {
+        scenarioCounts[scenarioId] = (scenarioCounts[scenarioId] || 0) + 1;
+      }
+    });
+
+    const favoriteScenarioId = Object.keys(scenarioCounts).length > 0
+      ? Object.keys(scenarioCounts).reduce((a, b) => 
+          scenarioCounts[a] > scenarioCounts[b] ? a : b
+        )
+      : null;
+
+    let favoriteScenarioTitle = 'None yet';
+    if (favoriteScenarioId) {
+      const scenario = getScenarioById(favoriteScenarioId);
+      if (scenario) {
+        const userGrade = userData?.grade || userData?.gradeLevel || '6-8';
+        const normalizedGrade = userGrade <= 2 ? 'k2' : 
+                                 userGrade <= 5 ? '3-5' :
+                                 userGrade <= 8 ? '6-8' : '9-12';
+        favoriteScenarioTitle = scenario.title?.[normalizedGrade] || 
+                                scenario.title?.['6-8'] || 
+                                Object.values(scenario.title || {})[0] || 
+                                'Unknown';
+      }
+    }
+
+    // Calculate progress trend
+    const calculateTrend = () => {
+      if (sessionHistory.length < 10) {
+        return { text: 'Keep practicing!', isImproving: null };
+      }
+
+      // Get last 5 sessions
+      const recentSessions = sessionHistory.slice(0, 5);
+      const previousSessions = sessionHistory.slice(5, 10);
+
+      const recentAvg = recentSessions.reduce((sum, s) => sum + (s.points || 0), 0) / recentSessions.length;
+      const previousAvg = previousSessions.reduce((sum, s) => sum + (s.points || 0), 0) / previousSessions.length;
+
+      if (recentAvg > previousAvg) {
+        const improvement = ((recentAvg - previousAvg) / previousAvg) * 100;
+        return { 
+          text: `Improving! +${Math.round(improvement)}%`, 
+          isImproving: true 
+        };
+      } else if (recentAvg < previousAvg) {
+        const decline = ((previousAvg - recentAvg) / previousAvg) * 100;
+        return { 
+          text: `Needs practice -${Math.round(decline)}%`, 
+          isImproving: false 
+        };
+      } else {
+        return { text: 'Steady progress', isImproving: null };
+      }
+    };
+
+    const trend = calculateTrend();
+
+    return {
+      totalMinutes,
+      formattedMinutes: formatMinutes(totalMinutes),
+      conversationsCompleted: voiceProgress.totalSessions || 0,
+      favoriteScenario: favoriteScenarioTitle,
+      trend: trend.text,
+      isTrendImproving: trend.isImproving,
+    };
+  }, [voiceProgress, userData]);
 
   // Fetch session history
   const fetchSessionHistory = async () => {
@@ -429,7 +529,121 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
         </div>
       </div>
 
-      {/* Voice Practice Progress Section */}
+      {/* Voice Practice Stats Card */}
+      {voiceStats ? (
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 transition-all hover:shadow-lg ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="mb-6">
+            <h2 className={`text-2xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Voice Practice Stats
+            </h2>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Your speaking practice journey
+            </p>
+          </div>
+
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Metric 1: Minutes Practiced */}
+            <div className={`p-5 rounded-xl border transition-all hover:scale-105 ${
+              darkMode ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+            }`}>
+              <div className="flex flex-col items-center text-center">
+                <Clock className={`w-8 h-8 mb-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                <div className={`text-xs font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Minutes Practiced
+                </div>
+                <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {voiceStats.formattedMinutes}
+                </div>
+              </div>
+            </div>
+
+            {/* Metric 2: Conversations Completed */}
+            <div className={`p-5 rounded-xl border transition-all hover:scale-105 ${
+              darkMode ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+            }`}>
+              <div className="flex flex-col items-center text-center">
+                <MessageCircle className={`w-8 h-8 mb-2 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                <div className={`text-xs font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Conversations
+                </div>
+                <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {voiceStats.conversationsCompleted}
+                </div>
+                <div className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  completed
+                </div>
+              </div>
+            </div>
+
+            {/* Metric 3: Favorite Scenario */}
+            <div className={`p-5 rounded-xl border transition-all hover:scale-105 ${
+              darkMode ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex flex-col items-center text-center">
+                <Star className={`w-8 h-8 mb-2 ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
+                <div className={`text-xs font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Favorite Topic
+                </div>
+                <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'} line-clamp-2`}>
+                  {voiceStats.favoriteScenario}
+                </div>
+              </div>
+            </div>
+
+            {/* Metric 4: Progress Trend */}
+            <div className={`p-5 rounded-xl border transition-all hover:scale-105 ${
+              voiceStats.isTrendImproving === true
+                ? darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
+                : voiceStats.isTrendImproving === false
+                ? darkMode ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200'
+                : darkMode ? 'bg-gray-500/10 border-gray-500/30' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex flex-col items-center text-center">
+                <TrendingUp className={`w-8 h-8 mb-2 ${
+                  voiceStats.isTrendImproving === true
+                    ? darkMode ? 'text-emerald-400' : 'text-emerald-600'
+                    : voiceStats.isTrendImproving === false
+                    ? darkMode ? 'text-red-400' : 'text-red-600'
+                    : darkMode ? 'text-gray-400' : 'text-gray-600'
+                }`} />
+                <div className={`text-xs font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Trend
+                </div>
+                <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {voiceStats.trend}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Placeholder when no voice practice data */
+        <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+          darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <div className="text-center py-8">
+            <Mic className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h2 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Start Voice Practice
+            </h2>
+            <p className={`text-sm mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Try voice practice to see your speaking stats!
+            </p>
+            <button
+              onClick={() => onNavigate('voice-practice-selection')}
+              className="px-6 py-3 rounded-full font-semibold bg-gradient-to-r from-blue-500 to-emerald-400 text-white hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 mx-auto"
+            >
+              <Mic className="w-5 h-5" />
+              Start Voice Practice
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legacy Voice Practice Progress Section - Keep for backwards compatibility */}
       {voiceProgress && voiceProgress.totalSessions > 0 && (
         <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
           darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'

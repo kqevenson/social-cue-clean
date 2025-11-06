@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { getTemplate, getDisplayName } from './promptTemplates.js';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
@@ -30,9 +30,9 @@ const db = getFirestore(firebaseApp);
 app.use(cors());
 app.use(bodyParser.json());
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Test endpoint
@@ -415,10 +415,10 @@ Return as JSON:
   }
 }`;
 
-    console.log(`📝 Making API call to Claude for lesson generation...`);
+    console.log(`📝 Making API call to OpenAI for lesson generation...`);
     
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 4000,
       messages: [
         {
@@ -428,7 +428,7 @@ Return as JSON:
       ],
     });
     
-    let responseText = message.content[0].text;
+    let responseText = response.choices[0].message.content;
     console.log(`📊 API response received, validating for age-appropriateness...`);
     
     // Validate response for banned words (same validation as scenarios)
@@ -470,8 +470,8 @@ ${prompt}
 
 CRITICAL: Do not use ANY workplace, business, or professional language anywhere in the lesson. This is for a child in grade ${gradeLevel}.`;
 
-      const retryMessage = await anthropic.messages.create({
-        model: 'claude-3-haiku-20240307',
+      const retryResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         max_tokens: 4000,
         messages: [
           {
@@ -481,7 +481,7 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
         ],
       });
       
-      const retryResponseText = retryMessage.content[0].text;
+      const retryResponseText = retryResponse.choices[0].message.content;
       console.log(`📊 Retry response received, validating again...`);
       
       const retryValidation = validateLessonForAge(retryResponseText, gradeLevel);
@@ -526,17 +526,17 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
     }
     
     // Log cost tracking
-    const tokensUsed = message.usage?.input_tokens + message.usage?.output_tokens || 0;
-    const estimatedCost = (tokensUsed / 1000) * 0.00025; // Rough estimate for Claude Haiku
+    const tokensUsed = response.usage?.total_tokens || 0;
+    const estimatedCost = (tokensUsed / 1000) * 0.00015; // Rough estimate for GPT-4o-mini
     console.log(`💰 Token usage: ${tokensUsed} tokens (~$${estimatedCost.toFixed(4)})`);
     
     // Cache the lesson for future use (skip caching for now)
-    // await cacheLesson(cacheKey, lessonData.lesson, message.usage, estimatedCost);
+    // await cacheLesson(cacheKey, lessonData.lesson, response.usage, estimatedCost);
     
     res.json({ 
       success: true, 
       lesson: lessonData.lesson,
-      usage: message.usage,
+      usage: response.usage,
       costEstimate: estimatedCost,
       cached: false
     });
@@ -736,11 +736,11 @@ IMPORTANT: You MUST respond with ONLY valid JSON. No explanations, no markdown, 
   ]
 }`;
 
-    console.log(`📝 Making API call to Claude for lesson generation...`);
+    console.log(`📝 Making API call to OpenAI for lesson generation...`);
     const startTime = Date.now();
     
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 2000, // Increased to handle full 5 scenarios
       temperature: 0.7, // Reduced from 0.9 for faster generation
       messages: [
@@ -752,9 +752,9 @@ IMPORTANT: You MUST respond with ONLY valid JSON. No explanations, no markdown, 
     });
     
     const apiTime = Date.now() - startTime;
-    console.log(`⚡ Claude API call completed in ${apiTime}ms`);
+    console.log(`⚡ OpenAI API call completed in ${apiTime}ms`);
     
-    let responseText = message.content[0].text;
+    let responseText = response.choices[0].message.content;
     console.log(`📊 API response received, validating for age-appropriateness...`);
     
     // Simple validation for banned words
@@ -952,10 +952,10 @@ Return as JSON array:
       return { isValid: true };
     };
 
-    console.log(`📝 Making API call to Claude for ${gradeLevel} scenarios...`);
+    console.log(`📝 Making API call to OpenAI for ${gradeLevel} scenarios...`);
     
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 4000,
       messages: [
         {
@@ -965,7 +965,7 @@ Return as JSON array:
       ],
     });
     
-    let responseText = message.content[0].text;
+    let responseText = response.choices[0].message.content;
     console.log(`📊 API response received, validating for age-appropriateness...`);
     
     // Validate response for banned words
@@ -981,8 +981,8 @@ ${prompt}
 
 CRITICAL: Do not use ANY workplace, business, or professional language. This is for a child in grade ${gradeLevel}.`;
 
-      const retryMessage = await anthropic.messages.create({
-        model: 'claude-3-haiku-20240307',
+      const retryResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         max_tokens: 4000,
         messages: [
           {
@@ -992,7 +992,7 @@ CRITICAL: Do not use ANY workplace, business, or professional language. This is 
         ],
       });
       
-      const retryResponseText = retryMessage.content[0].text;
+      const retryResponseText = retryResponse.choices[0].message.content;
       console.log(`📊 Retry response received, validating again...`);
       
       const retryValidation = validateScenarioForAge(retryResponseText, gradeLevel);
@@ -1072,8 +1072,8 @@ Provide encouraging, personalized feedback (2-3 sentences) that:
 
 Keep it age-appropriate and positive.`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 512,
       messages: [
         {
@@ -1085,7 +1085,7 @@ Keep it age-appropriate and positive.`;
     
     res.json({ 
       success: true, 
-      feedback: message.content[0].text 
+      feedback: response.choices[0].message.content 
     });
     
   } catch (error) {
@@ -1234,15 +1234,15 @@ RESPONSE FORMAT (JSON):
 
 Make the feedback feel natural, personalized, and encouraging for a ${guidelines.ageContext}.`;
 
-    console.log(`📝 Making API call to Claude for feedback generation...`);
+    console.log(`📝 Making API call to OpenAI for feedback generation...`);
     
     // Add 3-second timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Feedback generation timeout')), 3000);
     });
     
-    const apiPromise = anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 800,
       messages: [
         {
@@ -1254,7 +1254,7 @@ Make the feedback feel natural, personalized, and encouraging for a ${guidelines
     
     const message = await Promise.race([apiPromise, timeoutPromise]);
     
-    let responseText = message.content[0].text;
+    let responseText = response.choices[0].message.content;
     console.log(`📊 API response received for feedback generation...`);
     
     // Parse JSON from response
@@ -1828,9 +1828,9 @@ Respond with a JSON object containing:
 
 Make it encouraging, specific, and practical for real-world practice.`;
 
-    // Generate challenge using Anthropic
-    const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    // Generate challenge using OpenAI
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1000,
       temperature: 0.7,
       messages: [
@@ -1841,7 +1841,7 @@ Make it encouraging, specific, and practical for real-world practice.`;
       ]
     });
 
-    const challengeText = response.content[0].text;
+    const challengeText = response.choices[0].message.content;
     
     // Parse the JSON response
     let challenge;
@@ -1921,9 +1921,9 @@ app.post('/api/adaptive/evaluate-response', async (req, res) => {
   console.log('🤖 Evaluating response for:', learnerId);
   
   try {
-    // Call Claude API for feedback
-    const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    // Call OpenAI API for feedback
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 500,
       temperature: 0.7,
       messages: [{
@@ -1938,8 +1938,8 @@ Was correct: ${isCorrectAnswer}
 Provide brief, encouraging feedback (2-3 sentences). If incorrect, gently explain why the correct answer is better.`
       }]
     });
-    
-    const feedback = response.content[0].text;
+
+    const feedback = response.choices[0].message.content;
     
     console.log('✅ AI feedback generated for learner:', learnerId);
     
@@ -2396,8 +2396,8 @@ CRITICAL: Return ONLY valid JSON. No explanations, no text, no markdown. Just th
   }
 ]`;
 
-    const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       max_tokens: 1500,
       temperature: 0.7,
       messages: [{
@@ -2406,7 +2406,7 @@ CRITICAL: Return ONLY valid JSON. No explanations, no text, no markdown. Just th
       }]
     });
 
-    const recommendations = JSON.parse(response.content[0].text);
+    const recommendations = JSON.parse(response.choices[0].message.content);
     
     console.log(`✅ Generated ${recommendations.length} goal recommendations for ${userId}`);
 
@@ -2722,9 +2722,9 @@ Return ONLY a JSON object with this structure:
   "tokensUsed": 150
 }`;
 
-    // Call Claude API
-    const claudeResponse = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    // Call OpenAI API
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 500,
       temperature: 0.7,
       messages: [{
@@ -2733,7 +2733,7 @@ Return ONLY a JSON object with this structure:
       }]
     });
     
-    const responseText = claudeResponse.content[0].text;
+    const responseText = response.choices[0].message.content;
     
     // Parse JSON response
     let conversationData;

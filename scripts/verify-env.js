@@ -30,6 +30,7 @@ try {
 const config = {
   elevenlabs: {
     apiKey: envVars.VITE_ELEVENLABS_API_KEY,
+    agentId: envVars.VITE_ELEVENLABS_AGENT_ID,
     enabled: envVars.VITE_USE_ELEVENLABS === 'true',
     model: envVars.VITE_ELEVENLABS_MODEL || 'eleven_monolingual_v1'
   },
@@ -62,6 +63,14 @@ const validateConfig = () => {
     errors.push('VITE_ELEVENLABS_API_KEY appears to be invalid (should start with sk_)');
   }
   
+  if (config.elevenlabs.enabled && !config.elevenlabs.agentId) {
+    errors.push('VITE_ELEVENLABS_AGENT_ID is required when ElevenLabs is enabled');
+  }
+  
+  if (config.elevenlabs.agentId && !config.elevenlabs.agentId.startsWith('agent_')) {
+    errors.push('VITE_ELEVENLABS_AGENT_ID appears to be invalid (should start with agent_)');
+  }
+  
   if (config.api.useApi && !config.api.baseUrl) {
     errors.push('VITE_API_URL is required when API is enabled');
   }
@@ -84,6 +93,7 @@ console.log('🔍 Verifying environment configuration...\n');
 
 console.log('Environment Variables:');
 console.log('✓ VITE_ELEVENLABS_API_KEY:', config.elevenlabs.apiKey ? '✅ Set' : '❌ Missing');
+console.log('✓ VITE_ELEVENLABS_AGENT_ID:', config.elevenlabs.agentId ? '✅ Set' : '❌ Missing');
 console.log('✓ VITE_USE_ELEVENLABS:', config.elevenlabs.enabled ? '✅ true' : '❌ false');
 console.log('✓ VITE_VOICE_PRACTICE_ENABLED:', config.voice.enabled ? '✅ true' : '❌ false');
 console.log('✓ VITE_VOICE_API_PROVIDER:', config.voice.provider);

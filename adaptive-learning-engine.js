@@ -1,7 +1,7 @@
 // Adaptive Learning Engine - AI-Powered Learning Intelligence
 // This file contains AI-powered functions for evaluating learner performance and adapting difficulty
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import {
   DIFFICULTY_LEVELS,
@@ -13,13 +13,13 @@ import {
 
 dotenv.config();
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 /**
- * Evaluates a single learner response using Claude AI
+ * Evaluates a single learner response using OpenAI
  * @param {Object} responseData - The response data to evaluate
  * @param {string} responseData.question - The question text
  * @param {string} responseData.selectedAnswer - The learner's selected answer
@@ -80,13 +80,13 @@ Provide a comprehensive evaluation in this JSON format:
 
 Be encouraging, specific, and age-appropriate in your feedback.`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const responseText = message.content[0].text;
+    const responseText = response.choices[0].message.content;
     console.log('📊 AI evaluation response received');
 
     // Parse JSON response
@@ -207,13 +207,13 @@ Provide comprehensive analysis in this JSON format:
 
 Be encouraging, specific, and actionable in your analysis.`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const responseText = message.content[0].text;
+    const responseText = response.choices[0].message.content;
     console.log('📊 Session analysis response received');
 
     // Parse JSON response
@@ -396,13 +396,13 @@ Generate personalized insights in this JSON format:
 
 Be encouraging, specific, and actionable. Focus on growth and positive reinforcement.`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const responseText = message.content[0].text;
+    const responseText = response.choices[0].message.content;
     console.log('📊 Progress insights response received');
 
     // Parse JSON response
@@ -504,13 +504,13 @@ Make the challenge:
 
 Avoid workplace scenarios - focus on school, home, and social situations.`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const responseText = message.content[0].text;
+    const responseText = response.choices[0].message.content;
     console.log('📊 Challenge creation response received');
 
     // Parse JSON response

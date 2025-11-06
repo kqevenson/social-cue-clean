@@ -251,6 +251,10 @@ function OnboardingScreen({ onComplete }) {
     try {
       console.log('🚀 Initializing adaptive learning for user:', userId);
       
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await fetch('http://localhost:3001/api/adaptive/init', {
         method: 'POST',
         headers: {
@@ -264,7 +268,10 @@ function OnboardingScreen({ onComplete }) {
           },
           onboardingAnswers: answers
         }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error('Failed to initialize adaptive learning');
@@ -277,8 +284,14 @@ function OnboardingScreen({ onComplete }) {
       localStorage.setItem('userId', userId);
       
     } catch (error) {
-      console.error('❌ Error initializing adaptive learning:', error);
+      if (error.name === 'AbortError') {
+        console.warn('⚠️ Adaptive learning initialization timed out - continuing anyway');
+      } else {
+        console.error('❌ Error initializing adaptive learning:', error);
+      }
       // Don't throw error - let user continue even if initialization fails
+      // Store user ID locally so app can still function
+      localStorage.setItem('userId', userId);
     }
   };
 

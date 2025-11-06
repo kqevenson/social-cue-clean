@@ -1,5 +1,6 @@
 import React from 'react';
-import { ArrowRight, MessageCircle, Ear, Users, Zap, Mic, Sparkles } from 'lucide-react';
+import { ArrowRight, MessageCircle, Ear, Users, Zap, Mic, Sparkles, Volume2 } from 'lucide-react';
+import voiceAnalytics from '../../services/voiceAnalytics.js';
 
 function PracticeScreen({ onNavigate, darkMode }) {
   const categories = [
@@ -22,39 +23,30 @@ function PracticeScreen({ onNavigate, darkMode }) {
           <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Choose a category to begin your learning journey</p>
         </div>
 
-        {/* Voice Practice Feature Card */}
-        <div className={`backdrop-blur-xl border rounded-3xl overflow-hidden transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-2xl animate-slideUp mb-8 ${
-          darkMode ? 'bg-gradient-to-r from-blue-500/10 to-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50 hover:bg-gradient-to-r hover:from-blue-500/15 hover:to-emerald-500/15' : 'bg-gradient-to-r from-blue-500/5 to-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-gradient-to-r hover:from-blue-500/10 hover:to-emerald-500/10 shadow-sm'
-        }`}>
-          <div className="p-8">
-            <div className="flex items-start justify-between mb-6">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform bg-gradient-to-r from-blue-500/20 to-emerald-500/20">
-                <Mic className="w-12 h-12 text-emerald-400" />
-              </div>
-              <div className="text-right">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-bold text-emerald-400">NEW</span>
-                </div>
-                <div className="text-sm text-emerald-400 font-medium">Voice Practice</div>
-              </div>
+        {/* Prominent Voice Practice Feature Card */}
+        <div 
+          className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl p-6 text-white mb-4 cursor-pointer hover:scale-[1.02] transition-transform shadow-lg"
+          onClick={() => voiceAnalytics.trackViewedCard()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Volume2 className="w-6 h-6" />
+              <h3 className="text-xl font-bold">Voice Practice</h3>
+              <span className="px-2 py-1 bg-green-400 text-xs rounded-full text-purple-900 font-semibold">NEW</span>
             </div>
-            
-            <h3 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              🎤 Voice Practice
-            </h3>
-            <p className={`text-base mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Practice social skills through natural conversation with our AI coach. Speak naturally and get personalized feedback in real-time.
-            </p>
-
-            <button 
-              onClick={() => onNavigate('voice-practice-selection')} 
-              className="w-full bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white font-bold py-3 px-6 rounded-full border-2 border-transparent transition-all flex items-center justify-center gap-2 group-hover:scale-105"
-            >
-              Try Voice Practice
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
           </div>
+          <p className="text-sm opacity-90 mb-4">
+            Practice social skills through real conversations with AI
+          </p>
+          <button
+            onClick={() => {
+              voiceAnalytics.trackClickedStart();
+              onNavigate('voice-practice-selection');
+            }}
+            className="bg-white text-purple-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center gap-2"
+          >
+            Start Voice Practice →
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -76,6 +68,26 @@ function PracticeScreen({ onNavigate, darkMode }) {
                 
                 <h3 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{category.title}</h3>
                 <p className={`text-base mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{category.description}</p>
+
+                {/* Practice Mode Buttons */}
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    onClick={() => onNavigate('practice', 1)} 
+                    className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                  >
+                    Text Practice
+                  </button>
+                  <button 
+                    onClick={() => {
+                      voiceAnalytics.trackClickedStart();
+                      onNavigate('voice-practice-selection');
+                    }} 
+                    className="flex-1 bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-1 font-medium"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    Voice
+                  </button>
+                </div>
 
                 <button onClick={() => onNavigate('practice', 1)} className="w-full text-white font-bold py-3 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 group-hover:bg-gradient-to-r group-hover:from-blue-500 group-hover:to-emerald-400 group-hover:border-transparent"
                   style={{ borderColor: `${category.color}50`, color: category.color }}>
