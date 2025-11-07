@@ -7,11 +7,12 @@ import { getTemplate, getDisplayName } from './promptTemplates.js';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import adaptiveLearningRoutes from './adaptive-learning-routes.js';
+import OpenAI from 'openai';
 
 dotenv.config();
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -34,6 +35,12 @@ app.use(bodyParser.json());
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Initialize OpenAI client
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const openai = openaiApiKey
+  ? new OpenAI({ apiKey: openaiApiKey })
+  : null;
 
 // Test endpoint
 app.get('/api/health', (req, res) => {
