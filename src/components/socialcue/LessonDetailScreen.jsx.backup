@@ -1,0 +1,302 @@
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, CheckCircle, ChevronRight } from 'lucide-react';
+
+const LessonDetailScreen = ({ onNavigate }) => {
+  const [lesson, setLesson] = useState(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  
+  useEffect(() => {
+    const savedLesson = localStorage.getItem('currentLesson');
+    if (savedLesson) {
+      try {
+        const parsed = JSON.parse(savedLesson);
+        console.log('📚 Loaded lesson:', parsed);
+        console.log('   - ID:', parsed.id);
+        console.log('   - Title:', parsed.title);
+        console.log('   - Topic:', parsed.topic);
+        console.log('   - Category:', parsed.category);
+        console.log('   - Icon:', parsed.icon);
+        setLesson(parsed);
+      } catch (error) {
+        console.error('Error parsing lesson:', error);
+        onNavigate('lessons');
+      }
+    } else {
+      console.warn('No lesson found, returning to lessons');
+      onNavigate('lessons');
+    }
+  }, []);
+  
+  if (!lesson) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#000', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>Loading lesson...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const slides = getSlides(lesson.id);
+  const totalSlides = slides.length;
+  const currentContent = slides[currentSlide];
+  
+  const handleNext = () => {
+    if (currentSlide < totalSlides - 1) {
+      setCurrentSlide(currentSlide + 1);
+    } else {
+      handleComplete();
+    }
+  };
+  
+  const handlePrevious = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide(currentSlide - 1);
+    }
+  };
+  
+  const handleComplete = () => {
+    const userData = JSON.parse(localStorage.getItem('socialcue_user') || '{}');
+    if (!userData.completedLessons) {
+      userData.completedLessons = [];
+    }
+    if (!userData.completedLessons.includes(lesson.id)) {
+      userData.completedLessons.push(lesson.id);
+    }
+    localStorage.setItem('socialcue_user', JSON.stringify(userData));
+    setCompleted(true);
+    setTimeout(() => onNavigate('lessons'), 2000);
+  };
+  
+  if (completed) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#000', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✅</div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Lesson Complete!</h2>
+          <p style={{ color: '#9ca3af' }}>Returning to lessons...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen bg-black text-white pb-24">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
+        <button
+          onClick={() => onNavigate('lessons')}
+          className="flex items-center gap-2 text-white/80 hover:text-white mb-4"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm">Back to Lessons</span>
+        </button>
+        
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold">{String(lesson.title || 'Lesson')}</h1>
+          <p className="text-sm text-white/80">{String(lesson.topic || lesson.category || 'Learning')}</p>
+        </div>
+        
+        {/* Progress bar */}
+        <div className="bg-white/20 rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-white h-full transition-all"
+            style={{ width: `${((currentSlide + 1) / totalSlides) * 100}%` }}
+          />
+        </div>
+        <p className="text-xs text-white/60 mt-1 text-right">
+          {currentSlide + 1} / {totalSlides}
+        </p>
+      </div>
+      
+      {/* Content */}
+      <div className="p-6">
+        <div className="bg-white/5 rounded-xl p-6 mb-6 min-h-[400px]">
+          {/* Title */}
+          <h2 className="text-2xl font-bold mb-6">
+            {currentContent.title}
+          </h2>
+          
+          {/* Text Content */}
+          {currentContent.type === 'text' && (
+            <div className="space-y-4">
+              {currentContent.paragraphs.map((text, i) => (
+                <p key={i} className="text-gray-300 leading-relaxed">
+                  {text}
+                </p>
+              ))}
+            </div>
+          )}
+          
+          {/* Example Content */}
+          {currentContent.type === 'example' && (
+            <div>
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-4">
+                <p className="text-blue-300 font-medium mb-2">Example:</p>
+                <p className="text-gray-300">{currentContent.example}</p>
+              </div>
+              {currentContent.explanation && (
+                <p className="text-gray-400 text-sm">{currentContent.explanation}</p>
+              )}
+            </div>
+          )}
+          
+          {/* Tips Content */}
+          {currentContent.type === 'tips' && (
+            <div className="space-y-3">
+              {currentContent.tips.map((tip, i) => (
+                <div key={i} className="flex items-start gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+                  <span className="text-2xl flex-shrink-0">{tip.icon}</span>
+                  <div>
+                    <h3 className="font-bold mb-1">{tip.title}</h3>
+                    <p className="text-sm text-gray-300">{tip.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Navigation */}
+        <div className="flex items-center justify-between gap-4">
+          <button
+            onClick={handlePrevious}
+            disabled={currentSlide === 0}
+            className={`px-6 py-3 rounded-lg font-medium transition-all ${
+              currentSlide === 0
+                ? 'bg-white/5 text-gray-600 cursor-not-allowed'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            Previous
+          </button>
+          
+          <button
+            onClick={handleNext}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-emerald-500 rounded-lg font-medium text-white hover:scale-105 transition-all flex items-center gap-2"
+          >
+            <span>{currentSlide === totalSlides - 1 ? 'Complete Lesson' : 'Next'}</span>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Lesson content data
+function getSlides(lessonId) {
+  console.log('📖 Getting slides for lesson:', lessonId);
+  
+  const allContent = {
+    'small-talk': [
+      {
+        type: 'text',
+        title: 'Small Talk Basics',
+        paragraphs: [
+          'Small talk helps you start conversations and keep them flowing naturally.',
+          'It\'s about being friendly and finding common ground with others.',
+          'Good small talk can lead to meaningful friendships and connections.'
+        ]
+      },
+      {
+        type: 'tips',
+        title: 'Small Talk Tips',
+        tips: [
+          { icon: '☀️', title: 'Weather', description: 'Comment on the weather - it\'s universal!' },
+          { icon: '🎮', title: 'Interests', description: 'Ask about hobbies and interests' },
+          { icon: '📺', title: 'Current Events', description: 'Mention something interesting you saw' },
+          { icon: '😊', title: 'Be Positive', description: 'Keep the conversation light and friendly' }
+        ]
+      }
+    ],
+    'intro-social-skills': [
+      {
+        type: 'text',
+        title: 'What are Social Skills?',
+        paragraphs: [
+          'Social skills are the tools we use to interact and communicate with others effectively. They help us build relationships, understand emotions, and navigate social situations.',
+          'Good social skills can improve your friendships, help you at school, and make you feel more confident in social settings.'
+        ]
+      },
+      {
+        type: 'tips',
+        title: 'Key Social Skills',
+        tips: [
+          { icon: '👂', title: 'Listening', description: 'Paying attention when others speak' },
+          { icon: '💬', title: 'Communication', description: 'Expressing yourself clearly' },
+          { icon: '😊', title: 'Empathy', description: 'Understanding how others feel' },
+          { icon: '🤝', title: 'Cooperation', description: 'Working well with others' }
+        ]
+      }
+    ],
+    'starting-conversations': [
+      {
+        type: 'text',
+        title: 'How to Start a Conversation',
+        paragraphs: [
+          'Starting conversations can feel scary, but it gets easier with practice!',
+          'The key is to be friendly, find common ground, and ask open-ended questions.'
+        ]
+      },
+      {
+        type: 'example',
+        title: 'Conversation Starters',
+        example: '"Hi! I noticed you like Pokémon too. Which one is your favorite?"',
+        explanation: 'This works because it shows interest, finds common ground, and asks a question that needs more than yes/no.'
+      },
+      {
+        type: 'tips',
+        title: 'Tips for Starting Conversations',
+        tips: [
+          { icon: '👋', title: 'Start Simple', description: 'Say hi and introduce yourself' },
+          { icon: '🎯', title: 'Find Common Ground', description: 'Mention shared interests' },
+          { icon: '❓', title: 'Ask Questions', description: 'Show interest in the other person' }
+        ]
+      }
+    ],
+    'active-listening': [
+      {
+        type: 'text',
+        title: 'What is Active Listening?',
+        paragraphs: [
+          'Active listening means fully focusing on what someone is saying, not just hearing their words.',
+          'It shows respect and helps you understand others better.'
+        ]
+      },
+      {
+        type: 'tips',
+        title: 'How to Practice Active Listening',
+        tips: [
+          { icon: '👁️', title: 'Make Eye Contact', description: 'Look at the person speaking' },
+          { icon: '🙂', title: 'Show You\'re Listening', description: 'Nod and say "mm-hmm"' },
+          { icon: '❓', title: 'Ask Questions', description: 'Show interest by asking about details' },
+          { icon: '🔁', title: 'Summarize', description: 'Repeat back what you heard' }
+        ]
+      }
+    ]
+  };
+  
+  // Return content or fallback
+  const content = allContent[lessonId];
+  
+  if (!content) {
+    console.warn('⚠️ No content found for lesson:', lessonId);
+    return [
+      {
+        type: 'text',
+        title: 'Content Coming Soon',
+        paragraphs: [
+          'This lesson content is being created.',
+          'Check back soon for updates!'
+        ]
+      }
+    ];
+  }
+  
+  console.log('✅ Found', content.length, 'slides for lesson');
+  return content;
+}
+
+export default LessonDetailScreen;

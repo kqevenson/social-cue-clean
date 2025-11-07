@@ -8,8 +8,9 @@ import LoadingSpinner from './animations/LoadingSpinner';
 import SessionResults from './SessionResults';
 import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animations';
 import { getFirestore, doc, updateDoc, collection, addDoc, getDoc, setDoc } from 'firebase/firestore';
+import VoiceOutput from '../voice/VoiceOutput';
 
-function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
+function LessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
   const USE_AI_EVALUATION = false; // Set to true when backend is deployed
   const USE_API = false; // Set to true when backend is ready
@@ -34,6 +35,13 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   const [isCompletingSession, setIsCompletingSession] = useState(false);
   const [lessonState, setLessonState] = useState('loading'); // 'loading', 'ready', 'error'
   const [aiGeneratedScenario, setAiGeneratedScenario] = useState(null);
+  
+  // Voice settings
+  const [voiceGender, setVoiceGender] = useState(() => {
+    const userData = JSON.parse(localStorage.getItem('socialcue_user') || '{}');
+    return userData.voicePreference || 'female';
+  });
+  const [textToSpeak, setTextToSpeak] = useState('');
 
   const gradeRange = getGradeRange(gradeLevel);
   const scenario = aiGeneratedScenario || scenarios[sessionId] || scenarios[1];
@@ -660,51 +668,18 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     return { rate: 0.9, pitch: 0.98 };
   };
 
+  // VoiceOutput will handle speaking - this function is now just for state management
   const speak = (text) => {
-    window.speechSynthesis.cancel();
     if (!text) return;
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voiceSettings = getVoiceSettings(gradeLevel);
-    
-    utterance.rate = voiceSettings.rate;
-    utterance.pitch = voiceSettings.pitch;
-    utterance.volume = 1;
-    utterance.lang = 'en-US';
-
-    const selectVoice = (voices) => {
-      const warmVoices = ['Samantha', 'Karen', 'Moira', 'Victoria', 'Google US English Female'];
-      for (const voiceName of warmVoices) {
-        const voice = voices.find(v => v.name.includes(voiceName));
-        if (voice) {
-          utterance.voice = voice;
-          return;
-        }
-      }
-      const anyFemale = voices.find(v => v.name.toLowerCase().includes('female'));
-      if (anyFemale) utterance.voice = anyFemale;
-    };
-
-    let voices = window.speechSynthesis.getVoices();
-    if (voices.length === 0) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        voices = window.speechSynthesis.getVoices();
-        selectVoice(voices);
-      };
-    } else {
-      selectVoice(voices);
-    }
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+    setTextToSpeak(text);
+    setIsSpeaking(true);
+    // VoiceOutput component will handle the actual speaking
   };
 
   const stopSpeaking = () => {
-    window.speechSynthesis.cancel();
+    setTextToSpeak('');
     setIsSpeaking(false);
+    // VoiceOutput component will handle stopping
   };
 
   const toggleSpeech = (text) => {
@@ -713,18 +688,29 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   };
 
   useEffect(() => {
-    if (autoRead && situation) {
+    if (autoRead && situation && shuffledOptions) {
       const context = getContent(situation.context);
       const prompt = getContent(situation.prompt);
-      const optionsText = situation.options.map((opt, idx) => {
+      
+      console.log('📖 Auto-read - Building text with shuffled options:');
+      console.log('Shuffled options:', shuffledOptions.map((opt, idx) => ({
+        index: idx,
+        letter: String.fromCharCode(65 + idx),
+        text: getContent(opt.text)
+      })));
+      
+      // Use shuffledOptions to match the display order
+      const optionsText = shuffledOptions.map((opt, idx) => {
         const text = getContent(opt.text);
         return `Option ${String.fromCharCode(65 + idx)}: ${text}`;
       }).join('. ');
       const fullText = `${context}. ${prompt}. Here are your options. ${optionsText}`;
+      
+      console.log('📖 Auto-read full text:', fullText);
       setTimeout(() => speak(fullText), 500);
     }
     return () => stopSpeaking();
-  }, [currentSituation, autoRead]);
+  }, [currentSituation, autoRead, shuffledOptions]);
 
   useEffect(() => {
     return () => stopSpeaking();
@@ -1101,12 +1087,42 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       <div className="relative z-10 max-w-4xl mx-auto px-6 py-8 pb-32">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <button onClick={() => onNavigate('home')} className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
-              darkMode ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}>
-              <ArrowLeft className="w-5 h-5" />
-              Back
-            </button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => onNavigate('home')} className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
+                darkMode ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}>
+                <ArrowLeft className="w-5 h-5" />
+                Back
+              </button>
+              
+              {/* Voice Practice Toggle */}
+              <button 
+                onClick={() => {
+                  // Convert current scenario to voice practice format
+                  const voiceScenario = {
+                    title: scenario.title,
+                    description: scenario.description || 'Practice this scenario with voice interaction',
+                    category: scenario.category || 'conversation',
+                    duration: '5-8 minutes',
+                    difficulty: 'intermediate',
+                    estimatedExchanges: 6,
+                    gradeLevel: gradeLevel,
+                    tags: ['voice', 'interactive'],
+                    preview: `Let's practice ${scenario.title} through voice conversation!`
+                  };
+                  onNavigate('voice-practice', voiceScenario);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
+                  darkMode 
+                    ? 'bg-gradient-to-r from-blue-500/20 to-emerald-500/20 text-emerald-400 hover:from-blue-500/30 hover:to-emerald-500/30 hover:text-emerald-300 border border-emerald-500/30' 
+                    : 'bg-gradient-to-r from-blue-500/10 to-emerald-500/10 text-emerald-600 hover:from-blue-500/20 hover:to-emerald-500/20 hover:text-emerald-700 border border-emerald-500/20'
+                }`}
+              >
+                <Volume2 className="w-4 h-4" />
+                Try with Voice
+              </button>
+            </div>
+            
             <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{scenarioTitle}</h1>
             <div className="w-32"></div>
           </div>
@@ -1139,11 +1155,21 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
                 </div>
               </div>
               <button onClick={() => {
-                const optionsText = situation.options.map((opt, idx) => {
+                // Use shuffledOptions to match the display order
+                console.log('📖 Read Aloud - Building text with shuffled options:');
+                console.log('Shuffled options:', shuffledOptions.map((opt, idx) => ({
+                  index: idx,
+                  letter: String.fromCharCode(65 + idx),
+                  text: getContent(opt.text)
+                })));
+                
+                const optionsText = shuffledOptions.map((opt, idx) => {
                   const text = getContent(opt.text);
                   return `Option ${String.fromCharCode(65 + idx)}: ${text}`;
                 }).join('. ');
                 const fullText = `${situationContext}. ${situationPrompt}. Here are your options. ${optionsText}`;
+                
+                console.log('📖 Full text to read:', fullText);
                 toggleSpeech(fullText);
               }} className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all ${
                 isSpeaking ? 'bg-emerald-500 text-white' : darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
@@ -1337,8 +1363,26 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
           onComplete={() => setShowCelebration(false)}
         />
       )}
+      
+      {/* VoiceOutput Component for ElevenLabs TTS */}
+      {textToSpeak && (
+        <VoiceOutput
+          text={textToSpeak}
+          voiceGender={voiceGender}
+          autoPlay={true}
+          onComplete={() => {
+            setIsSpeaking(false);
+            setTextToSpeak('');
+          }}
+          onError={(error) => {
+            console.error('Practice session read aloud error:', error);
+            setIsSpeaking(false);
+            setTextToSpeak('');
+          }}
+        />
+      )}
     </div>
   );
 }
 
-export default PracticeSession;
+export default LessonSession;

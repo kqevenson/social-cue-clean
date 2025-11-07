@@ -54,8 +54,21 @@ body {
   }
 }
 
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.5);
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-out;
+}
+
+.animate-wave {
+  animation: wave 0.8s ease-in-out infinite;
 }
 
 .animate-slideUp {

@@ -2619,6 +2619,178 @@ app.delete('/api/goals/:goalId', async (req, res) => {
   }
 });
 
+// Voice Conversation API endpoint
+app.post('/api/voice/conversation', async (req, res) => {
+  try {
+    const { 
+      conversationHistory, 
+      scenario, 
+      gradeLevel, 
+      phase, 
+      performance, 
+      conversationId, 
+      timestamp 
+    } = req.body;
+    
+    console.log(`🎤 Voice conversation request - Phase: ${phase}, Grade: ${gradeLevel}`);
+    console.log(`📊 Performance: ${performance?.totalTurns || 0} turns, ${performance?.successfulExchanges || 0} successful exchanges`);
+    
+    // Age-appropriate conversation guidelines
+    const ageGuidelines = {
+      'K-2': {
+        language: 'Very simple words, short sentences (3-8 words)',
+        encouragement: 'Great job! You\'re doing so well!',
+        questions: 'simple yes/no or choice questions',
+        feedback: 'positive and encouraging',
+        avoid: 'complex explanations, abstract concepts'
+      },
+      '3-5': {
+        language: 'Clear, concrete language (5-12 words per sentence)',
+        encouragement: 'That\'s wonderful! You\'re learning so much!',
+        questions: 'concrete, specific questions about feelings and actions',
+        feedback: 'specific and constructive',
+        avoid: 'abstract concepts, complex social dynamics'
+      },
+      '6-8': {
+        language: 'Natural, conversational language (8-15 words per sentence)',
+        encouragement: 'Excellent work! You\'re really improving!',
+        questions: 'thoughtful questions about social situations',
+        feedback: 'detailed and encouraging',
+        avoid: 'adult themes, complex relationships'
+      },
+      '9-12': {
+        language: 'Mature, sophisticated language (10-20 words per sentence)',
+        encouragement: 'Outstanding! You\'re developing great social skills!',
+        questions: 'complex questions about social dynamics',
+        feedback: 'comprehensive and insightful',
+        avoid: 'inappropriate content'
+      },
+      'adult': {
+        language: 'Professional, clear language (12-25 words per sentence)',
+        encouragement: 'Great progress! You\'re building valuable skills!',
+        questions: 'sophisticated questions about social interactions',
+        feedback: 'detailed and professional',
+        avoid: 'inappropriate content'
+      }
+    };
+    
+    const guidelines = ageGuidelines[gradeLevel] || ageGuidelines['6-8'];
+    
+    // Build conversation context
+    const contextPrompt = `
+You are a warm, encouraging AI teacher helping a grade ${gradeLevel} student practice social skills through voice conversation.
+
+SCENARIO: ${scenario}
+
+CONVERSATION PHASE: ${phase}
+
+AGE GUIDELINES:
+- Language: ${guidelines.language}
+- Encouragement: ${guidelines.encouragement}
+- Questions: ${guidelines.questions}
+- Feedback: ${guidelines.feedback}
+- Avoid: ${guidelines.avoid}
+
+CONVERSATION HISTORY:
+${conversationHistory.map(msg => `${msg.role}: ${msg.text}`).join('\n')}
+
+PERFORMANCE METRICS:
+- Total turns: ${performance?.totalTurns || 0}
+- Successful exchanges: ${performance?.successfulExchanges || 0}
+- Hesitations: ${performance?.hesitations || 0}
+- Hints given: ${performance?.hintsGiven || 0}
+
+CONVERSATION PHASES:
+1. INTRO: Welcome student, explain scenario, set expectations
+2. PRACTICE: Interactive dialogue, ask questions, provide guidance
+3. FEEDBACK: Give specific feedback on performance, highlight strengths
+4. COMPLETE: Summarize learning, provide encouragement, wrap up
+
+RESPONSE REQUIREMENTS:
+- Keep responses conversational and natural (2-3 sentences max)
+- Be warm, encouraging, and supportive
+- Ask one clear question at a time
+- Provide specific, helpful feedback
+- Use age-appropriate language
+- Include encouragement and positive reinforcement
+- Determine if conversation should continue or wrap up
+
+Return ONLY a JSON object with this structure:
+{
+  "success": true,
+  "response": "Your conversational response here",
+  "nextPhase": "intro|practice|feedback|complete",
+  "shouldContinue": true/false,
+  "feedback": "Specific feedback on student's performance",
+  "encouragement": "Encouraging message",
+  "hints": ["helpful hint 1", "helpful hint 2"],
+  "confidence": 0.8,
+  "responseTime": 1500,
+  "tokensUsed": 150
+}`;
+
+    // Call Claude API
+    const claudeResponse = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 500,
+      temperature: 0.7,
+      messages: [{
+        role: 'user',
+        content: contextPrompt
+      }]
+    });
+    
+    const responseText = claudeResponse.content[0].text;
+    
+    // Parse JSON response
+    let conversationData;
+    try {
+      conversationData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse conversation JSON:', parseError);
+      // Fallback response
+      conversationData = {
+        success: true,
+        response: "That's interesting! Can you tell me more about what you're thinking?",
+        nextPhase: phase,
+        shouldContinue: true,
+        feedback: "You're doing great! Keep sharing your thoughts.",
+        encouragement: "I'm proud of how you're working through this!",
+        hints: [],
+        confidence: 0.5,
+        responseTime: 0,
+        tokensUsed: 0
+      };
+    }
+    
+    // Calculate response time
+    const responseTime = Date.now() - new Date(timestamp).getTime();
+    conversationData.responseTime = responseTime;
+    
+    console.log(`✅ Voice conversation response generated - Phase: ${conversationData.nextPhase}, Continue: ${conversationData.shouldContinue}`);
+    
+    res.json(conversationData);
+    
+  } catch (error) {
+    console.error('❌ Error generating voice conversation:', error);
+    
+    // Fallback response
+    res.json({
+      success: true,
+      response: "I'm here to help you practice! Let's work through this scenario together.",
+      nextPhase: "practice",
+      shouldContinue: true,
+      feedback: "You're doing great! Let's keep practicing.",
+      encouragement: "I believe in you! You can do this!",
+      hints: [],
+      confidence: 0.3,
+      responseTime: 0,
+      tokensUsed: 0,
+      error: error.message
+    });
+  }
+});
+
 // Mount adaptive learning routes
 app.use('/api/adaptive', adaptiveLearningRoutes);
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader } from 'lucide-react';
+import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader, Mic, ArrowRight } from 'lucide-react';
 import { getSessionProgress } from './utils/storage';
 import { getLearnerProfile, getSessionStats, getAllTopicMastery, getLessonProgressStats } from '../../firebaseHelpers';
 import { DifficultyBadge } from './utils/difficultyLevels.jsx';
+import voiceProgressService from '../../services/voiceProgressService';
 
 function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
   // Debug: Log userData to see what we're getting
@@ -17,6 +18,9 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
     isLoading: true,
     error: null
   });
+  
+  // Voice practice progress
+  const [voiceProgress, setVoiceProgress] = useState(null);
 
   // Load Firebase data on component mount
   useEffect(() => {
@@ -115,6 +119,16 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
       }
     ];
   };
+
+  // Load voice practice progress
+  useEffect(() => {
+    try {
+      const progress = voiceProgressService.getProgress();
+      setVoiceProgress(progress);
+    } catch (error) {
+      console.error('Error loading voice progress:', error);
+    }
+  }, []);
 
   const stats = calculateStats();
 
@@ -300,6 +314,53 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
             </button>
           </div>
         </section>
+
+        {/* Voice Practice Quick Stats */}
+        {voiceProgress && voiceProgress.totalSessions > 0 && (
+          <section className="mb-8">
+            <div className={`p-6 rounded-2xl border-2 ${
+              darkMode 
+                ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50' 
+                : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Mic className="w-6 h-6 text-purple-400" />
+                  Voice Practice
+                </h3>
+                <button
+                  onClick={() => onNavigate('voice-practice-selection')}
+                  className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                >
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-400">
+                    {voiceProgress.totalSessions}
+                  </div>
+                  <div className="text-xs text-gray-400">Sessions</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-pink-400">
+                    {voiceProgress.totalMinutes}
+                  </div>
+                  <div className="text-xs text-gray-400">Minutes</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-400 flex items-center justify-center gap-1">
+                    {voiceProgress.streak}
+                    {voiceProgress.streak > 0 && <span className="text-lg">🔥</span>}
+                  </div>
+                  <div className="text-xs text-gray-400">Streak</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="mb-8">
           <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Continue Learning</h2>
