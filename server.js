@@ -8,6 +8,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import adaptiveLearningRoutes from './adaptive-learning-routes.js';
 import OpenAI from 'openai';
+import { getIntroductionSequence } from './src/content/training/introduction-scripts.js';
 
 dotenv.config();
 
@@ -2628,3 +2629,113 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🧠 Adaptive Learning API: http://localhost:${PORT}/api/adaptive`);
 });
+
+function getAgeAppropriateContext(gradeLevel) {
+  const grade = parseInt(gradeLevel, 10);
+
+  if (Number.isNaN(grade)) {
+    return 'You are coaching a student. Keep language age-appropriate and encouraging.';
+  }
+
+  if (grade <= 2) {
+    return 'You are talking to a K-2 student (ages 5-8). Use simple, encouraging language with short sentences.';
+  }
+  if (grade <= 5) {
+    return 'You are talking to a grades 3-5 student (ages 8-11). Use clear, friendly language.';
+  }
+  if (grade <= 8) {
+    return 'You are talking to a middle school student (ages 11-14). Use conversational, supportive language.';
+  }
+  return 'You are talking to a high school student (ages 14-18). Use mature, thoughtful language.';
+}
+
+app.post('/api/voice/conversation', async (req, res) => {
+  if (!openai) {
+    return res.status(500).json({ error: 'OpenAI API key not configured on server.' });
+  }
+
+  const {
+    conversationHistory = [],
+    scenario = {},
+    gradeLevel = '6',
+    phase = 'intro',
+    curriculumScript = null
+  } = req.body || {};
+
+  try {
+    const systemPrompt = `You are Cue, a social skills coach for students in grade ${gradeLevel}.
+
+${getAgeAppropriateContext(gradeLevel)}
+
+Current scenario: ${scenario?.title || 'conversation practice'}
+Current phase: ${phase}
+
+CRITICAL INSTRUCTION: When you receive a message that says "RESPOND WITH EXACTLY:", you MUST repeat that exact text word-for-word. Do not paraphrase, add to it, or change it in any way. Just say those exact words.`;
+
+    const messages = (conversationHistory || [])
+      .map((msg) => {
+        const content = String(msg?.text || msg?.content || '').trim();
+        if (!content) return null;
+        return {
+          role: msg?.role === 'user' ? 'user' : 'assistant',
+          content
+        };
+      })
+      .filter(Boolean);
+
+    if (curriculumScript) {
+      messages.push({
+        role: 'user',
+        content: `RESPOND WITH EXACTLY: "${curriculumScript}"`
+      });
+      console.log('💪 FORCING AI to say:', curriculumScript);
+    } else if (phase === 'intro' && conversationHistory.length === 2) {
+      try {
+        const introData = getIntroductionSequence(gradeLevel);
+        const scenarioKey = mapScenarioToKey(scenario);
+        const script = introData.scenarios?.[scenarioKey]?.afterResponse;
+        if (script) {
+          messages.push({
+            role: 'user',
+            content: `RESPOND WITH EXACTLY: "${script}"`
+          });
+          console.log('💪 FORCING AI to say (server-derived):', script);
+        }
+      } catch (err) {
+        console.warn('⚠️ Unable to derive curriculum script on server:', err.message);
+      }
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      temperature: 0.3,
+      max_tokens: 200
+    });
+
+    const aiResponse = completion.choices[0]?.message?.content?.trim() || '';
+    console.log('🤖 AI responded:', aiResponse);
+
+    return res.json({
+      aiResponse,
+      shouldContinue: phase !== 'complete',
+      phase
+    });
+  } catch (error) {
+    console.error('❌ Voice conversation error:', error);
+    return res.status(500).json({ error: error.message || 'Voice conversation failed' });
+  }
+});
+
+function mapScenarioToKey(scenario) {
+  if (!scenario) return 'starting-conversation';
+  const title = (scenario.title || scenario.name || '').toLowerCase();
+
+  if (title.includes('start') || title.includes('conversation')) return 'starting-conversation';
+  if (title.includes('friend')) return 'making-friends';
+  if (title.includes('attention') || title.includes('listen')) return 'paying-attention';
+  if (title.includes('help')) return 'asking-help';
+  if (title.includes('join') || title.includes('group')) return 'joining-group';
+
+  return 'starting-conversation';
+}

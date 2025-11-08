@@ -1,173 +1,286 @@
 import OpenAI from 'openai';
+import standaloneContentService from './contentService.js';
+import { getIntroductionSequence } from '../content/training/introduction-scripts.js';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Only for development
+  dangerouslyAllowBrowser: true
 });
 
-// Debug: Check if API key is present
 console.log('🔑 OpenAI API Key present:', !!import.meta.env.VITE_OPENAI_API_KEY);
-if (import.meta.env.VITE_OPENAI_API_KEY) {
-  console.log('🔑 OpenAI Key starts with:', import.meta.env.VITE_OPENAI_API_KEY.substring(0, 15));
-}
 
 /**
- * Generate AI conversation response
+ * Generate AI conversation response with ADAPTIVE TEACHING
  */
-export const generateConversationResponse = async ({
+export async function generateConversationResponse({
   conversationHistory,
   scenario,
-  gradeLevel,
-  currentPhase
-}) => {
+  gradeLevel = '6-8',
+  currentPhase = 'intro',
+  lessonId = null,
+  isInCharacterMode = false,
+  characterRole = null,
+  characterExchangeCount = 0
+}) {
   try {
-    console.log('🤖 Generating conversation response...');
-    console.log('📊 Conversation history length:', conversationHistory.length);
-    console.log('📍 Current phase:', currentPhase);
-    console.log('🎓 Grade level:', gradeLevel);
+    console.log('🤖 Generating Social Cue response...');
+    console.log('📍 Phase:', currentPhase, '| Character mode:', isInCharacterMode);
+    console.log('🎓 Grade:', gradeLevel, '| Scenario:', scenario?.title);
 
-    const systemPrompt = buildSystemPrompt(scenario, gradeLevel, currentPhase);
-    
-    // Format messages for OpenAI - CRITICAL: Handle both 'content' and 'text' field names
-    const formattedMessages = conversationHistory
-      .filter(msg => {
-        // Filter out messages with no content
-        const hasContent = !!(msg.content || msg.text);
-        if (!hasContent) {
-          console.warn('⚠️ Filtered out message with no content:', msg);
+    const timing = standaloneContentService.getTimingForGrade(gradeLevel);
+    const exchangeCount = Math.floor(conversationHistory.length / 2);
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🎤 GENERATING AI RESPONSE');
+    console.log('Phase:', currentPhase);
+    console.log('Turn count:', conversationHistory.length);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    const curriculumScript = deriveCurriculumScript(
+      currentPhase,
+      conversationHistory,
+      gradeLevel,
+      scenario
+    );
+
+    if (curriculumScript) {
+      console.log('✅ CURRICULUM SCRIPT FOUND:');
+      console.log(curriculumScript);
+      console.log('📝 This will be FORCED into user message');
+    } else {
+      console.log('ℹ️  No curriculum script for this turn - AI will respond naturally');
+    }
+
+    let aiResponse = '';
+    let apiSucceeded = false;
+
+    try {
+      console.log('🌐 Calling API...');
+      const response = await fetch(`${API_BASE_URL}/api/voice/conversation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationHistory,
+          scenario,
+          gradeLevel,
+          phase: currentPhase,
+          curriculumScript,
+          lessonId,
+          isInCharacterMode,
+          characterRole,
+          characterExchangeCount
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      console.log('🤖 AI RESPONDED:');
+      console.log(data.aiResponse);
+
+      if (curriculumScript) {
+        const matches = data.aiResponse?.includes(curriculumScript.substring(0, 30));
+        console.log(matches ? '✅ AI USED CURRICULUM!' : '❌ AI IGNORED CURRICULUM!');
+        if (!matches) {
+          console.log('⚠️  EXPECTED:', curriculumScript);
+          console.log('⚠️  GOT:', data.aiResponse);
         }
-        return hasContent;
-      })
-      .map(msg => ({
-        role: msg.role === 'ai' || msg.role === 'assistant' ? 'assistant' : 'user',
-        content: String(msg.content || msg.text || '').trim() // Ensure string and handle both fields
-      }));
+      }
 
-    console.log('📤 Sending to OpenAI:', formattedMessages.length, 'messages');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+      aiResponse = data.aiResponse?.trim() || '';
+      apiSucceeded = true;
+    } catch (apiError) {
+      console.error('❌ API call failed, falling back to direct OpenAI call:', apiError);
+    }
+
+    if (!apiSucceeded) {
+      const fallbackMessages = (conversationHistory || [])
+        .map((msg) => {
+          const content = String(msg?.content || msg?.text || '').trim();
+          if (!content) return null;
+          return {
+            role: msg?.role === 'user' ? 'user' : 'assistant',
+            content
+          };
+        })
+        .filter(Boolean);
+
+      if (curriculumScript) {
+        fallbackMessages.push({
+          role: 'user',
+          content: `RESPOND WITH EXACTLY: "${curriculumScript}"`
+        });
+        console.log('💪 FORCING curriculum in fallback OpenAI call:', curriculumScript);
+      } else {
+        console.log('ℹ️  No curriculum script for fallback call');
+      }
+
+      const fallbackSystemPrompt = `${standaloneContentService.generateSystemPrompt(
+        gradeLevel,
+        scenario,
+        0,
+        isInCharacterMode,
+        characterRole,
+        characterExchangeCount,
+        lessonId,
+        currentPhase
+      )}
+
+CRITICAL OVERRIDE INSTRUCTION:
+When you receive a message that says "RESPOND WITH EXACTLY: [text]", you MUST repeat that exact text word-for-word as your complete response. Do not add anything before or after it. Do not paraphrase. Just say those exact words.`;
+
+      console.log('📤 Sending fallback request to OpenAI with', fallbackMessages.length + 1, 'messages');
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [{ role: 'system', content: fallbackSystemPrompt }, ...fallbackMessages],
+        temperature: 0.3,
+        max_tokens: 200
+      });
+
+      aiResponse = completion.choices[0]?.message?.content?.trim() || '';
+      console.log('🤖 OpenAI fallback responded:', aiResponse);
+      if (curriculumScript) {
+        const matches = aiResponse.includes(curriculumScript.substring(0, 30));
+        console.log(matches ? '✅ Fallback used curriculum!' : '❌ Fallback ignored curriculum!');
+      }
+    }
+
+    const validation = standaloneContentService.validateResponse(aiResponse, timing);
+
+    if (!validation.valid) {
+      console.warn('⚠️ Response warnings:', validation.warnings);
+    }
+
+    const nextPhase = standaloneContentService.determineNextPhase(currentPhase, exchangeCount);
     
-    // Debug: Log the actual messages being sent
-    formattedMessages.forEach((msg, i) => {
-      console.log(`  Message ${i + 1} [${msg.role}]:`, msg.content.substring(0, 50) + '...');
-    });
-
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...formattedMessages
-    ];
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
-      messages: messages,
-      max_tokens: 150,
-      temperature: 0.7,
-      top_p: 0.9
-    });
-
-    const aiResponse = completion.choices[0].message.content;
-    console.log('✅ OpenAI response received:', aiResponse.substring(0, 100) + '...');
+    if (nextPhase !== currentPhase) {
+      console.log(`🔄 Phase transition: ${currentPhase} → ${nextPhase}`);
+    }
 
     return {
+      response: aiResponse,
       aiResponse: aiResponse,
-      shouldContinue: currentPhase !== 'complete',
-      phase: determineNextPhase(currentPhase, conversationHistory.length),
-      feedback: currentPhase === 'feedback' ? generateFeedback(conversationHistory) : null
+      text: aiResponse,
+      shouldContinue: nextPhase !== 'complete',
+      phase: currentPhase,
+      nextPhase: nextPhase,
+      exchangeCount: exchangeCount,
+      validation: validation,
+      hasEvaluation: false,
+      feedback: nextPhase === 'complete' ? generateSessionFeedback(conversationHistory) : null
     };
-    
+
   } catch (error) {
     console.error('❌ OpenAI API error:', error);
     console.error('Error details:', {
       message: error.message,
-      status: error.status,
-      type: error.type
+      status: error?.status,
+      type: error?.type
     });
-    throw error;
+
+    return {
+      response: "I'm having a little trouble right now. Can you try saying that again?",
+      aiResponse: "I'm having a little trouble right now. Can you try saying that again?",
+      text: "I'm having a little trouble right now. Can you try saying that again?",
+      shouldContinue: true,
+      phase: currentPhase,
+      nextPhase: currentPhase,
+      hasEvaluation: false,
+      error: error.message
+    };
   }
-};
-
-/**
- * Build system prompt based on phase and grade level
- */
-function buildSystemPrompt(scenario, gradeLevel, phase) {
-  const gradeDescriptions = {
-    'k-2': 'kindergarten to 2nd grade (ages 5-7)',
-    '3-5': '3rd to 5th grade (ages 8-10)',
-    '6-8': '6th to 8th grade (ages 11-13)',
-    '9-12': '9th to 12th grade (ages 14-18)'
-  };
-
-  const basePrompt = `You are a supportive social skills coach helping a student practice: "${scenario.title}".
-
-Student grade level: ${gradeDescriptions[gradeLevel] || gradeDescriptions['6-8']}
-Current phase: ${phase}
-
-Scenario description: ${scenario.description || scenario.title}
-
-Guidelines:
-- Speak naturally as if having a real conversation, not writing
-- Use age-appropriate language for ${gradeDescriptions[gradeLevel] || gradeDescriptions['6-8']}
-- Keep responses concise (2-3 sentences maximum)
-- Be warm, encouraging, and supportive
-- Ask open-ended questions to practice conversation skills
-- Never use markdown, asterisks, or formatting in your responses`;
-
-  const phaseInstructions = {
-    intro: `
-INTRO PHASE:
-- Welcome the student warmly
-- Briefly explain what you'll practice together
-- Set up the scenario and your role
-- Ask if they're ready to begin
-Example: "Hi! Today we're going to practice ${scenario.title}. I'll help guide you through it. Ready to give it a try?"`,
-    
-    practice: `
-PRACTICE PHASE:
-- Stay in character for the scenario
-- Respond naturally to what the student says
-- Gently guide if they seem stuck
-- Provide subtle corrections inline
-- Progress the conversation naturally
-- After 4-5 exchanges, transition to feedback
-Example responses:
-- "That's a good start! Tell me more about that."
-- "Nice! I like how you said that. What happened next?"`,
-    
-    feedback: `
-FEEDBACK PHASE:
-- Highlight 2-3 specific things they did well
-- Offer 1 constructive suggestion for improvement
-- Explain WHY certain approaches work better
-- Be specific with examples from their responses
-- Keep it positive and encouraging
-- End with encouragement to practice in real life
-Example: "You did great! I really liked how you started the conversation. One thing that could make it even better is asking a follow-up question. Want to try this scenario again?"`,
-    
-    complete: `
-COMPLETE PHASE:
-- Celebrate their effort and progress
-- Summarize one key learning
-- Encourage them to practice in real situations
-- End on an uplifting note
-Example: "Awesome job practicing ${scenario.title}! Remember to smile and make eye contact. You're ready to try this for real!"`
-  };
-
-  return basePrompt + '\n\n' + (phaseInstructions[phase] || phaseInstructions['intro']);
 }
 
 /**
- * Determine next conversation phase
+ * Generate session feedback
  */
-function determineNextPhase(currentPhase, messageCount) {
-  if (currentPhase === 'intro' && messageCount >= 2) return 'practice';
-  if (currentPhase === 'practice' && messageCount >= 8) return 'feedback';
-  if (currentPhase === 'feedback' && messageCount >= 10) return 'complete';
-  return currentPhase;
+function generateSessionFeedback(conversationHistory) {
+  const totalExchanges = Math.floor(conversationHistory.length / 2);
+  const studentMessages = conversationHistory.filter(m => m.role === 'user');
+  
+  const avgWordCount = studentMessages.reduce((sum, m) => {
+    const words = (m.content || m.text || '').split(/\s+/).length;
+    return sum + words;
+  }, 0) / studentMessages.length;
+  
+  const askedQuestions = studentMessages.filter(m => 
+    (m.content || m.text || '').includes('?')
+  ).length;
+  
+  const achievements = [];
+  
+  if (totalExchanges >= 5) achievements.push('Completed full practice');
+  if (avgWordCount >= 10) achievements.push('Gave detailed responses');
+  if (askedQuestions > 0) achievements.push('Asked questions');
+  
+  return {
+    totalExchanges,
+    completed: true,
+    achievements,
+    message: achievements.length > 0 
+      ? `Great work! You ${achievements.join(', ')}.`
+      : "Great practice session!"
+  };
 }
 
-/**
- * Generate feedback based on conversation
- */
-function generateFeedback(conversationHistory) {
-  return "Great job engaging in this conversation!";
+function mapScenarioToKey(scenario) {
+  if (!scenario) return 'starting-conversation';
+  const title = (scenario.title || scenario.name || '').toLowerCase();
+
+  if (title.includes('start') || title.includes('conversation')) return 'starting-conversation';
+  if (title.includes('friend')) return 'making-friends';
+  if (title.includes('attention') || title.includes('listen')) return 'paying-attention';
+  if (title.includes('help')) return 'asking-help';
+  if (title.includes('join') || title.includes('group')) return 'joining-group';
+
+  return 'starting-conversation';
+}
+
+function deriveCurriculumScript(currentPhase, conversationHistory, gradeLevel, scenario) {
+  try {
+    const turnCount = conversationHistory.length;
+
+    if (currentPhase !== 'intro') {
+      console.log('ℹ️  No curriculum script for phase:', currentPhase, 'turn:', turnCount);
+      return null;
+    }
+
+    const introData = getIntroductionSequence(gradeLevel);
+    const scenarioKey = mapScenarioToKey(scenario);
+
+    if (!introData.scenarios?.[scenarioKey]) {
+      console.log('⚠️  Scenario not found in curriculum:', scenarioKey);
+      return null;
+    }
+
+    const script = introData.scenarios[scenarioKey];
+
+    if (turnCount === 0) {
+      const completeIntro = `${introData.fullIntro || ''} ${script.intro || ''}`.replace(/\s+/g, ' ').trim();
+      console.log('✅ Using COMPLETE curriculum intro');
+      console.log('Complete intro:', completeIntro);
+      return completeIntro;
+    }
+
+    if (turnCount === 2) {
+      console.log('✅ Using curriculum AFTER-RESPONSE for turn 2');
+      return script.afterResponse;
+    }
+
+    console.log('ℹ️  No curriculum script for phase:', currentPhase, 'turn:', turnCount);
+    return null;
+  } catch (error) {
+    console.warn('⚠️ Unable to load curriculum script:', error.message);
+    return null;
+  }
 }
 
 export default {

@@ -1,0 +1,43 @@
+{
+  "k-2": {
+    "initialWaitMs": 2000,
+    "initialWaitLabel": "2 seconds",
+    "afterResponseMs": 500,
+    "afterResponseLabel": "0.5 sec",
+    "pace": "LIVELY",
+    "speechRate": 0.85,
+    "helpTimeout": 2000,
+    "maxWordsPerTurn": 8
+  },
+  "3-5": {
+    "initialWaitMs": 1500,
+    "initialWaitLabel": "1.5 seconds",
+    "afterResponseMs": 300,
+    "afterResponseLabel": "0.3 sec",
+    "pace": "MOMENTUM",
+    "speechRate": 0.9,
+    "helpTimeout": 2000,
+    "maxWordsPerTurn": 10
+  },
+  "6-8": {
+    "initialWaitMs": 1000,
+    "initialWaitLabel": "1 second",
+    "afterResponseMs": 200,
+    "afterResponseLabel": "0.2 sec",
+    "pace": "NATURAL",
+    "speechRate": 0.95,
+    "helpTimeout": 2000,
+    "maxWordsPerTurn": 12
+  },
+  "9-12": {
+    "initialWaitMs": 800,
+    "initialWaitLabel": "0.8 seconds",
+    "afterResponseMs": 100,
+    "afterResponseLabel": "0.1 sec",
+    "pace": "REAL-TIME",
+    "speechRate": 1,
+    "helpTimeout": 2000,
+    "maxWordsPerTurn": 15
+  }
+}
+

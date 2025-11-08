@@ -17,11 +17,28 @@ const VOICE_IDS = {
 
 export const textToSpeechElevenLabs = async (text, gradeLevel = '6-8') => {
   try {
+    if (!text || text === 'undefined' || text.trim() === '') {
+      console.error('❌ Cannot send empty text to ElevenLabs');
+      return null;
+    }
+
+    const cleanText = text
+      .replace(/undefined/gi, '')
+      .replace(/\n+/g, ' ')
+      .trim();
+
+    if (!cleanText) {
+      console.error('❌ Cleaned text is empty, skipping ElevenLabs request');
+      return null;
+    }
+
+    console.log('🔊 Sending to ElevenLabs:', cleanText);
+
     const voiceId = VOICE_IDS[gradeLevel] || VOICE_IDS['6-8'];
 
     const audio = await elevenlabs.generate({
       voice: voiceId,
-      text,
+      text: cleanText,
       model_id: 'eleven_monolingual_v1',
     });
 

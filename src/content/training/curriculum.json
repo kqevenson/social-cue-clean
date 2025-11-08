@@ -1,0 +1,55 @@
+{
+  "k-2": {
+    "units": [
+      {
+        "id": "greetings",
+        "title": "Friendly Greetings",
+        "skills": ["Smiling introductions", "Eye contact", "Hello statements"],
+        "lessons": [
+          { "id": "hi-friends", "title": "Saying hi to new friends" },
+          { "id": "share-day", "title": "Show-and-tell introductions" }
+        ]
+      }
+    ]
+  },
+  "3-5": {
+    "units": [
+      {
+        "id": "conversation-starters",
+        "title": "Conversation Starters",
+        "skills": ["Question asking", "Showing interest", "Joining groups"],
+        "lessons": [
+          { "id": "lunch-table", "title": "Joining a lunch table" },
+          { "id": "group-project", "title": "Starting group project conversations" }
+        ]
+      }
+    ]
+  },
+  "6-8": {
+    "units": [
+      {
+        "id": "social-confidence",
+        "title": "Building Confidence",
+        "skills": ["Handling nerves", "Discussing interests", "Reading the room"],
+        "lessons": [
+          { "id": "club-intro", "title": "Joining a school club" },
+          { "id": "friendship-maintenance", "title": "Checking in with friends" }
+        ]
+      }
+    ]
+  },
+  "9-12": {
+    "units": [
+      {
+        "id": "professional-readiness",
+        "title": "Professional Readiness",
+        "skills": ["Interviewing", "Networking", "Conflict resolution"],
+        "lessons": [
+          { "id": "job-interview", "title": "First job interview" },
+          { "id": "group-leadership", "title": "Leading group discussions" }
+        ]
+      }
+    ]
+  }
+}
+
