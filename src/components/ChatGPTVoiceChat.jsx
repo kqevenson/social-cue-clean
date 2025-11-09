@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Mic, Volume2, Loader2 } from 'lucide-react';
-import { generateConversationResponse } from '../services/openaiService';
+import CleanVoiceService from '../services/CleanVoiceService';
 import { textToSpeechElevenLabs } from '../services/elevenLabsService';
 
 const ChatGPTVoiceChat = ({ scenario, gradeLevel = '6-8', onComplete, onClose }) => {
@@ -155,29 +155,33 @@ const ChatGPTVoiceChat = ({ scenario, gradeLevel = '6-8', onComplete, onClose })
     console.log('🎓 Grade level:', gradeLevel);
 
     try {
-      const aiData = await generateConversationResponse({
+      const aiResponse = await CleanVoiceService.generateResponse({
         conversationHistory: [...messages, userMessage],
         scenario,
         gradeLevel,
-        currentPhase,
+        phase: currentPhase
       });
 
       const aiMessage = {
+        id: `ai_${Date.now()}`,
         role: 'assistant',
-        content: aiData.aiResponse,
+        content: aiResponse.aiResponse,
+        phase: aiResponse.phase || currentPhase
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      if (aiData.phase && aiData.phase !== currentPhase) {
-        setCurrentPhase(aiData.phase);
+      if (aiResponse.phase && aiResponse.phase !== currentPhase) {
+        setCurrentPhase(aiResponse.phase);
       }
 
-      console.log('✅ OpenAI response:', aiData.aiResponse);
-      console.log('📍 New phase:', aiData.phase);
+      setShouldContinue(aiResponse.shouldContinue);
+
+      console.log('✅ OpenAI response:', aiResponse.aiResponse);
+      console.log('📍 New phase:', aiResponse.phase);
 
       setIsSpeaking(true);
-      const audioUrl = await textToSpeechElevenLabs(aiData.aiResponse, gradeLevel);
+      const audioUrl = await textToSpeechElevenLabs(aiResponse.aiResponse, gradeLevel);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
 
@@ -185,7 +189,7 @@ const ChatGPTVoiceChat = ({ scenario, gradeLevel = '6-8', onComplete, onClose })
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
 
-        if (aiData.phase === 'complete') {
+        if (aiResponse.phase === 'complete') {
           setTimeout(() => {
             if (onComplete) {
               onComplete({

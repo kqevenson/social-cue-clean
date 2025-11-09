@@ -1,0 +1,32 @@
+{
+  "stopTalk": {
+    "description": "Structured turn-taking method for balanced practice",
+    "steps": [
+      "Say one thing (keep it tight, focused)",
+      "Take a breath (natural pause for pacing)",
+      "Offer the turn using a clear signal",
+      "Pause completely to allow learner response"
+    ],
+    "turnSignals": ["Your turn:", "Now you:", "Go ahead:", "Say this:", "Give it a try:"],
+    "maxWordsPerTurn": 15
+  },
+  "rapid": {
+    "description": "Balanced timing sequence to keep momentum",
+    "steps": [
+      "Respond quickly (under 0.5 sec)",
+      "Acknowledge immediately",
+      "Prompt clearly",
+      "Interact naturally",
+      "Don't drag it out"
+    ]
+  },
+  "twoSecondRule": {
+    "description": "Help after two seconds of silence",
+    "helpPrompts": [
+      "Need help? Try saying: [offer scaffold]",
+      "Let's say it together: [phrase]",
+      "Say this: [starter words]"
+    ]
+  }
+}
+
