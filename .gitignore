@@ -29,3 +29,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Documentation and backup files (keep important ones)
+*.md
+!README.md
+!docs/*.md
+backups/
+.cursor/
+
+# API Keys (IMPORTANT!)
+**/ELEVENLABS_API_KEY.txt
+**/CLAUDE_API_KEY.txt

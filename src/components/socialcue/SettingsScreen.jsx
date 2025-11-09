@@ -3,6 +3,71 @@ import { getUserData, STORAGE_KEY } from './utils/storage';
 import { Settings, Shield, Lock, Download, Trash2, Users, Clock, Bell, Mail } from 'lucide-react';
 import { useToast } from './animations';
 
+// Helper functions for saving data
+const saveUserData = (data) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    console.log('✅ User data saved:', data);
+    return true;
+  } catch (error) {
+    console.error('❌ Error saving user data:', error);
+    return false;
+  }
+};
+
+// Show toast notification
+const showToast = (message, type = 'success') => {
+  console.log('📢 Toast:', message);
+  
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: ${type === 'success' ? 'linear-gradient(to right, #10b981, #3b82f6)' : 'linear-gradient(to right, #ef4444, #dc2626)'};
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    z-index: 99999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: slideDown 0.3s ease-out;
+  `;
+  
+  // Add animation if not already present
+  if (!document.getElementById('toast-animation-style')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animation-style';
+    style.textContent = `
+      @keyframes slideDown {
+        from {
+          transform: translateX(-50%) translateY(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(toast);
+  
+  // Remove after 2 seconds
+  setTimeout(() => {
+    toast.style.animation = 'slideDown 0.3s ease-out reverse';
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 2000);
+};
+
 function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, onToggleSoundEffects, onLogout, onNavigate }) {
   const [localDarkMode, setLocalDarkMode] = useState(darkMode);
   const [notifications, setNotifications] = useState(true);
@@ -39,6 +104,18 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
     challengeReminders: true
   });
   
+  // Voice settings state
+  const [voiceSettings, setVoiceSettings] = useState({
+    enableVoicePractice: true,
+    voiceGender: 'female',
+    voiceAccent: 'english', // Default to English accent
+    voiceSpeed: 1.0,
+    microphoneSensitivity: 0.5,
+    autoPlayAIResponses: true,
+    voiceVolume: 0.8,
+    autoMic: true // Auto-restart microphone after AI speaks
+  });
+  
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { showToast } = useToast();
@@ -54,6 +131,7 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
   // Load privacy settings and parental controls on mount
   useEffect(() => {
     loadPrivacySettings();
+    loadVoiceSettings();
     if (userData?.role === 'parent') {
       loadParentalControls();
     }
@@ -65,6 +143,20 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
       if (!userId) return;
 
       const response = await fetch(`/api/user/privacy/${userId}`);
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('Privacy settings returned HTML instead of JSON - using defaults');
+        setPrivacySettings({
+          shareProgressData: false,
+          allowAnonymousData: false,
+          showProgressToParents: true,
+          includeDetailedData: false
+        });
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -73,6 +165,31 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
       }
     } catch (error) {
       console.error('Error loading privacy settings:', error);
+      // Set default privacy settings on error
+      setPrivacySettings({
+        shareProgressData: false,
+        allowAnonymousData: false,
+        showProgressToParents: true,
+        includeDetailedData: false
+      });
+    }
+  };
+
+  const loadVoiceSettings = () => {
+    try {
+      // Load from localStorage (in production, this would come from backend)
+      const savedSettings = localStorage.getItem('voiceSettings');
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        setVoiceSettings(parsedSettings);
+      }
+      
+      // Also check userData for voice settings
+      if (userData?.voiceSettings) {
+        setVoiceSettings(userData.voiceSettings);
+      }
+    } catch (error) {
+      console.error('Error loading voice settings:', error);
     }
   };
 
@@ -155,6 +272,35 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
     } catch (error) {
       console.error('Error updating parental controls:', error);
       showToast('Failed to update parental controls', 'error');
+    }
+  };
+
+  const handleVoiceSettingChange = (setting, value) => {
+    const newSettings = { ...voiceSettings, [setting]: value };
+    setVoiceSettings(newSettings);
+
+    try {
+      // Save to localStorage
+      localStorage.setItem('voiceSettings', JSON.stringify(newSettings));
+      
+      // Update user data with voice preferences
+      const currentData = getUserData();
+      const updatedData = { ...currentData, voiceSettings: newSettings };
+      
+      // Also update voice preferences for VoiceOutput component
+      if (setting === 'voiceGender') {
+        updatedData.voicePreference = value;
+      }
+      
+      // Save the updated data
+      if (saveUserData(updatedData)) {
+        showToast('Voice settings updated', 'success');
+      } else {
+        showToast('Failed to save settings', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating voice settings:', error);
+      showToast('Failed to update voice settings', 'error');
     }
   };
 
@@ -352,6 +498,198 @@ function SettingsScreen({ userData, darkMode, onToggleDarkMode, soundEffects, on
               <div className={darkMode ? 'text-sm text-gray-400' : 'text-sm text-gray-600'}>Customize your learning experience</div>
             </div>
             <Settings className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Voice Settings Section */}
+      <div className={`backdrop-blur-xl border rounded-2xl p-6 mb-6 ${
+        darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+      }`}>
+        <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Learning Voice Settings
+        </h2>
+        <div className="space-y-4">
+          <div className={`flex items-center justify-between p-4 rounded-xl transition-colors cursor-pointer ${
+            darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100'
+          }`} onClick={() => {
+            const newValue = !voiceSettings.enableVoicePractice;
+            handleVoiceSettingChange('enableVoicePractice', newValue);
+            // Also update the main voice enabled state
+            const userData = JSON.parse(localStorage.getItem('socialcue_user') || '{}');
+            userData.voiceEnabled = newValue;
+            localStorage.setItem('socialcue_user', JSON.stringify(userData));
+          }}>
+            <div>
+              <div className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Enable Lesson Voice</div>
+              <div className={darkMode ? 'text-sm text-gray-400' : 'text-sm text-gray-600'}>Allow AI coach to read lesson content aloud</div>
+            </div>
+            <div className={`w-12 h-6 rounded-full relative transition-colors ${voiceSettings.enableVoicePractice ? 'bg-emerald-500' : 'bg-gray-400'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${voiceSettings.enableVoicePractice ? 'right-1' : 'left-1'}`}></div>
+            </div>
+          </div>
+          
+          <div className={`flex items-center justify-between p-4 rounded-xl transition-colors cursor-pointer ${
+            darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100'
+          }`} onClick={() => handleVoiceSettingChange('autoMic', !voiceSettings.autoMic)}>
+            <div>
+              <div className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Automatic Microphone</div>
+              <div className={darkMode ? 'text-sm text-gray-400' : 'text-sm text-gray-600'}>Mic turns back on automatically after AI speaks</div>
+            </div>
+            <div className={`w-12 h-6 rounded-full relative transition-colors ${voiceSettings.autoMic ? 'bg-emerald-500' : 'bg-gray-400'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${voiceSettings.autoMic ? 'right-1' : 'left-1'}`}></div>
+            </div>
+          </div>
+          
+          <div>
+            <label className={`text-sm block mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Lesson Voice Gender</label>
+            <p className={`text-xs mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              Choose the voice for lessons and practice sessions
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer">
+                <input
+                  type="radio"
+                  name="lessonVoice"
+                  value="female"
+                  checked={voiceSettings.voiceGender === 'female'}
+                  onChange={(e) => handleVoiceSettingChange('voiceGender', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <div className="flex-1">
+                  <div className="font-medium">Female Teacher Voice</div>
+                  <div className="text-xs text-gray-400">Charlotte - Warm and professional</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer">
+                <input
+                  type="radio"
+                  name="lessonVoice"
+                  value="male"
+                  checked={voiceSettings.voiceGender === 'male'}
+                  onChange={(e) => handleVoiceSettingChange('voiceGender', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <div className="flex-1">
+                  <div className="font-medium">Male Teacher Voice</div>
+                  <div className="text-xs text-gray-400">Callum - Clear and encouraging</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          {/* Language Preference */}
+          <div>
+            <label className={`text-sm block mb-2 font-bold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              🌍 Practice Language
+            </label>
+            <p className={`text-xs mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              Choose your practice language
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  console.log('🇺🇸 English button clicked');
+                  
+                  // Save current screen so we return here after reload
+                  localStorage.setItem('socialcue_return_screen', 'settings');
+                  
+                  // Update user data
+                  const currentData = getUserData();
+                  const updated = { ...currentData, language: 'english' };
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                  
+                  console.log('✅ Settings saved:', updated);
+                  console.log('✅ Will return to: settings');
+                  
+                  // Reload page
+                  window.location.reload();
+                }}
+                className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all text-lg ${
+                  (!userData.language || userData.language === 'english')
+                    ? 'bg-gradient-to-r from-blue-500 to-emerald-400 text-white shadow-lg scale-105'
+                    : darkMode
+                    ? 'bg-white/10 text-gray-400 hover:bg-white/20'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                🇺🇸 English
+                {(!userData.language || userData.language === 'english') && ' ✓'}
+              </button>
+              
+              <button
+                onClick={() => {
+                  console.log('🇪🇸 Spanish button clicked');
+                  
+                  // Save current screen so we return here after reload
+                  localStorage.setItem('socialcue_return_screen', 'settings');
+                  
+                  // Update user data
+                  const currentData = getUserData();
+                  const updated = { ...currentData, language: 'spanish' };
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                  
+                  console.log('✅ Settings saved:', updated);
+                  console.log('✅ Will return to: settings');
+                  
+                  // Reload page
+                  window.location.reload();
+                }}
+                className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all text-lg ${
+                  userData.language === 'spanish'
+                    ? 'bg-gradient-to-r from-red-500 to-yellow-400 text-white shadow-lg scale-105'
+                    : darkMode
+                    ? 'bg-white/10 text-gray-400 hover:bg-white/20'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                🇪🇸 Español
+                {userData.language === 'spanish' && ' ✓'}
+              </button>
+            </div>
+            
+            <p className={`text-xs mt-3 text-center ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              Currently selected: {userData.language === 'spanish' ? 'Español 🇪🇸' : 'English 🇺🇸'}
+            </p>
+          </div>
+          
+          <div>
+            <label className={`text-sm block mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Voice Speed: {voiceSettings.voiceSpeed}x
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.1"
+              value={voiceSettings.voiceSpeed}
+              onChange={(e) => handleVoiceSettingChange('voiceSpeed', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>0.5x</span>
+              <span>1.0x</span>
+              <span>2.0x</span>
+            </div>
+          </div>
+          
+          <div>
+            <label className={`text-sm block mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Microphone Sensitivity: {Math.round(voiceSettings.microphoneSensitivity * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0.1"
+              max="1.0"
+              step="0.1"
+              value={voiceSettings.microphoneSensitivity}
+              onChange={(e) => handleVoiceSettingChange('microphoneSensitivity', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Low</span>
+              <span>High</span>
+            </div>
           </div>
         </div>
       </div>

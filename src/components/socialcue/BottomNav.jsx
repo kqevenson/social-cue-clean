@@ -9,13 +9,14 @@ function BottomNav({ currentScreen, onNavigate, darkMode, navItems, newGoalsCoun
         <div className="flex items-center justify-around py-4">
           {navItems.map(item => {
             const Icon = item.icon;
-            const isActive = currentScreen === item.id || 
-                           (currentScreen === 'practice' && item.id === 'practice') || 
-                           (currentScreen === 'practiceHome' && item.id === 'practice');
+            const isActive = currentScreen === item.id;
             return (
               <button 
                 key={item.id} 
-                onClick={() => onNavigate(item.id === 'practice' ? 'practiceHome' : item.id)} 
+                onClick={() => {
+                  console.log('🔵 BottomNav clicked:', item.id, '- Current screen:', currentScreen);
+                  onNavigate(item.id);
+                }} 
                 className={`flex flex-col items-center gap-1 px-6 py-2 rounded-xl transition-all relative ${
                   isActive ? 'bg-gradient-to-r from-blue-500/20 to-emerald-500/20 border border-blue-500/30' : 
                   darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-100'
