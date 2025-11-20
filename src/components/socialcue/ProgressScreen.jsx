@@ -230,10 +230,10 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
     }
   };
 
-  // Fetch session history when component mounts
+  // Fetch session history when component mounts or userData changes
   useEffect(() => {
     fetchSessionHistory();
-  }, []);
+  }, [userData]);
 
   // Helper functions
   const getDifficultyLabel = (level) => {

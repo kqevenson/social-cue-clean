@@ -16,14 +16,33 @@ import React, {
 } from "react";
 
 import localforage from "localforage";
+import { OpenAI } from "openai";
 import useVoiceConversation from "../hooks/useVoiceConversation";
-import { stopOpenAITTSPlayback, globalTTSLock } from "../services/openAITTSService";
+import { stopOpenAITTSPlayback, globalTTSLock, playVoiceResponseWithOpenAI } from "../services/openAITTSService";
 import {
   setHandlers,
   startRecognition,
   stopRecognition
 } from "../services/speechRecognitionService";
 import StorageService from "../services/storageService";
+
+// ---- PROGRESS SUMMARY BUILDER ----
+const buildProgressSummary = (messages, scenario, gradeLevel) => {
+  const userTurns = messages.filter((m) => m.role === "user");
+  const coachTurns = messages.filter((m) => m.role === "assistant");
+
+  return {
+    scenarioId: scenario?.id,
+    scenarioTitle: scenario?.title,
+    category: scenario?.category,
+    gradeLevel,
+    totalTurns: messages.length,
+    userTurns: userTurns.length,
+    coachTurns: coachTurns.length,
+    userFirstMessage: userTurns[0]?.text || "",
+    sessionCompletedAt: new Date().toISOString(),
+  };
+};
 
 const MAX_STORED_LINES = 40;
 const PHASE_STORAGE_KEY = "voiceCoach:lastPhase";
@@ -140,6 +159,14 @@ const VoiceCoachOrbScreen = ({
         oldPhase,
         newPhase
       });
+
+      // Reset mic between teaching phases to avoid duplicate triggers
+      stopListening();
+      shouldIgnoreInputRef.current = true;
+      setTimeout(() => {
+        shouldIgnoreInputRef.current = false;
+        startListening();
+      }, 1000);
     },
     onError: (err) => {
       console.error("[VoiceCoachOrbScreen] Conversation error:", err);
@@ -153,7 +180,8 @@ const VoiceCoachOrbScreen = ({
     onAudioComplete: () => {
       isSpeakingRef.current = false;
       shouldIgnoreInputRef.current = false;
-      resumeListeningAfterDelay(400);
+      // Extend delay to prevent capturing TTS
+      resumeListeningAfterDelay(1500);
     }
   });
 
@@ -165,6 +193,17 @@ const VoiceCoachOrbScreen = ({
     sendUserMessage,
     startConversation
   } = conversation;
+
+  /** --------------------------------------
+   * HARD SUPPRESSION WHILE AI IS SPEAKING
+   * ------------------------------------- */
+  useEffect(() => {
+    if (isSpeaking) {
+      stopListening();
+      shouldIgnoreInputRef.current = true;
+      return;
+    }
+  }, [isSpeaking, stopListening]);
 
   /** --------------------------------------
    * UPDATE AI LINE WHEN MESSAGES COME IN
@@ -252,6 +291,12 @@ const VoiceCoachOrbScreen = ({
         return;
       }
 
+      // BLOCK ANY INPUT DURING AI SPEECH
+      if (isSpeaking) {
+        console.debug("Ignoring input because AI is speaking");
+        return;
+      }
+
       if (isSpeakingRef.current || shouldIgnoreInputRef.current) {
         console.log(
           "[Speech] Ignoring transcript because AI is still speaking:",
@@ -278,7 +323,7 @@ const VoiceCoachOrbScreen = ({
         }
       }
     },
-    [appendTranscript, sendUserMessage, stopListening, resumeListeningAfterDelay]
+      [appendTranscript, sendUserMessage, stopListening, resumeListeningAfterDelay, isSpeaking]
   );
 
   /** --------------------------------------
@@ -406,10 +451,72 @@ const VoiceCoachOrbScreen = ({
    * PHASE COMPLETION
    * ------------------------------------- */
   useEffect(() => {
+    // When AI finishes final phase, perform wrap-up before ending session
+    const runWrapUp = async () => {
+      try {
+        const wrapUpPrompt = `
+          You are Coach Cue, giving a soft, warm SEL-style closing reflection.
+
+          Praise effort, highlight one or two specific strengths the learner showed today,
+          and gently suggest one area for next time.
+
+          DO NOT mention XP, points, or mastery.
+
+          Keep it short, kind, and encouraging.
+
+          Scenario: ${scenario?.title || "Practice Session"}
+          Learner name: ${learnerName || "friend"}
+        `;
+
+        // Get OpenAI API key from environment
+        const apiKey = typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY;
+        if (!apiKey) {
+          console.warn("OpenAI API key not found, skipping wrap-up");
+          return;
+        }
+
+        // Create OpenAI client for wrap-up message
+        const openai = new OpenAI({
+          apiKey,
+          dangerouslyAllowBrowser: true
+        });
+
+        // Generate wrap-up text
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are Coach Cue, a warm and encouraging social skills coach. Give brief, heartfelt closing reflections."
+            },
+            {
+              role: "user",
+              content: wrapUpPrompt
+            }
+          ],
+          max_tokens: 100,
+          temperature: 0.8
+        });
+
+        const aiText = response.choices[0]?.message?.content?.trim();
+        if (aiText) {
+          await playVoiceResponseWithOpenAI(aiText, "shimmer");
+        }
+      } catch (err) {
+        console.error("Wrap-up error:", err);
+      }
+    };
+
     if (phase === "complete" || phase === "COMPLETE") {
-      handleSessionEnd({ phase: "complete" });
+      const progress = buildProgressSummary(messages, scenario, resolvedGradeLevel);
+      runWrapUp().then(() => {
+        handleSessionEnd({
+          phase: "complete",
+          progress
+        });
+      });
     }
-  }, [phase, handleSessionEnd]);
+  }, [phase, handleSessionEnd, messages, scenario, resolvedGradeLevel, learnerName]);
 
   /** --------------------------------------
    * RENDER

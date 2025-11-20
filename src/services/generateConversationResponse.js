@@ -1,31 +1,17 @@
 // ---------------------------------------------------------------------------
-// generateConversationResponse.js — NEW AUTONOMY ENGINE FOR SOCIAL CUE (2025)
-// ---------------------------------------------------------------------------
-// Cue now behaves like:
-// - a warm, upbeat, friendly conversational coach
-// - fully autonomous + natural like ChatGPT voice
-// - grade-aware
-// - topic-aware
-// - scenario-generating
-// - non-repetitive
-// - no clipped sentences
-// - no template constraints
+// generateConversationResponse.js — SOCIAL CUE AUTONOMY ENGINE v2025 FINAL
+// Natural, warm, supportive conversational AI with soft phase logic.
 // ---------------------------------------------------------------------------
 
 import { personaEngine } from "./personaEngine";
-import { buildTeachingTurn } from "../content/training/AIBehaviorConfig";
-import { MICRO_TIPS } from "../content/training/AIBehaviorConfig";
 
-// ---------------------------------------------------------
-// Helper — never trim AI output (old behavior removed)
-// ---------------------------------------------------------
 function clean(text) {
   if (!text) return "";
-  return String(text).replace(/\s+/g, " ").trim();
+  return String(text).trim();
 }
 
 // ---------------------------------------------------------
-// Dynamic scenario generator — ALWAYS NEW & VARIED
+// Dynamic scenario generator — always fresh, never repeated
 // ---------------------------------------------------------
 function generateFreshScenario(topicName, gradeLevel) {
   const settings = [
@@ -45,26 +31,26 @@ function generateFreshScenario(topicName, gradeLevel) {
     "small-talk-basics": [
       "you notice someone you know and want to say something friendly",
       "someone is talking about their weekend plans",
-      "a classmate is wearing something cool and you want to comment",
+      "a classmate is wearing something interesting and you want to comment",
       "a friend sits next to you and you want to start chatting"
     ],
     "active-listening": [
       "someone is telling a story and you want to show you're listening",
       "a friend shares something important",
-      "a group is talking and you want to follow along",
+      "a group is talking and you’re trying to follow along",
       "someone explains something and you need to respond naturally"
     ],
     "joining-groups": [
-      "a group of classmates is already in a conversation and you want to join",
+      "a group is already talking and you want to join",
       "your friends are chatting and you walk up",
-      "you want to join a group during lunch",
-      "a few kids are discussing a game and you want to be part of it"
+      "a few kids are discussing a game and you want to join",
+      "a group is laughing about something and you want to ask about it"
     ],
     "confidence-building": [
-      "you want to say something but feel unsure",
+      "you want to speak but feel unsure",
       "you want to share an idea with the group",
-      "you want to speak up during class",
-      "you want to introduce yourself to someone"
+      "you want to introduce yourself to someone new",
+      "you want to ask a question but feel nervous"
     ],
     "resolving-conflicts": [
       "a misunderstanding pops up with a friend",
@@ -75,15 +61,14 @@ function generateFreshScenario(topicName, gradeLevel) {
   };
 
   const setting = settings[Math.floor(Math.random() * settings.length)];
-  const activity = (actions[topicName] || actions["small-talk-basics"])[
-    Math.floor(Math.random() * (actions[topicName] || actions["small-talk-basics"]).length)
-  ];
+  const list = actions[topicName] || actions["small-talk-basics"];
+  const activity = list[Math.floor(Math.random() * list.length)];
 
   return `Imagine you're at ${setting}, and ${activity}.`;
 }
 
 // ---------------------------------------------------------
-// MAIN GENERATION ENGINE
+// MAIN RESPONSE ENGINE
 // ---------------------------------------------------------
 export async function generateConversationResponse({
   openai,
@@ -95,65 +80,50 @@ export async function generateConversationResponse({
   scenario
 }) {
   const persona = personaEngine.getPersona(gradeLevel);
+
   const topicName =
     scenario?.topicName ||
     scenario?.title ||
     scenario?.topicId ||
     "this skill";
 
-  const lastUserTurn = history.filter((m) => m.role === "user").slice(-1)[0];
-  const userText = lastUserTurn?.content || "";
+  const learner = learnerName || "friend";
 
-  // Generate a fresh scenario every time we need one
   const freshScenario = generateFreshScenario(topicName, gradeLevel);
 
-  // ---------------------------------------------------------
-  // SYSTEM PROMPT — This is Cue's personality + autonomy
-  // ---------------------------------------------------------
+  // SYSTEM PROMPT — defines Cue's personality & behavior
   const system = `
-You are CUE — a warm, upbeat, friendly, human-like social coach.
-You speak naturally, like ChatGPT voice: clear, calm, supportive, warm.
-No emojis. No robotic templates. No clipped short answers.
+You are CUE — a warm, friendly, supportive social coach.
+Speak naturally, like ChatGPT voice: clear, calm, warm, and human.
+NEVER use emojis. Avoid lists. Avoid robotic tones.
+Use full sentences, but keep messages short and natural.
+Always respond directly to the learner's last message.
+Adjust tone to grade level: ${gradeLevel}.
+Topic: ${topicName}.
 
 GOALS:
-- Help the learner practice real communication skills.
-- Speak like a friendly mentor or peer (age-aware).
-- Use natural full sentences, not fragments.
-- Keep responses short (1–2 sentences), but expressive and human.
-- Follow the topic: ${topicName}.
-- Adjust tone to grade level: ${gradeLevel}.
-- Encourage, support, and respond to what the learner says.
-- Never repeat the same scenario. Keep things fresh each session.
+- Keep the learner comfortable.
+- Guide through natural back-and-forth dialogue.
+- Demonstrate skills with a natural example.
+- Encourage, respond, and adapt.
+- Never cut yourself off or use fragments.
+- Maintain autonomy — no rigid scripts.
 
-CONVERSATION RULES:
-- Never cut yourself off. Always finish full thoughts.
-- Never speak in list format.
-- Never lecture.
-- Never use strict “steps."
-- Stay focused on the skill through natural conversation.
-- If the learner seems unsure, gently guide them.
-- If demonstrating, speak in a natural example sentence.
-- If asking them to try, be clear but warm.
+PHASE GUIDANCE:
+INTRO: Warm greeting + simple question.
+PREVIEW: Briefly introduce what you’ll practice using a NEW scenario.
+DEMONSTRATE: Give one natural example sentence.
+REPEAT: Ask them to try it.
+TEACHING: Respond to their attempt with guidance + praise.
+VARIATION: Introduce a NEW variation or angle.
+COMPLETE: Wrap up in a warm, confident tone.
 
-PHASE BEHAVIOR (soft, not restrictive):
-• INTRO: Greet warmly + ask something simple.
-• PREVIEW: Briefly explain what you'll practice today, using a new scenario.
-• DEMONSTRATE: Give one natural example of what YOU would say.
-• REPEAT: Ask them to try it.
-• TEACHING: Respond to their attempt with praise + a tiny tip.
-• VARIATION: Introduce a NEW scenario variation and continue practicing.
-• COMPLETE: Wrap up warmly.
-
-Remember:
-You are a real conversational partner — not a script.
-You improvise naturally but always support the learner.
+Keep it conversational. Never lecture.
 `;
 
-  // ---------------------------------------------------------
-  // USER PROMPT = context of conversation so far
-  // ---------------------------------------------------------
+  // USER PROMPT — includes all context for the next turn
   const user = `
-Learner name: ${learnerName || "friend"}
+Learner name: ${learner}
 Current phase: ${currentPhase}
 
 Fresh scenario you can use:
@@ -162,22 +132,22 @@ Fresh scenario you can use:
 Recent conversation:
 ${history
   .slice(-8)
-  .map((m) => `${m.role === "assistant" ? "Cue" : "Learner"}: ${m.content}`)
+  .map(m => `${m.role === "assistant" ? "Cue" : "Learner"}: ${m.content}`)
   .join("\n")}
 
-Now generate Cue's next natural response + choose the next phase.
+Respond as CUE.
+Output ONLY valid JSON:
 
-Output JSON exactly like this:
 {
   "aiResponse": "your natural message here",
   "nextPhase": "PHASE_NAME"
 }
 `;
 
-  // ---------------------------------------------------------
-  // OpenAI call
-  // ---------------------------------------------------------
-  let result;
+  // ---------------------------------------------------------------------------
+  // API CALL
+  // ---------------------------------------------------------------------------
+  let raw;
   try {
     const res = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -189,32 +159,30 @@ Output JSON exactly like this:
       ]
     });
 
-    result = res.choices[0]?.message?.content;
+    raw = res.choices[0]?.message?.content;
   } catch (err) {
-    console.error("AutonomyEngine OpenAI Error:", err);
+    console.error("AutonomyEngine Error:", err);
     return {
-      aiResponse: "I think I lost my place for a second — want to continue?",
+      aiResponse: "I think my thoughts froze for a second. Want to continue?",
       nextPhase: "repeat"
     };
   }
 
-  // ---------------------------------------------------------
-  // Parse JSON safely
-  // ---------------------------------------------------------
-  let parsed;
+  // ---------------------------------------------------------------------------
+  // JSON PARSE
+  // ---------------------------------------------------------------------------
   try {
-    parsed = JSON.parse(result);
-  } catch (e) {
-    console.warn("Failed to parse AI JSON, recovering…", e);
+    const parsed = JSON.parse(raw);
+    return {
+      aiResponse: clean(parsed.aiResponse),
+      nextPhase: parsed.nextPhase || "repeat"
+    };
+  } catch (err) {
+    console.warn("AI returned non-JSON, recovering…", raw);
 
     return {
-      aiResponse: clean(result || "Let's keep going together."),
+      aiResponse: clean(raw),
       nextPhase: "repeat"
     };
   }
-
-  return {
-    aiResponse: clean(parsed.aiResponse || ""),
-    nextPhase: parsed.nextPhase || "repeat"
-  };
 }

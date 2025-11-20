@@ -1,13 +1,34 @@
 import React, { useEffect, useMemo, useState } from "react";
 import PracticeStartScreen from "./PracticeStartScreen";
 import VoiceCoachOrbScreen from "../VoiceCoachOrbScreen";
+import PracticeSessionResults from "./PracticeSessionResults";
 import {
   topics as voicePracticeTopics,
   getScenariosForTopic,
   getGradeBandFromGrade,
 } from "../../data/voicePracticeScenarios";
-import { AI_BEHAVIOR_CONFIG } from "../../content/training/aibehaviorconfig";
+import { AI_BEHAVIOR_CONFIG } from "../../content/training/AIBehaviorConfig";
 import { ArrowRight } from "lucide-react";
+
+// ---- PROGRESS SAVER ----
+async function savePracticeProgress(progress) {
+  try {
+    const res = await fetch("http://localhost:3001/api/progress/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(progress),
+    });
+
+    if (!res.ok) {
+      console.error("❌ Failed:", await res.text());
+      throw new Error("Progress save failed");
+    }
+
+    console.log("✅ Progress saved:", progress);
+  } catch (err) {
+    console.error("❌ Error saving progress:", err);
+  }
+}
 
 const PracticeScreen = ({ darkMode }) => {
   const [userGradeBand, setUserGradeBand] = useState("6-8");
@@ -16,6 +37,7 @@ const PracticeScreen = ({ darkMode }) => {
   const [pendingTopic, setPendingTopic] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sessionSummary, setSessionSummary] = useState(null);
 
   useEffect(() => {
     try {
@@ -72,6 +94,34 @@ const PracticeScreen = ({ darkMode }) => {
     );
   }
 
+  // ---- SHOW SUMMARY SCREEN ----
+  if (sessionSummary) {
+    return (
+      <PracticeSessionResults
+        progress={sessionSummary}
+        darkMode={darkMode}
+        onNavigate={(target) => {
+          // Clear summary and return to appropriate screen
+          setSessionSummary(null);
+
+          if (target === "practice") {
+            setSelectedSession(null);
+            setPendingTopic(null);
+          }
+          if (target === "progress") {
+            setSelectedSession(null);
+            setPendingTopic(null);
+          }
+          if (target === "home") {
+            setSelectedSession(null);
+            setPendingTopic(null);
+          }
+        }}
+      />
+    );
+  }
+
+  // ---- SHOW ORB SCREEN ----
   if (selectedSession) {
     return (
       <VoiceCoachOrbScreen
@@ -81,7 +131,15 @@ const PracticeScreen = ({ darkMode }) => {
         learnerName={selectedSession.learnerName}
         behaviorConfig={AI_BEHAVIOR_CONFIG}
         autoStart={true}
-        onEndSession={() => {
+        onEndSession={(data) => {
+          console.log("📊 Practice session complete:", data);
+
+          if (data?.progress) {
+            savePracticeProgress(data.progress);
+            // 🚀 SHOW SUMMARY SCREEN
+            setSessionSummary(data.progress);
+          }
+
           setSelectedSession(null);
           setPendingTopic(null);
         }}

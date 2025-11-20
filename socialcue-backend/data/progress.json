@@ -1,0 +1,29 @@
+{
+  "users": {
+    "test-user": [
+      {
+        "scenarioId": "demo"
+      }
+    ],
+    "guest": [
+      {
+        "scenarioTitle": "Entering Group Conversations",
+        "gradeLevel": 7,
+        "totalTurns": 20,
+        "userTurns": 10,
+        "coachTurns": 0,
+        "userFirstMessage": "yes",
+        "sessionCompletedAt": "2025-11-20T22:58:52.579Z"
+      },
+      {
+        "scenarioTitle": "Giving and Receiving Feedback",
+        "gradeLevel": 7,
+        "totalTurns": 20,
+        "userTurns": 10,
+        "coachTurns": 0,
+        "userFirstMessage": "sometimes I feel awkward",
+        "sessionCompletedAt": "2025-11-20T23:12:57.860Z"
+      }
+    ]
+  }
+}

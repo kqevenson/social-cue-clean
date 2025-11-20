@@ -4,7 +4,7 @@ import { getUserData, saveUserData } from './socialcue/utils/storage';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
 import HomeScreen from './socialcue/HomeScreen';
 import PracticeScreen from './socialcue/PracticeScreen';
-
+import PracticeSessionResults from './socialcue/PracticeSessionResults';
 import ProgressScreen from './socialcue/ProgressScreen';
 import SettingsScreen from './socialcue/SettingsScreen';
 import ParentDashboard from './socialcue/ParentDashboard';
@@ -25,6 +25,7 @@ function SocialCueApp({ onLogout }) {
   const [notifications, setNotifications] = useState(true);
   const [sessionId, setSessionId] = useState(1);
   const [selectedChildId, setSelectedChildId] = useState(null);
+  const [screenProps, setScreenProps] = useState(null);
   
   // Calculate new goals count (goals created in the last 5 minutes)
   const getNewGoalsCount = () => {
@@ -335,6 +336,14 @@ function SocialCueApp({ onLogout }) {
           <ParentDashboard 
             childUserId={selectedChildId || 'test-user-123'}
             darkMode={darkMode}
+          />
+        )}
+
+        {currentScreen === 'practice-summary' && (
+          <PracticeSessionResults
+            progress={screenProps?.progress}
+            darkMode={darkMode}
+            onNavigate={handleNavigate}
           />
         )}
       </div>

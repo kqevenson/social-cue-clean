@@ -1,18 +1,11 @@
 // ---------------------------------------------------------------------------
-// useVoiceConversation.js — FULLY REWRITTEN AUTONOMOUS VOICE ENGINE (2025)
-// ---------------------------------------------------------------------------
-// This new engine:
-// • Fixes all DEMONSTRATE → REPEAT cutoff issues
-// • Gives ChatGPT-level natural conversation
-// • Clean TTS → recognition flow
-// • No race conditions
-// • No double-speaking
-// • No rigid phase forcing
-// • Built to work with your new autonomy engine
+// useVoiceConversation.js — AUTONOMY VOICE ENGINE v2025 FINAL
+// ChatGPT-level natural autonomy with stable mic + TTS handling
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OpenAI } from "openai";
+
 import {
   unlockAudio,
   playVoiceResponseWithOpenAI,
@@ -27,150 +20,140 @@ import {
 import { PHASES } from "../content/training/AIBehaviorConfig";
 import { generateConversationResponse } from "../services/generateConversationResponse";
 
-// ---------------------------------------------------------------------------
-// Helper: Create Message Object
-// ---------------------------------------------------------------------------
+// Helper
 function createMsg(role, text, phase) {
   return {
     id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     role,
     text,
     phase,
-    isFinal: true,
     createdAt: new Date().toISOString()
   };
 }
 
-// ---------------------------------------------------------------------------
-// MAIN HOOK
-// ---------------------------------------------------------------------------
 export default function useVoiceConversation({
   scenario,
-  learnerName = "",
-  gradeLevel = "6-8",
+  learnerName,
+  gradeLevel,
   autoStart = true,
+  onPhaseChange,
   onAudioStart,
   onAudioComplete,
-  onPhaseChange,
+  onFinishSession,
   onError
 }) {
-  // State
+  // ---------------------------------------------------------------------------
+  // STATE
+  // ---------------------------------------------------------------------------
   const [messages, setMessages] = useState([]);
   const [phase, setPhase] = useState(PHASES.INTRO_1);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Refs to avoid stale closures
-  const messagesRef = useRef([]);
-  const phaseRef = useRef(PHASES.INTRO_1);
-  const startedRef = useRef(false);
-  const scenarioRef = useRef(scenario);
+  // ---------------------------------------------------------------------------
+  // REFS (prevent stale closure bugs)
+  // ---------------------------------------------------------------------------
   const openaiRef = useRef(null);
-  const micLockedRef = useRef(false); // prevents mic activation during TTS
-  const shouldIgnoreInputRef = useRef(false); // prevents processing user input during AI-only phases
+  const messagesRef = useRef([]);
+  const phaseRef = useRef(phase);
+  const scenarioRef = useRef(scenario);
+
+  const startedRef = useRef(false);
+  const allowMicInputRef = useRef(true);
+  const ttsLockRef = useRef(false);
+
+  // Sync refs
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { scenarioRef.current = scenario; }, [scenario]);
 
   // ---------------------------------------------------------------------------
-  // Initialize OpenAI Client
+  // OPENAI CLIENT INIT
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const key =
+    const KEY =
       import.meta.env.VITE_OPENAI_API_KEY ||
       globalThis?.process?.env?.OPENAI_API_KEY ||
       "";
 
-    if (key) {
+    if (KEY) {
       openaiRef.current = new OpenAI({
-        apiKey: key,
+        apiKey: KEY,
         dangerouslyAllowBrowser: true
       });
     }
   }, []);
 
-  // Keep refs up to date
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-
-  useEffect(() => {
-    scenarioRef.current = scenario;
-  }, [scenario]);
-
   // ---------------------------------------------------------------------------
-  // Helper: Allow user responses after TTS completes
-  // ---------------------------------------------------------------------------
-  function allowUserResponses() {
-    shouldIgnoreInputRef.current = false;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Internal: Speak an AI message (handles TTS + state)
+  // INTERNAL: AI SPEAK FUNCTION
   // ---------------------------------------------------------------------------
   const speakAI = useCallback(
     async (text, nextPhase = null) => {
-      const clean = (text || "").toString().trim();
-      if (!clean) return;
+      if (!text) return;
 
       try {
-        // Phase update
-        const prev = phaseRef.current;
-        const phaseToUse = nextPhase || prev;
-        if (phaseToUse !== prev) {
-          setPhase(phaseToUse);
-          phaseRef.current = phaseToUse;
-          onPhaseChange?.(phaseToUse, prev);
+        // During TTS, block mic
+        allowMicInputRef.current = false;
+        ttsLockRef.current = true;
+
+        // Update phase
+        const previous = phaseRef.current;
+        const newPhase = nextPhase || previous;
+
+        if (newPhase !== previous) {
+          setPhase(newPhase);
+          phaseRef.current = newPhase;
+          onPhaseChange?.(newPhase, previous);
         }
 
-        // Append message
-        const msg = createMsg("ai", clean, phaseToUse);
+        // Save AI message
+        const msg = createMsg("ai", text, newPhase);
         setMessages((m) => [...m, msg]);
         messagesRef.current.push(msg);
 
-        // TTS start
-        micLockedRef.current = true;
-        shouldIgnoreInputRef.current = true; // Block user input during TTS
+        stopRecognition(); // ALWAYS stop mic before TTS
 
-        await playVoiceResponseWithOpenAI(clean, {
+        // TTS PLAY
+        await playVoiceResponseWithOpenAI(text, {
           onAudioStart: () => {
             setIsSpeaking(true);
-            stopRecognition();
-            shouldIgnoreInputRef.current = true; // Ensure input is blocked during TTS
-            if (onAudioStart) onAudioStart();
+            onAudioStart?.();
           },
           onAudioComplete: () => {
             setIsSpeaking(false);
-            micLockedRef.current = false;
-            allowUserResponses(); // Allow user responses after TTS completes
-            if (onAudioComplete) onAudioComplete();
+            allowMicInputRef.current = true; // allow responses again
+            ttsLockRef.current = false;
+            onAudioComplete?.();
+
+            // If we reached COMPLETE, hand off to results page
+            if (newPhase === PHASES.COMPLETE) {
+              onFinishSession?.(messagesRef.current);
+            }
           }
         });
       } catch (err) {
-        console.warn("TTS failed:", err);
-        setIsSpeaking(false);
-        micLockedRef.current = false;
-        allowUserResponses(); // Allow user responses even if TTS fails
+        console.error("TTS Failure:", err);
+        allowMicInputRef.current = true;
+        ttsLockRef.current = false;
       }
     },
-    [onAudioStart, onAudioComplete]
+    [onAudioStart, onAudioComplete, onFinishSession]
   );
 
   // ---------------------------------------------------------------------------
-  // START CONVERSATION (INTRO FLOW)
-// ---------------------------------------------------------------------------
+  // START CONVERSATION
+  // ---------------------------------------------------------------------------
   const startConversation = useCallback(async () => {
-    if (!scenarioRef.current) return;
     if (startedRef.current) return;
+    if (!scenarioRef.current) return;
 
     try {
       startedRef.current = true;
       await unlockAudio();
+
       setIsLoading(true);
 
-      // Intro controlled by AI itself now
-      const introResult = await generateConversationResponse({
+      const intro = await generateConversationResponse({
         openai: openaiRef.current,
         currentPhase: PHASES.INTRO_1,
         history: [],
@@ -180,49 +163,65 @@ export default function useVoiceConversation({
         scenario: scenarioRef.current
       });
 
-      await speakAI(introResult.aiResponse, introResult.nextPhase);
+      await speakAI(intro.aiResponse, intro.nextPhase);
     } catch (err) {
-      console.error("Intro error:", err);
       onError?.(err);
     } finally {
       setIsLoading(false);
     }
-  }, [gradeLevel, learnerName, speakAI, onError]);
+  }, [learnerName, gradeLevel, onError, speakAI]);
 
   // ---------------------------------------------------------------------------
-  // SEND USER MESSAGE
+  // USER SENDS RESPONSE
   // ---------------------------------------------------------------------------
   const sendUserMessage = useCallback(
-    async (raw) => {
-      const cleaned = (raw || "").trim();
-      if (!cleaned) return;
+    async (userText) => {
+      if (!userText) return;
 
-      // Block user input only during DEMONSTRATE phase (AI-only monologue)
-      if (phaseRef.current === PHASES.DEMONSTRATE) {
-        console.log("[DEMONSTRATE] Ignoring user input - DEMONSTRATE is AI-only");
+      // Block input during TTS
+      if (!allowMicInputRef.current || ttsLockRef.current) {
+        console.log("Ignoring input — AI is speaking");
         return;
       }
 
       try {
         setIsLoading(true);
+
         stopOpenAITTSPlayback();
 
         // Save user message
-        const prev = phaseRef.current;
-        const userMsg = createMsg("user", cleaned, prev);
+        const prevPhase = phaseRef.current;
+        const userMsg = createMsg("user", userText, prevPhase);
         setMessages((m) => [...m, userMsg]);
         messagesRef.current.push(userMsg);
 
-        // Prepare AI context
+        // FIX 5: Phase completion detection - end scenario after VARIATION phase with 2+ user turns
+        const userTurns = messagesRef.current.filter((m) => m.role === "user").length;
+        if (
+          prevPhase === "VARIATION" ||
+          prevPhase === PHASES.VARIATION ||
+          prevPhase === "variation"
+        ) {
+          if (userTurns >= 2) {
+            setPhase(PHASES.COMPLETE);
+            phaseRef.current = PHASES.COMPLETE;
+            onPhaseChange?.(PHASES.COMPLETE, prevPhase);
+            // Complete the session
+            onFinishSession?.(messagesRef.current);
+            return;
+          }
+        }
+
+        // Build context
         const history = messagesRef.current.map((m) => ({
           role: m.role === "ai" ? "assistant" : "user",
-          content: m.text,
-          phase: m.phase
+          content: m.text
         }));
 
+        // AI RESPONSE
         const ai = await generateConversationResponse({
           openai: openaiRef.current,
-          currentPhase: phaseRef.current,
+          currentPhase: prevPhase,
           history,
           learnerName,
           gradeLevel,
@@ -232,7 +231,6 @@ export default function useVoiceConversation({
 
         await speakAI(ai.aiResponse, ai.nextPhase);
       } catch (err) {
-        console.error("sendUserMessage error:", err);
         onError?.(err);
       } finally {
         setIsLoading(false);
@@ -242,33 +240,43 @@ export default function useVoiceConversation({
   );
 
   // ---------------------------------------------------------------------------
-  // RESET SESSION
+  // RESET
   // ---------------------------------------------------------------------------
   const resetConversation = useCallback(() => {
-    stopOpenAITTSPlayback();
     stopRecognition();
+    stopOpenAITTSPlayback();
+
     startedRef.current = false;
+    allowMicInputRef.current = true;
+    ttsLockRef.current = false;
+
     setMessages([]);
     messagesRef.current = [];
+
     setPhase(PHASES.INTRO_1);
     phaseRef.current = PHASES.INTRO_1;
   }, []);
 
   // ---------------------------------------------------------------------------
-  // AUTO-START
+  // AUTO START
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (autoStart && scenarioRef.current) {
       startConversation();
     }
-  }, [autoStart, scenarioRef.current, startConversation]);
+  }, [autoStart, startConversation]);
 
-  // Cleanup
-  useEffect(() => () => stopOpenAITTSPlayback(), []);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopRecognition();
+      stopOpenAITTSPlayback();
+    };
+  }, []);
 
   // ---------------------------------------------------------------------------
-  // RETURN HOOK API (expected by your UI)
-// ---------------------------------------------------------------------------
+  // RETURN HOOK API
+  // ---------------------------------------------------------------------------
   return {
     messages,
     phase,
