@@ -41,6 +41,9 @@ const buildProgressSummary = (messages, scenario, gradeLevel) => {
     coachTurns: coachTurns.length,
     userFirstMessage: userTurns[0]?.text || "",
     sessionCompletedAt: new Date().toISOString(),
+    whatWentWell: null,
+    tipForNextTime: null,
+    aiSummary: null,
   };
 };
 
@@ -451,65 +454,79 @@ const VoiceCoachOrbScreen = ({
    * PHASE COMPLETION
    * ------------------------------------- */
   useEffect(() => {
-    // When AI finishes final phase, perform wrap-up before ending session
+    // NEW JSON-BASED WRAP-UP
     const runWrapUp = async () => {
       try {
-        const wrapUpPrompt = `
-          You are Coach Cue, giving a soft, warm SEL-style closing reflection.
+        const apiKey = import.meta?.env?.VITE_OPENAI_API_KEY;
+        if (!apiKey) return;
 
-          Praise effort, highlight one or two specific strengths the learner showed today,
-          and gently suggest one area for next time.
+        const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
-          DO NOT mention XP, points, or mastery.
-
-          Keep it short, kind, and encouraging.
-
-          Scenario: ${scenario?.title || "Practice Session"}
-          Learner name: ${learnerName || "friend"}
-        `;
-
-        // Get OpenAI API key from environment
-        const apiKey = typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY;
-        if (!apiKey) {
-          console.warn("OpenAI API key not found, skipping wrap-up");
-          return;
-        }
-
-        // Create OpenAI client for wrap-up message
-        const openai = new OpenAI({
-          apiKey,
-          dangerouslyAllowBrowser: true
-        });
-
-        // Generate wrap-up text
         const response = await openai.chat.completions.create({
           model: "gpt-4o-mini",
+          response_format: { type: "json_object" },
           messages: [
             {
               role: "system",
-              content: "You are Coach Cue, a warm and encouraging social skills coach. Give brief, heartfelt closing reflections."
+              content: `
+                You are Coach Cue.
+                Return STRICT JSON with:
+                {
+                  "whatWentWell": "short sentence",
+                  "tipForNextTime": "short sentence"
+                }
+                DO NOT include anything else. No intros. No prose. JSON only.
+              `,
             },
             {
               role: "user",
-              content: wrapUpPrompt
-            }
+              content: `
+                Learner finished scenario: ${scenario?.title}
+                Give a JSON reflection.
+              `,
+            },
           ],
-          max_tokens: 100,
-          temperature: 0.8
+          temperature: 0.7,
+          max_tokens: 60,
         });
 
-        const aiText = response.choices[0]?.message?.content?.trim();
-        if (aiText) {
-          await playVoiceResponseWithOpenAI(aiText, "shimmer");
+        const raw = response.choices[0]?.message?.content?.trim();
+        let parsed = null;
+
+        try {
+          parsed = JSON.parse(raw);
+        } catch (e) {
+          console.warn("JSON parse error:", e, raw);
+          return;
         }
+
+        // Build natural spoken version
+        const spokenSummary = `
+          ${parsed.whatWentWell}.
+          And here's one gentle tip for next time:
+          ${parsed.tipForNextTime}.
+        `;
+
+        // Speak natural version
+        await playVoiceResponseWithOpenAI(spokenSummary, "shimmer");
+
+        // Attach JSON to the end-session payload
+        return parsed;
       } catch (err) {
         console.error("Wrap-up error:", err);
+        return null;
       }
     };
 
     if (phase === "complete" || phase === "COMPLETE") {
       const progress = buildProgressSummary(messages, scenario, resolvedGradeLevel);
-      runWrapUp().then(() => {
+      runWrapUp().then((wrapupJSON) => {
+        if (wrapupJSON) {
+          progress.whatWentWell = wrapupJSON.whatWentWell;
+          progress.tipForNextTime = wrapupJSON.tipForNextTime;
+          progress.aiSummary = wrapupJSON;
+        }
+
         handleSessionEnd({
           phase: "complete",
           progress

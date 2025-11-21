@@ -7,6 +7,7 @@ import { getTemplate, getDisplayName } from './promptTemplates.js';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import adaptiveLearningRoutes from './adaptive-learning-routes.js';
+import adaptiveRoutes from './backend/routes/adaptiveRoutes.js';
 import OpenAI from 'openai';
 import { getVoiceIntro } from './src/content/training/introduction-scripts.js';
 import chatRouter from './server/routes/chat.js';
@@ -33,6 +34,7 @@ const db = getFirestore(firebaseApp);
 app.use(cors());
 app.use(bodyParser.json());
 app.use('/api', chatRouter);
+app.use("/api/adaptive", adaptiveRoutes);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({

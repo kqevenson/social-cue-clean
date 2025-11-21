@@ -9,24 +9,45 @@ import {
 } from "../../data/voicePracticeScenarios";
 import { AI_BEHAVIOR_CONFIG } from "../../content/training/AIBehaviorConfig";
 import { ArrowRight } from "lucide-react";
+import { db } from "../../firebaseConfig";
+import { doc, setDoc } from "firebase/firestore";
 
-// ---- PROGRESS SAVER ----
-async function savePracticeProgress(progress) {
+// ---- PROGRESS SAVER TO FIREBASE ----
+async function saveProgressToFirebase(progress) {
   try {
-    const res = await fetch("http://localhost:3001/api/progress/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(progress),
-    });
+    // Get userId from localStorage or use "guest"
+    const stored = localStorage.getItem("socialCueUserData");
+    const userData = stored ? JSON.parse(stored) : {};
+    const userId = userData?.userId || userData?.id || "guest";
 
-    if (!res.ok) {
-      console.error("❌ Failed:", await res.text());
-      throw new Error("Progress save failed");
-    }
+    // Create document ID from sessionCompletedAt timestamp
+    const docId = progress.sessionCompletedAt || new Date().toISOString();
 
-    console.log("✅ Progress saved:", progress);
+    // Save only the 6 required fields
+    const firestorePayload = {
+      scenarioId: progress.scenarioId || null,
+      scenarioTitle: progress.scenarioTitle || "",
+      totalTurns: progress.totalTurns || 0,
+      userTurns: progress.userTurns || 0,
+      tipForNextTime: progress.tipForNextTime || "",
+      sessionCompletedAt: progress.sessionCompletedAt || new Date().toISOString(),
+    };
+
+    const docRef = doc(db, `users/${userId}/practiceHistory`, docId);
+    await setDoc(docRef, firestorePayload);
+
+    console.log("✅ Progress saved to Firestore:", firestorePayload);
   } catch (err) {
-    console.error("❌ Error saving progress:", err);
+    console.error("❌ Error saving progress to Firestore:", err);
+    // Fallback to localStorage
+    try {
+      const history = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+      history.unshift(progress);
+      localStorage.setItem("practiceHistory", JSON.stringify(history.slice(0, 20)));
+      console.log("✅ Progress saved to localStorage as fallback");
+    } catch (localErr) {
+      console.error("❌ Fallback to localStorage also failed:", localErr);
+    }
   }
 }
 
@@ -101,21 +122,23 @@ const PracticeScreen = ({ darkMode }) => {
         progress={sessionSummary}
         darkMode={darkMode}
         onNavigate={(target) => {
-          // Clear summary and return to appropriate screen
           setSessionSummary(null);
 
-          if (target === "practice") {
-            setSelectedSession(null);
-            setPendingTopic(null);
-          }
+          // Navigate to progress dashboard
           if (target === "progress") {
-            setSelectedSession(null);
-            setPendingTopic(null);
+            window.dispatchEvent(new CustomEvent("navigate", { detail: { screen: "progress" }}));
+            return;
           }
+
+          // Navigate home
           if (target === "home") {
-            setSelectedSession(null);
-            setPendingTopic(null);
+            window.dispatchEvent(new CustomEvent("navigate", { detail: { screen: "home" }}));
+            return;
           }
+
+          // Go back to Practice topic grid
+          setSelectedSession(null);
+          setPendingTopic(null);
         }}
       />
     );
@@ -135,7 +158,7 @@ const PracticeScreen = ({ darkMode }) => {
           console.log("📊 Practice session complete:", data);
 
           if (data?.progress) {
-            savePracticeProgress(data.progress);
+            saveProgressToFirebase(data.progress);
             // 🚀 SHOW SUMMARY SCREEN
             setSessionSummary(data.progress);
           }

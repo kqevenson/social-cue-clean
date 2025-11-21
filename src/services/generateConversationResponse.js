@@ -77,7 +77,8 @@ export async function generateConversationResponse({
   learnerName,
   gradeLevel,
   difficulty,
-  scenario
+  scenario,
+  practiceHistory
 }) {
   const persona = personaEngine.getPersona(gradeLevel);
 
@@ -91,8 +92,21 @@ export async function generateConversationResponse({
 
   const freshScenario = generateFreshScenario(topicName, gradeLevel);
 
+  // Pull last 3 practice summaries
+  const historyData = practiceHistory || JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+  const lastThree = historyData.slice(0, 3);
+
+  const memoryPrompt = lastThree
+    .map((h, i) => `
+      Session ${i + 1}:
+      - Scenario: ${h.scenarioTitle}
+      - WhatWentWell: ${h.whatWentWell}
+      - TipForNextTime: ${h.tipForNextTime}
+    `)
+    .join("\n");
+
   // SYSTEM PROMPT — defines Cue's personality & behavior
-  const system = `
+  const baseSystem = `
 You are CUE — a warm, friendly, supportive social coach.
 Speak naturally, like ChatGPT voice: clear, calm, warm, and human.
 NEVER use emojis. Avoid lists. Avoid robotic tones.
@@ -111,7 +125,7 @@ GOALS:
 
 PHASE GUIDANCE:
 INTRO: Warm greeting + simple question.
-PREVIEW: Briefly introduce what you’ll practice using a NEW scenario.
+PREVIEW: Briefly introduce what you'll practice using a NEW scenario.
 DEMONSTRATE: Give one natural example sentence.
 REPEAT: Ask them to try it.
 TEACHING: Respond to their attempt with guidance + praise.
@@ -120,6 +134,15 @@ COMPLETE: Wrap up in a warm, confident tone.
 
 Keep it conversational. Never lecture.
 `;
+
+  // Enhanced system prompt with practice history
+  const enhancedSystemPrompt = lastThree.length > 0 ? `
+You are Coach Cue.
+Personalize your coaching based on learner history:
+${memoryPrompt}
+` : "";
+
+  const system = enhancedSystemPrompt + baseSystem;
 
   // USER PROMPT — includes all context for the next turn
   const user = `

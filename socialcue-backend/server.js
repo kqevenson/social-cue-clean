@@ -2,14 +2,29 @@
 
 // Run with: node server.js
 
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const cors = require("cors");
+import express from "express";
+import fs from "fs";
+import path from "path";
+import cors from "cors";
+import { getFirestore, collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { initializeApp } from "firebase/app";
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// Initialize Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyBo836PZY5YBmv6e0xjrsPH0wg-5c7yCXQ",
+  authDomain: "social-cue-2025.firebaseapp.com",
+  projectId: "social-cue-2025",
+  storageBucket: "social-cue-2025.appspot.com",
+  messagingSenderId: "828360561679",
+  appId: "1:828360561679:web:68b42b0b9e806d17d03f7a",
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
 
 const DATA_DIR = path.resolve("./data");
 const PROGRESS_FILE = path.join(DATA_DIR, "progress.json");
@@ -36,54 +51,21 @@ function writeProgress(data) {
 // -------------------------
 // SAVE PROGRESS ENDPOINT
 // -------------------------
-app.post("/api/progress/save", (req, res) => {
+app.post("/api/progress/save", async (req, res) => {
   try {
     const progress = req.body;
 
-    if (!progress) {
-      return res.status(400).json({ error: "Missing progress payload" });
-    }
+    const ref = collection(db, "sessionHistory");
+    await addDoc(ref, {
+      ...progress,
+      userId: progress.userId || "guest",
+      date: new Date().toISOString(),
+    });
 
-    const {
-      userId = "guest",
-      scenarioId,
-      scenarioTitle,
-      category,
-      gradeLevel,
-      totalTurns,
-      userTurns,
-      coachTurns,
-      userFirstMessage,
-      sessionCompletedAt
-    } = progress;
-
-    const store = readProgress();
-
-    if (!store.users[userId]) {
-      store.users[userId] = [];
-    }
-
-    const record = {
-      scenarioId,
-      scenarioTitle,
-      category,
-      gradeLevel,
-      totalTurns,
-      userTurns,
-      coachTurns,
-      userFirstMessage,
-      sessionCompletedAt
-    };
-
-    store.users[userId].push(record);
-    writeProgress(store);
-
-    console.log("💾 Progress saved:", record);
-
-    return res.json({ success: true, saved: record });
+    res.json({ success: true });
   } catch (err) {
-    console.error("❌ Error saving progress:", err);
-    res.status(500).json({ error: "Failed to save progress" });
+    console.error("Save progress error:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -100,6 +82,34 @@ app.get("/api/progress/:userId", (req, res) => {
   } catch (err) {
     console.error("❌ Error loading progress:", err);
     res.status(500).json({ error: "Failed to load progress" });
+  }
+});
+
+// ---------- NEW ENDPOINT: Fetch session history ----------
+app.get('/api/adaptive/session-history/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    console.log("📘 Fetching session history for:", userId);
+
+    // Use the existing Firestore instance (db) instead of creating a new one
+    const sessionsRef = collection(db, 'sessionHistory');
+    const q = query(sessionsRef, where("userId", "==", userId));
+
+    const snapshot = await getDocs(q);
+
+    const sessions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    return res.json({
+      success: true,
+      sessions
+    });
+
+  } catch (err) {
+    console.error("🔥 Error loading session history:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

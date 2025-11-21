@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter, Play } from 'lucide-react';
 import { getUserData } from './utils/storage';
+import { db } from "../../firebaseConfig";
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import SessionReplayModal from './SessionReplayModal';
+import FullSummaryModal from './FullSummaryModal';
 
 function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [masteryData, setMasteryData] = useState(null);
@@ -13,6 +16,44 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
   const [expandedSession, setExpandedSession] = useState(null);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [showReplayModal, setShowReplayModal] = useState(false);
+  const [showFullSummary, setShowFullSummary] = useState(false);
+  const [selectedPracticeSession, setSelectedPracticeSession] = useState(null);
+  const [recent, setRecent] = useState([]);
+
+  // Fetch practice history from Firestore
+  useEffect(() => {
+    const loadPracticeHistory = async () => {
+      try {
+        const userId = userData?.userId || userData?.id || "guest";
+
+        const practiceHistoryRef = collection(db, `users/${userId}/practiceHistory`);
+        const q = query(
+          practiceHistoryRef,
+          orderBy("sessionCompletedAt", "desc"),
+          limit(20)
+        );
+
+        const snapshot = await getDocs(q);
+        const sessions = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        setRecent(sessions);
+      } catch (error) {
+        console.error("Error loading practice history from Firestore:", error);
+        // Fallback to localStorage
+        try {
+          const localHistory = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+          setRecent(localHistory.slice(0, 20));
+        } catch (localErr) {
+          console.error("Error loading from localStorage fallback:", localErr);
+        }
+      }
+    };
+
+    loadPracticeHistory();
+  }, [userData]);
 
   // Set basic demo data (no API calls)
   useEffect(() => {
@@ -734,11 +775,23 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
         )}
       </div>
 
+
       {/* Session Replay Modal */}
       <SessionReplayModal
         sessionId={selectedSessionId}
         isOpen={showReplayModal}
         onClose={handleCloseReplayModal}
+        darkMode={darkMode}
+      />
+
+      {/* Full Summary Modal */}
+      <FullSummaryModal
+        isOpen={showFullSummary}
+        onClose={() => {
+          setShowFullSummary(false);
+          setSelectedPracticeSession(null);
+        }}
+        session={selectedPracticeSession}
         darkMode={darkMode}
       />
     </div>

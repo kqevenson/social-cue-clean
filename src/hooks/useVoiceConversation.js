@@ -31,6 +31,7 @@ function createMsg(role, text, phase) {
   };
 }
 
+
 export default function useVoiceConversation({
   scenario,
   learnerName,
@@ -153,6 +154,25 @@ export default function useVoiceConversation({
 
       setIsLoading(true);
 
+      // Pull last 3 practice summaries for personalized guidance
+      const practiceHistory = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+      const lastThree = practiceHistory.slice(0, 3);
+
+      const memoryPrompt = lastThree
+        .map((h, i) => `
+          Session ${i + 1}:
+          - Scenario: ${h.scenarioTitle}
+          - WhatWentWell: ${h.whatWentWell}
+          - TipForNextTime: ${h.tipForNextTime}
+        `)
+        .join("\n");
+
+      const enhancedSystemPrompt = `
+        You are Coach Cue.
+        Personalize your coaching based on learner history:
+        ${memoryPrompt}
+      `;
+
       const intro = await generateConversationResponse({
         openai: openaiRef.current,
         currentPhase: PHASES.INTRO_1,
@@ -160,7 +180,8 @@ export default function useVoiceConversation({
         learnerName,
         gradeLevel,
         difficulty: 1,
-        scenario: scenarioRef.current
+        scenario: scenarioRef.current,
+        practiceHistory
       });
 
       await speakAI(intro.aiResponse, intro.nextPhase);
@@ -218,6 +239,25 @@ export default function useVoiceConversation({
           content: m.text
         }));
 
+        // Pull last 3 practice summaries for personalized guidance
+        const practiceHistory = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+        const lastThree = practiceHistory.slice(0, 3);
+
+        const memoryPrompt = lastThree
+          .map((h, i) => `
+            Session ${i + 1}:
+            - Scenario: ${h.scenarioTitle}
+            - WhatWentWell: ${h.whatWentWell}
+            - TipForNextTime: ${h.tipForNextTime}
+          `)
+          .join("\n");
+
+        const enhancedSystemPrompt = `
+          You are Coach Cue.
+          Personalize your coaching based on learner history:
+          ${memoryPrompt}
+        `;
+
         // AI RESPONSE
         const ai = await generateConversationResponse({
           openai: openaiRef.current,
@@ -226,7 +266,8 @@ export default function useVoiceConversation({
           learnerName,
           gradeLevel,
           difficulty: 1,
-          scenario: scenarioRef.current
+          scenario: scenarioRef.current,
+          practiceHistory
         });
 
         await speakAI(ai.aiResponse, ai.nextPhase);

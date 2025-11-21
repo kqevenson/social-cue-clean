@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Home, RotateCcw, Info, Lightbulb } from 'lucide-react';
+import { Home, RotateCcw, Info, Lightbulb, PartyPopper, Leaf } from 'lucide-react';
+import { db } from "../../firebaseConfig";
+import { doc, setDoc } from "firebase/firestore";
 
 const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
   const [phase, setPhase] = useState(0);
@@ -8,7 +10,56 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
     [0, 1, 2].forEach((p, i) => {
       setTimeout(() => setPhase(p), i * 200);
     });
-  }, []);
+
+    // Firebase Firestore sync
+    const saveToFirestore = async () => {
+      try {
+        // Get userId from localStorage or use "guest"
+        const stored = localStorage.getItem("socialCueUserData");
+        const userData = stored ? JSON.parse(stored) : {};
+        const userId = userData?.userId || userData?.id || "guest";
+
+        // Use sessionCompletedAt as document ID
+        const docId = progress?.sessionCompletedAt || new Date().toISOString();
+
+        // Save only the 6 required fields
+        const firestorePayload = {
+          scenarioId: progress?.scenarioId || null,
+          scenarioTitle: progress?.scenarioTitle || "",
+          totalTurns: progress?.totalTurns || 0,
+          userTurns: progress?.userTurns || 0,
+          tipForNextTime: progress?.tipForNextTime || "",
+          sessionCompletedAt: progress?.sessionCompletedAt || new Date().toISOString(),
+        };
+
+        const docRef = doc(db, `users/${userId}/practiceHistory`, docId);
+        await setDoc(docRef, firestorePayload);
+
+        console.log("✅ Practice history saved to Firestore");
+      } catch (error) {
+        console.error("Error saving practice history to Firestore:", error);
+        // Fallback to localStorage if Firebase fails
+        try {
+          const payload = {
+            date: new Date().toISOString(),
+            scenarioTitle: progress?.scenarioTitle,
+            whatWentWell: progress?.whatWentWell || "",
+            tipForNextTime: progress?.tipForNextTime || "",
+            aiSummary: progress?.aiSummary || {},
+            totalTurns: progress?.totalTurns,
+          };
+          const history = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+          history.unshift(payload);
+          localStorage.setItem("practiceHistory", JSON.stringify(history.slice(0, 20)));
+          console.log("✅ Practice history saved to localStorage as fallback");
+        } catch (localErr) {
+          console.error("❌ Fallback to localStorage also failed:", localErr);
+        }
+      }
+    };
+
+    saveToFirestore();
+  }, [progress]);
 
   const wrap = (text) => text || "Great work today! You practiced with effort and clarity.";
 
@@ -28,7 +79,7 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
 
             {/* Header */}
             <div className="text-center mb-10">
-              <div className="text-7xl mb-4">🎉</div>
+              <PartyPopper className="w-20 h-20 text-blue-400 mb-4 mx-auto" />
               <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 via-purple-500 to-emerald-400 bg-clip-text text-transparent">
                 Session Complete!
               </h1>
@@ -40,7 +91,8 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
               phase >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             } ${darkMode ? 'bg-green-500/15 border-green-500/30' : 'bg-green-50 border-green-200'}`}>
               <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
-                🌱 What You Did Well
+                <Leaf className="w-6 h-6 text-green-400" />
+                What You Did Well
               </h2>
               <p className="text-lg leading-relaxed">
                 You practiced with effort and clarity. You stayed present in the conversation and gave natural responses.
@@ -52,7 +104,8 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
               phase >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             } ${darkMode ? 'bg-yellow-500/15 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'}`}>
               <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
-                💡 A Gentle Tip for Next Time
+                <Lightbulb className="w-6 h-6 text-amber-400" />
+                A Gentle Tip for Next Time
               </h2>
               <p className="text-lg leading-relaxed">
                 Try adding a follow-up question or one more detail to deepen the conversation.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star } from 'lucide-react';
 import { getUserData, saveUserData } from './socialcue/utils/storage';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
@@ -67,6 +67,37 @@ function SocialCueApp({ onLogout }) {
     }
   };
 
+  // Define handleNavigate early using useCallback so it can be used in useEffect
+  const handleNavigate = useCallback((screen, sid) => {
+    console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
+    setCurrentScreen(screen);
+    if (sid) {
+      setSessionId(sid);
+      // Set topicName based on sessionId
+      const topicMap = {
+        1: 'Small Talk Basics',
+        2: 'Active Listening', 
+        3: 'Reading Body Language',
+        4: 'Building Confidence',
+        5: 'Conflict Resolution',
+        6: 'Teamwork',
+        7: 'Empathy',
+        8: 'Assertiveness'
+      };
+      const topicName = topicMap[sid] || 'Social Skills';
+      
+      // Update user data with topicName
+      const currentData = getUserData();
+      const updatedData = { ...currentData, topicName };
+      saveUserData(updatedData);
+      setUserData(updatedData);
+    } else {
+      // Reload user data when navigating (but preserve topicName if it exists)
+      const data = getUserData();
+      setUserData(data);
+    }
+  }, []);
+
   useEffect(() => {
     const data = getUserData();
     console.log('SocialCueApp loaded userData:', data);
@@ -96,6 +127,21 @@ function SocialCueApp({ onLogout }) {
     const savedNotifications = localStorage.getItem('notifications');
     if (savedNotifications !== null) setNotifications(savedNotifications === 'true');
   }, []);
+
+  // Register navigation event listener *after* handleNavigate exists
+  useEffect(() => {
+    function onNav(e) {
+      const screen = e.detail?.screen;
+      const props = e.detail?.props || {};
+
+      if (screen) {
+        handleNavigate(screen, props);
+      }
+    }
+
+    window.addEventListener("navigate", onNav);
+    return () => window.removeEventListener("navigate", onNav);
+  }, [handleNavigate]);
 
   const checkAndInitializeAdaptiveLearning = async (userId, userData) => {
     try {
@@ -176,36 +222,6 @@ function SocialCueApp({ onLogout }) {
   const toggleNotifications = (value) => {
     setNotifications(value);
     localStorage.setItem('notifications', value.toString());
-  };
-
-  const handleNavigate = (screen, sid) => {
-    console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
-    setCurrentScreen(screen);
-    if (sid) {
-      setSessionId(sid);
-      // Set topicName based on sessionId
-      const topicMap = {
-        1: 'Small Talk Basics',
-        2: 'Active Listening', 
-        3: 'Reading Body Language',
-        4: 'Building Confidence',
-        5: 'Conflict Resolution',
-        6: 'Teamwork',
-        7: 'Empathy',
-        8: 'Assertiveness'
-      };
-      const topicName = topicMap[sid] || 'Social Skills';
-      
-      // Update user data with topicName
-      const currentData = getUserData();
-      const updatedData = { ...currentData, topicName };
-      saveUserData(updatedData);
-      setUserData(updatedData);
-    } else {
-      // Reload user data when navigating (but preserve topicName if it exists)
-      const data = getUserData();
-      setUserData(data);
-    }
   };
 
   const navItems = getNavigationItems(userData?.role);

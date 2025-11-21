@@ -23,6 +23,15 @@
         "coachTurns": 0,
         "userFirstMessage": "sometimes I feel awkward",
         "sessionCompletedAt": "2025-11-20T23:12:57.860Z"
+      },
+      {
+        "scenarioTitle": "Entering Group Conversations",
+        "gradeLevel": 7,
+        "totalTurns": 43,
+        "userTurns": 22,
+        "coachTurns": 0,
+        "userFirstMessage": "hey what are you doing this weekend",
+        "sessionCompletedAt": "2025-11-20T23:48:52.533Z"
       }
     ]
   }
