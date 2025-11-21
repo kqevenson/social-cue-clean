@@ -9,47 +9,7 @@ import {
 } from "../../data/voicePracticeScenarios";
 import { AI_BEHAVIOR_CONFIG } from "../../content/training/AIBehaviorConfig";
 import { ArrowRight } from "lucide-react";
-import { db } from "../../firebaseConfig";
-import { doc, setDoc } from "firebase/firestore";
-
-// ---- PROGRESS SAVER TO FIREBASE ----
-async function saveProgressToFirebase(progress) {
-  try {
-    // Get userId from localStorage or use "guest"
-    const stored = localStorage.getItem("socialCueUserData");
-    const userData = stored ? JSON.parse(stored) : {};
-    const userId = userData?.userId || userData?.id || "guest";
-
-    // Create document ID from sessionCompletedAt timestamp
-    const docId = progress.sessionCompletedAt || new Date().toISOString();
-
-    // Save only the 6 required fields
-    const firestorePayload = {
-      scenarioId: progress.scenarioId || null,
-      scenarioTitle: progress.scenarioTitle || "",
-      totalTurns: progress.totalTurns || 0,
-      userTurns: progress.userTurns || 0,
-      tipForNextTime: progress.tipForNextTime || "",
-      sessionCompletedAt: progress.sessionCompletedAt || new Date().toISOString(),
-    };
-
-    const docRef = doc(db, `users/${userId}/practiceHistory`, docId);
-    await setDoc(docRef, firestorePayload);
-
-    console.log("✅ Progress saved to Firestore:", firestorePayload);
-  } catch (err) {
-    console.error("❌ Error saving progress to Firestore:", err);
-    // Fallback to localStorage
-    try {
-      const history = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
-      history.unshift(progress);
-      localStorage.setItem("practiceHistory", JSON.stringify(history.slice(0, 20)));
-      console.log("✅ Progress saved to localStorage as fallback");
-    } catch (localErr) {
-      console.error("❌ Fallback to localStorage also failed:", localErr);
-    }
-  }
-}
+import { savePracticeHistory } from "../../services/savePracticeHistory";
 
 const PracticeScreen = ({ darkMode }) => {
   const [userGradeBand, setUserGradeBand] = useState("6-8");
@@ -154,11 +114,26 @@ const PracticeScreen = ({ darkMode }) => {
         learnerName={selectedSession.learnerName}
         behaviorConfig={AI_BEHAVIOR_CONFIG}
         autoStart={true}
-        onEndSession={(data) => {
+        onEndSession={async (data) => {
           console.log("📊 Practice session complete:", data);
 
           if (data?.progress) {
-            saveProgressToFirebase(data.progress);
+            try {
+              // Get userId from localStorage
+              const stored = localStorage.getItem("socialCueUserData");
+              const userData = stored ? JSON.parse(stored) : {};
+              const userId = userData?.userId || userData?.id || "guest";
+              
+              // Use sessionCompletedAt as sessionId
+              const sessionId = data.progress.sessionCompletedAt || new Date().toISOString();
+              
+              // Save complete progress object to Firestore
+              await savePracticeHistory(userId, sessionId, data.progress);
+              console.log("✅ Progress saved to Firestore");
+            } catch (err) {
+              console.error("❌ Error saving progress:", err);
+            }
+            
             // 🚀 SHOW SUMMARY SCREEN
             setSessionSummary(data.progress);
           }

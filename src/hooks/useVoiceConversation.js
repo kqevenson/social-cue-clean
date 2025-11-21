@@ -19,6 +19,8 @@ import {
 
 import { PHASES } from "../content/training/AIBehaviorConfig";
 import { generateConversationResponse } from "../services/generateConversationResponse";
+import { convertBlobToBase64 } from "../services/audioHelpers";
+import { sendVoiceToAI } from "../services/voiceConversationApi";
 
 // Helper
 function createMsg(role, text, phase) {
@@ -41,7 +43,9 @@ export default function useVoiceConversation({
   onAudioStart,
   onAudioComplete,
   onFinishSession,
-  onError
+  onError,
+  onAudioBase64,      // NEW callback from Orb
+  useEmotion = true,  // enable emotion sensing
 }) {
   // ---------------------------------------------------------------------------
   // STATE
@@ -62,6 +66,7 @@ export default function useVoiceConversation({
   const startedRef = useRef(false);
   const allowMicInputRef = useRef(true);
   const ttsLockRef = useRef(false);
+  const lastEmotionRef = useRef(null);
 
   // Sync refs
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -154,24 +159,35 @@ export default function useVoiceConversation({
 
       setIsLoading(true);
 
-      // Pull last 3 practice summaries for personalized guidance
-      const practiceHistory = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+      // Pull last 3 practice summaries for personalized guidance from Firestore
+      let practiceHistory = [];
+      try {
+        const { loadPracticeHistory } = await import("../services/loadPracticeHistory");
+        const stored = localStorage.getItem("socialCueUserData");
+        const userData = stored ? JSON.parse(stored) : {};
+        const userId = userData?.userId || userData?.id || "guest";
+        const allSessions = await loadPracticeHistory(userId, 3);
+        practiceHistory = allSessions.slice(0, 3);
+      } catch (err) {
+        console.warn("Could not load practice history from Firestore:", err);
+      }
+
       const lastThree = practiceHistory.slice(0, 3);
 
-      const memoryPrompt = lastThree
+      const memoryPrompt = lastThree.length > 0 ? lastThree
         .map((h, i) => `
           Session ${i + 1}:
           - Scenario: ${h.scenarioTitle}
           - WhatWentWell: ${h.whatWentWell}
           - TipForNextTime: ${h.tipForNextTime}
         `)
-        .join("\n");
+        .join("\n") : "";
 
-      const enhancedSystemPrompt = `
+      const enhancedSystemPrompt = lastThree.length > 0 ? `
         You are Coach Cue.
         Personalize your coaching based on learner history:
         ${memoryPrompt}
-      `;
+      ` : "";
 
       const intro = await generateConversationResponse({
         openai: openaiRef.current,
@@ -196,13 +212,22 @@ export default function useVoiceConversation({
   // USER SENDS RESPONSE
   // ---------------------------------------------------------------------------
   const sendUserMessage = useCallback(
-    async (userText) => {
+    async (userText, extra = {}) => {
       if (!userText) return;
 
       // Block input during TTS
       if (!allowMicInputRef.current || ttsLockRef.current) {
         console.log("Ignoring input — AI is speaking");
         return;
+      }
+
+      // store audio for emotion
+      if (extra?.audioBase64 && onAudioBase64) {
+        try { 
+          onAudioBase64(extra.audioBase64); 
+        } catch (err) { 
+          console.warn("Emotion audio pass fail:", err); 
+        }
       }
 
       try {
@@ -239,24 +264,80 @@ export default function useVoiceConversation({
           content: m.text
         }));
 
-        // Pull last 3 practice summaries for personalized guidance
-        const practiceHistory = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+        // Pull last 3 practice summaries for personalized guidance from Firestore
+        let practiceHistory = [];
+        try {
+          const { loadPracticeHistory } = await import("../services/loadPracticeHistory");
+          const stored = localStorage.getItem("socialCueUserData");
+          const userData = stored ? JSON.parse(stored) : {};
+          const userId = userData?.userId || userData?.id || "guest";
+          const allSessions = await loadPracticeHistory(userId, 3);
+          practiceHistory = allSessions.slice(0, 3);
+        } catch (err) {
+          console.warn("Could not load practice history from Firestore:", err);
+        }
+
         const lastThree = practiceHistory.slice(0, 3);
 
-        const memoryPrompt = lastThree
+        const memoryPrompt = lastThree.length > 0 ? lastThree
           .map((h, i) => `
             Session ${i + 1}:
             - Scenario: ${h.scenarioTitle}
             - WhatWentWell: ${h.whatWentWell}
             - TipForNextTime: ${h.tipForNextTime}
           `)
-          .join("\n");
+          .join("\n") : "";
 
-        const enhancedSystemPrompt = `
+        const enhancedSystemPrompt = lastThree.length > 0 ? `
           You are Coach Cue.
           Personalize your coaching based on learner history:
           ${memoryPrompt}
-        `;
+        ` : "";
+
+        // OPTIONAL: Call backend API for emotion analysis
+        let emotionContext = null;
+        const audioBase64 = extra?.audioBase64 || null;
+        
+        if (useEmotion && audioBase64) {
+          try {
+            // Pull userId from stored userData
+            const raw = localStorage.getItem("socialCueUserData");
+            const userData = raw ? JSON.parse(raw) : {};
+            const userId = userData.userId || userData.uid || userData.id || "unknown";
+
+            const data = await sendVoiceToAI({
+              conversationHistory: history,
+              scenario: scenarioRef.current,
+              gradeLevel,
+              userId,
+              phase: prevPhase,
+              curriculumScript: null,
+              audioBase64: audioBase64
+            });
+            if (data.emotion) {
+              emotionContext = data.emotion;
+              console.log('🎧 Emotion detected:', emotionContext);
+              
+              // Save emotion to Firebase session object
+              lastEmotionRef.current = data.emotion;
+              
+              // NEW — Emotion-aware context - add to history
+              setMessages((h) => [
+                ...h,
+                {
+                  id: `emotion-${Date.now()}`,
+                  role: "meta",
+                  emotion: data.emotion?.emotion,
+                  intensity: data.emotion?.intensity,
+                  raw: data.emotion,
+                  createdAt: new Date().toISOString()
+                },
+              ]);
+            }
+          } catch (err) {
+            console.warn('Could not get emotion analysis:', err);
+          }
+        }
 
         // AI RESPONSE
         const ai = await generateConversationResponse({
@@ -267,7 +348,8 @@ export default function useVoiceConversation({
           gradeLevel,
           difficulty: 1,
           scenario: scenarioRef.current,
-          practiceHistory
+          practiceHistory,
+          emotionContext // Pass emotion context if available
         });
 
         await speakAI(ai.aiResponse, ai.nextPhase);
@@ -277,7 +359,7 @@ export default function useVoiceConversation({
         setIsLoading(false);
       }
     },
-    [gradeLevel, learnerName, speakAI, onError]
+    [gradeLevel, learnerName, speakAI, onError, useEmotion, onAudioBase64]
   );
 
   // ---------------------------------------------------------------------------

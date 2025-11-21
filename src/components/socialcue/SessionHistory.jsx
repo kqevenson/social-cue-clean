@@ -62,14 +62,22 @@ const SessionHistory = ({ darkMode = false }) => {
       }
       params.append('limit', '20');
 
-      const response = await fetch(`http://localhost:3001/api/adaptive/session-history/${userId}?${params}`);
-      const data = await response.json();
+      // Load from Firestore directly
+      const { loadPracticeHistory } = await import('../../services/loadPracticeHistory');
+      const limitCount = parseInt(params.get('limit') || '20', 10);
+      const sessions = await loadPracticeHistory(userId, limitCount);
       
-      if (data.success) {
-        setSessions(data.sessions || []);
-      } else {
-        setError(data.error || 'Failed to fetch session history');
+      // Filter by date if provided
+      let filteredSessions = sessions;
+      if (params.get('startDate')) {
+        const startDate = new Date(params.get('startDate'));
+        filteredSessions = sessions.filter(s => {
+          const sessionDate = new Date(s.sessionCompletedAt || s.date || 0);
+          return sessionDate >= startDate;
+        });
       }
+      
+      setSessions(filteredSessions);
     } catch (err) {
       console.error('Error fetching session history:', err);
       setError('Failed to fetch session history');

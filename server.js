@@ -7,10 +7,11 @@ import { getTemplate, getDisplayName } from './promptTemplates.js';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import adaptiveLearningRoutes from './adaptive-learning-routes.js';
-import adaptiveRoutes from './backend/routes/adaptiveRoutes.js';
 import OpenAI from 'openai';
 import { getVoiceIntro } from './src/content/training/introduction-scripts.js';
 import chatRouter from './server/routes/chat.js';
+// Hume Emotion API (Option C integration)
+import axios from 'axios';
 
 dotenv.config();
 
@@ -34,7 +35,6 @@ const db = getFirestore(firebaseApp);
 app.use(cors());
 app.use(bodyParser.json());
 app.use('/api', chatRouter);
-app.use("/api/adaptive", adaptiveRoutes);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -2634,6 +2634,45 @@ app.listen(PORT, () => {
   console.log(`🧠 Adaptive Learning API: http://localhost:${PORT}/api/adaptive`);
 });
 
+// Hume Emotion API (Option C integration)
+async function analyzeEmotionWithHume(audioBase64) {
+  try {
+    const response = await axios.post(
+      "https://api.hume.ai/v0/batch/jobs",
+      {
+        models: { prosody: {} },
+        raw_text: null,
+        files: [{ type: "audio", data: audioBase64 }]
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Hume-Api-Key": process.env.HUME_API_KEY
+        }
+      }
+    );
+
+    const emotions =
+      response.data?.results?.[0]?.models?.prosody?.predictions?.[0]
+        ?.emotions || [];
+
+    if (!emotions.length) return null;
+
+    const topEmotion = emotions.sort(
+      (a, b) => b.score - a.score
+    )[0];
+
+    return {
+      emotion: topEmotion.name,
+      intensity: topEmotion.score,
+      full: emotions
+    };
+  } catch (err) {
+    console.error("❌ Hume Emotion API error:", err.message);
+    return null;
+  }
+}
+
 function getAgeAppropriateContext(gradeLevel) {
   const grade = parseInt(gradeLevel, 10);
 
@@ -2661,15 +2700,79 @@ app.post('/api/voice/conversation', async (req, res) => {
   const {
     conversationHistory = [],
     scenario = {},
-    gradeLevel = '6',
-    phase = 'intro',
-    curriculumScript = null
+    gradeLevel = "6",
+    phase = "intro",
+    curriculumScript = null,
+    audioBase64 = null,
+    userId = null
   } = req.body || {};
 
+  // NEW — run emotion analysis
+  let humeEmotion = null;
+  if (audioBase64) {
+    humeEmotion = await analyzeEmotionWithHume(audioBase64);
+    console.log("🎧 Emotion:", humeEmotion);
+  }
+
+  // Save emotion to Firestore per turn
+  if (userId && humeEmotion) {
+    try {
+      const emotionRef = doc(
+        db,
+        "session_history",
+        userId,
+        "emotion_turns",
+        `${Date.now()}`
+      );
+
+      await setDoc(emotionRef, {
+        userId,
+        scenarioTitle: scenario?.title || null,
+        emotion: humeEmotion.emotion,
+        intensity: humeEmotion.intensity,
+        full: humeEmotion.full,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log("💾 Saved emotion turn to Firestore");
+    } catch (error) {
+      console.error("❌ Error saving emotion to Firestore:", error);
+      // Don't fail the request if emotion save fails
+    }
+  }
+
   try {
+    const emotionInstruction = humeEmotion
+      ? `
+
+The learner sounds **${humeEmotion.emotion}** with intensity **${humeEmotion.intensity.toFixed(
+        2
+      )}**.
+
+
+
+Adjust your coaching:
+
+- If they sound frustrated → slow down, simplify, reassure.
+
+- If they sound confused → give clearer explanations and examples.
+
+- If they sound bored → increase energy and engagement.
+
+- If they sound excited → encourage them to elaborate and continue.
+
+- If they sound sad → use a softer tone and check in.
+
+- ALWAYS remain supportive.
+
+`
+      : "";
+
     const systemPrompt = `You are Cue, a social skills coach for students in grade ${gradeLevel}.
 
 ${getAgeAppropriateContext(gradeLevel)}
+
+${emotionInstruction}
 
 Current scenario: ${scenario?.title || 'conversation practice'}
 Current phase: ${phase}
@@ -2724,7 +2827,8 @@ CRITICAL INSTRUCTION: When you receive a message that says "RESPOND WITH EXACTLY
     return res.json({
       aiResponse,
       shouldContinue: phase !== 'complete',
-      phase
+      phase,
+      emotion: humeEmotion // Return emotion data for frontend use
     });
   } catch (error) {
     console.error('❌ Voice conversation error:', error);

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Award, Target, Users, Clock, CheckCircle, Star, BookOpen, Calendar, History, ChevronDown, ChevronRight, Filter, Play } from 'lucide-react';
 import { getUserData } from './utils/storage';
-import { db } from "../../firebaseConfig";
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { loadPracticeHistory } from '../../services/loadPracticeHistory';
 import SessionReplayModal from './SessionReplayModal';
 import FullSummaryModal from './FullSummaryModal';
 
@@ -22,37 +21,18 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
 
   // Fetch practice history from Firestore
   useEffect(() => {
-    const loadPracticeHistory = async () => {
+    const loadHistory = async () => {
       try {
         const userId = userData?.userId || userData?.id || "guest";
-
-        const practiceHistoryRef = collection(db, `users/${userId}/practiceHistory`);
-        const q = query(
-          practiceHistoryRef,
-          orderBy("sessionCompletedAt", "desc"),
-          limit(20)
-        );
-
-        const snapshot = await getDocs(q);
-        const sessions = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
+        const sessions = await loadPracticeHistory(userId, 20);
         setRecent(sessions);
       } catch (error) {
         console.error("Error loading practice history from Firestore:", error);
-        // Fallback to localStorage
-        try {
-          const localHistory = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
-          setRecent(localHistory.slice(0, 20));
-        } catch (localErr) {
-          console.error("Error loading from localStorage fallback:", localErr);
-        }
+        setRecent([]);
       }
     };
 
-    loadPracticeHistory();
+    loadHistory();
   }, [userData]);
 
   // Set basic demo data (no API calls)
@@ -170,102 +150,20 @@ function ProgressScreen({ userData, darkMode, onNavigate }) {
       
       console.log('📚 Fetching session history for user:', userId);
       
-      const response = await fetch(`http://localhost:3001/api/adaptive/session-history/${userId}`);
+      // Load from Firestore directly
+      const sessions = await loadPracticeHistory(userId, 20);
+      console.log('✅ Session history loaded:', sessions.length, 'sessions');
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && data.sessions) {
-        console.log('✅ Session history received:', data.sessions.length, 'sessions');
-        // Sort by most recent first and limit to 20
-        const sortedSessions = data.sessions
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
-          .slice(0, 20);
-        setSessionHistory(sortedSessions);
+      if (sessions.length > 0) {
+        setSessionHistory(sessions);
       } else {
-        console.log('ℹ️ No session history found, using demo data');
-        // Use demo data for new users
-        setSessionHistory([
-          {
-            sessionId: 'demo-1',
-            topicName: 'Small Talk Basics',
-            date: new Date().toISOString(),
-            accuracy: 80,
-            correctAnswers: 4,
-            totalQuestions: 5,
-            duration: 8,
-            difficultyLevel: 2,
-            scenarios: [
-              { correct: true, question: 'How to start a conversation' },
-              { correct: true, question: 'Asking about someone\'s day' },
-              { correct: false, question: 'Handling awkward silence' },
-              { correct: true, question: 'Ending a conversation politely' },
-              { correct: true, question: 'Following up on shared interests' }
-            ]
-          },
-          {
-            sessionId: 'demo-2',
-            topicName: 'Active Listening',
-            date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            accuracy: 60,
-            correctAnswers: 3,
-            totalQuestions: 5,
-            duration: 12,
-            difficultyLevel: 2,
-            scenarios: [
-              { correct: true, question: 'Showing you\'re paying attention' },
-              { correct: false, question: 'Asking follow-up questions' },
-              { correct: true, question: 'Avoiding interrupting' },
-              { correct: false, question: 'Reflecting back what you heard' },
-              { correct: true, question: 'Maintaining eye contact' }
-            ]
-          },
-          {
-            sessionId: 'demo-3',
-            topicName: 'Building Confidence',
-            date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            accuracy: 40,
-            correctAnswers: 2,
-            totalQuestions: 5,
-            duration: 15,
-            difficultyLevel: 1,
-            scenarios: [
-              { correct: false, question: 'Speaking up in group settings' },
-              { correct: true, question: 'Making eye contact' },
-              { correct: false, question: 'Trying new social activities' },
-              { correct: false, question: 'Asking for help when needed' },
-              { correct: true, question: 'Celebrating small wins' }
-            ]
-          }
-        ]);
+        console.log('ℹ️ No session history found');
+        setSessionHistory([]);
       }
     } catch (err) {
       console.error('❌ Error fetching session history:', err);
       setHistoryError(err.message);
-      
-      // Fallback to demo data
-      setSessionHistory([
-        {
-          sessionId: 'fallback-1',
-          topicName: 'Small Talk Basics',
-          date: new Date().toISOString(),
-          accuracy: 80,
-          correctAnswers: 4,
-          totalQuestions: 5,
-          duration: 8,
-          difficultyLevel: 2,
-          scenarios: [
-            { correct: true, question: 'How to start a conversation' },
-            { correct: true, question: 'Asking about someone\'s day' },
-            { correct: false, question: 'Handling awkward silence' },
-            { correct: true, question: 'Ending a conversation politely' },
-            { correct: true, question: 'Following up on shared interests' }
-          ]
-        }
-      ]);
+      setSessionHistory([]);
     } finally {
       setHistoryLoading(false);
     }

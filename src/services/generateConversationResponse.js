@@ -78,7 +78,8 @@ export async function generateConversationResponse({
   gradeLevel,
   difficulty,
   scenario,
-  practiceHistory
+  practiceHistory,
+  emotionContext = null   // <-- NEW emotion input from backend Voice API
 }) {
   const persona = personaEngine.getPersona(gradeLevel);
 
@@ -92,8 +93,8 @@ export async function generateConversationResponse({
 
   const freshScenario = generateFreshScenario(topicName, gradeLevel);
 
-  // Pull last 3 practice summaries
-  const historyData = practiceHistory || JSON.parse(localStorage.getItem("practiceHistory") || "[]");
+  // Use practiceHistory passed from caller (loaded from Firestore)
+  const historyData = practiceHistory || [];
   const lastThree = historyData.slice(0, 3);
 
   const memoryPrompt = lastThree
@@ -105,6 +106,48 @@ export async function generateConversationResponse({
     `)
     .join("\n");
 
+  // ---------------------------------------------------------
+  // EMOTION CONTEXT → Tone Adaptation
+  // ---------------------------------------------------------
+  let emotionInstruction = "";
+  if (emotionContext?.emotion) {
+    const e = emotionContext.emotion.toLowerCase();
+
+    if (e.includes("frustrat") || e.includes("angry") || e.includes("upset")) {
+      emotionInstruction = `
+The learner sounds frustrated or tense.  
+Slow down your pacing.  
+Speak softer, more gently, and offer reassurance before moving forward.  
+Keep responses short and comforting.`;
+    }
+
+    else if (e.includes("sad") || e.includes("disappoint")) {
+      emotionInstruction = `
+The learner sounds sad.  
+Use a warm, caring tone.  
+Acknowledge their feelings, validate them, and keep the exercise very simple.`;
+    }
+
+    else if (e.includes("anxious") || e.includes("nervous")) {
+      emotionInstruction = `
+The learner sounds anxious.  
+Speak slowly, calmly, and normalize their feelings.  
+Use grounding language and give very small, low-pressure steps.`;
+    }
+
+    else if (e.includes("confident") || e.includes("engaged") || e.includes("happy")) {
+      emotionInstruction = `
+The learner sounds positive and engaged.  
+Match their energy with a friendly, upbeat tone.  
+Encourage them and keep the pace moving.`;
+    }
+
+    else {
+      emotionInstruction = `
+Use a calm, supportive tone. Adjust to the learner's emotion.`;
+    }
+  }
+
   // SYSTEM PROMPT — defines Cue's personality & behavior
   const baseSystem = `
 You are CUE — a warm, friendly, supportive social coach.
@@ -114,6 +157,7 @@ Use full sentences, but keep messages short and natural.
 Always respond directly to the learner's last message.
 Adjust tone to grade level: ${gradeLevel}.
 Topic: ${topicName}.
+${emotionInstruction ? "\nEMOTION-ADAPTIVE GUIDANCE:\n" + emotionInstruction : ""}
 
 GOALS:
 - Keep the learner comfortable.

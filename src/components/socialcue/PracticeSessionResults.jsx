@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Home, RotateCcw, Info, Lightbulb, PartyPopper, Leaf } from 'lucide-react';
-import { db } from "../../firebaseConfig";
-import { doc, setDoc } from "firebase/firestore";
+import { savePracticeHistory } from "../../services/savePracticeHistory";
 
 const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
   const [phase, setPhase] = useState(0);
@@ -11,7 +10,7 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
       setTimeout(() => setPhase(p), i * 200);
     });
 
-    // Firebase Firestore sync
+    // Save to Firestore using helper
     const saveToFirestore = async () => {
       try {
         // Get userId from localStorage or use "guest"
@@ -19,42 +18,15 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
         const userData = stored ? JSON.parse(stored) : {};
         const userId = userData?.userId || userData?.id || "guest";
 
-        // Use sessionCompletedAt as document ID
-        const docId = progress?.sessionCompletedAt || new Date().toISOString();
+        // Use sessionCompletedAt as sessionId
+        const sessionId = progress?.sessionCompletedAt || new Date().toISOString();
 
-        // Save only the 6 required fields
-        const firestorePayload = {
-          scenarioId: progress?.scenarioId || null,
-          scenarioTitle: progress?.scenarioTitle || "",
-          totalTurns: progress?.totalTurns || 0,
-          userTurns: progress?.userTurns || 0,
-          tipForNextTime: progress?.tipForNextTime || "",
-          sessionCompletedAt: progress?.sessionCompletedAt || new Date().toISOString(),
-        };
-
-        const docRef = doc(db, `users/${userId}/practiceHistory`, docId);
-        await setDoc(docRef, firestorePayload);
-
+        // Save complete progress object (already contains all required fields)
+        await savePracticeHistory(userId, sessionId, progress);
         console.log("✅ Practice history saved to Firestore");
       } catch (error) {
-        console.error("Error saving practice history to Firestore:", error);
-        // Fallback to localStorage if Firebase fails
-        try {
-          const payload = {
-            date: new Date().toISOString(),
-            scenarioTitle: progress?.scenarioTitle,
-            whatWentWell: progress?.whatWentWell || "",
-            tipForNextTime: progress?.tipForNextTime || "",
-            aiSummary: progress?.aiSummary || {},
-            totalTurns: progress?.totalTurns,
-          };
-          const history = JSON.parse(localStorage.getItem("practiceHistory") || "[]");
-          history.unshift(payload);
-          localStorage.setItem("practiceHistory", JSON.stringify(history.slice(0, 20)));
-          console.log("✅ Practice history saved to localStorage as fallback");
-        } catch (localErr) {
-          console.error("❌ Fallback to localStorage also failed:", localErr);
-        }
+        console.error("❌ Error saving practice history to Firestore:", error);
+        // No localStorage fallback - Firestore is required
       }
     };
 
@@ -95,7 +67,7 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
                 What You Did Well
               </h2>
               <p className="text-lg leading-relaxed">
-                You practiced with effort and clarity. You stayed present in the conversation and gave natural responses.
+                {progress?.whatWentWell || "You practiced with effort and clarity. You stayed present in the conversation and gave natural responses."}
               </p>
             </div>
 
@@ -108,7 +80,7 @@ const PracticeSessionResults = ({ progress, darkMode, onNavigate }) => {
                 A Gentle Tip for Next Time
               </h2>
               <p className="text-lg leading-relaxed">
-                Try adding a follow-up question or one more detail to deepen the conversation.
+                {progress?.tipForNextTime || "Try adding a follow-up question or one more detail to deepen the conversation."}
               </p>
             </div>
 

@@ -24,7 +24,7 @@ import {
   startRecognition,
   stopRecognition
 } from "../services/speechRecognitionService";
-import StorageService from "../services/storageService";
+import { savePracticeHistory } from "../services/savePracticeHistory";
 
 // ---- PROGRESS SUMMARY BUILDER ----
 const buildProgressSummary = (messages, scenario, gradeLevel) => {
@@ -33,6 +33,14 @@ const buildProgressSummary = (messages, scenario, gradeLevel) => {
 
   return {
     scenarioId: scenario?.id,
+    // include emotion trail
+    emotions: messages
+      .filter((m) => m.role === "meta")
+      .map((m) => ({
+        emotion: m.emotion,
+        intensity: m.intensity,
+        raw: m.raw,
+      })),
     scenarioTitle: scenario?.title,
     category: scenario?.category,
     gradeLevel,
@@ -68,6 +76,7 @@ const VoiceCoachOrbScreen = ({
   const [userPrompt, setUserPrompt] = useState("Ready when you are");
   const [recognitionReady, setRecognitionReady] = useState(false);
   const [muted, setMuted] = useState(false); // UI-only mute state
+  const [lastAudioBase64, setLastAudioBase64] = useState(null); // store last audio blob for Hume analysis
 
   const resolvedGradeLevel = scenario?.gradeLevel || gradeLevel || "6";
 
@@ -145,7 +154,15 @@ const VoiceCoachOrbScreen = ({
     }, delay);
   }, []);
 
-  const storedUser = StorageService.getUserData();
+  // Get user data from localStorage
+  const storedUser = (() => {
+    try {
+      const stored = localStorage.getItem("socialCueUserData");
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  })();
   const learnerName =
     storedUser?.userName ||
     storedUser?.username ||
@@ -157,6 +174,10 @@ const VoiceCoachOrbScreen = ({
     scenario,
     autoStart: true,
     learnerName,
+    // Pass emotion-ready audio data downstream
+    onAudioBase64: (base64Audio) => {
+      setLastAudioBase64(base64Audio);   // store audio for next request
+    },
     onPhaseChange: (newPhase, oldPhase) => {
       console.log("[VoiceCoachOrbScreen] Phase changed:", {
         oldPhase,
@@ -316,7 +337,9 @@ const VoiceCoachOrbScreen = ({
       try {
         stopListening();
         console.log("🔥 SENDING TO AI:", cleaned);
-        await sendUserMessage(cleaned);
+        await sendUserMessage(cleaned, {
+          audioBase64: lastAudioBase64  // pass Hume audio to backend
+        });
       } catch (e) {
         console.error("Voice conversation error:", e);
         setError("Sorry, something went wrong. Please try again.");
@@ -363,7 +386,9 @@ const VoiceCoachOrbScreen = ({
 
         if (!isSpeakingRef.current && !isLoading) {
           console.log("🔥 SENDING TO AI (FINAL):", cleaned);
-          await sendUserMessage(cleaned);
+          await sendUserMessage(cleaned, {
+            audioBase64: lastAudioBase64  // pass Hume audio to backend
+          });
         }
       },
       onError: () => {},
@@ -520,11 +545,24 @@ const VoiceCoachOrbScreen = ({
 
     if (phase === "complete" || phase === "COMPLETE") {
       const progress = buildProgressSummary(messages, scenario, resolvedGradeLevel);
-      runWrapUp().then((wrapupJSON) => {
+      runWrapUp().then(async (wrapupJSON) => {
         if (wrapupJSON) {
           progress.whatWentWell = wrapupJSON.whatWentWell;
           progress.tipForNextTime = wrapupJSON.tipForNextTime;
           progress.aiSummary = wrapupJSON;
+        }
+
+        // Save to Firestore before ending session
+        try {
+          const stored = localStorage.getItem("socialCueUserData");
+          const userData = stored ? JSON.parse(stored) : {};
+          const userId = userData?.userId || userData?.id || "guest";
+          const sessionId = progress.sessionCompletedAt || new Date().toISOString();
+          
+          await savePracticeHistory(userId, sessionId, progress);
+          console.log("✅ Session progress saved to Firestore");
+        } catch (err) {
+          console.error("❌ Error saving session progress:", err);
         }
 
         handleSessionEnd({
