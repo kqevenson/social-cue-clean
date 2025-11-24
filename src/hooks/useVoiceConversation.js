@@ -22,6 +22,20 @@ import { generateConversationResponse } from "../services/generateConversationRe
 import { convertBlobToBase64 } from "../services/audioHelpers";
 import { sendVoiceToAI } from "../services/voiceConversationApi";
 
+// Constants for emotion-based turn limits
+const MAX_SCENARIO_TURNS = 5;   // <--- LIMITS how long practice runs
+const EMOTION_PHASE_WEIGHTS = {
+  anxious: 0.6,
+  nervous: 0.6,
+  frustrated: 0.4,
+  sad: 0.5,
+  neutral: 1.0,
+  calm: 1.0,
+  happy: 1.2,
+  excited: 1.3,
+  confident: 1.4
+};
+
 // Helper
 function createMsg(role, text, phase) {
   return {
@@ -54,6 +68,7 @@ export default function useVoiceConversation({
   const [phase, setPhase] = useState(PHASES.INTRO_1);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emotionContext, setEmotionContext] = useState(null);
 
   // ---------------------------------------------------------------------------
   // REFS (prevent stale closure bugs)
@@ -295,7 +310,6 @@ export default function useVoiceConversation({
         ` : "";
 
         // OPTIONAL: Call backend API for emotion analysis
-        let emotionContext = null;
         const audioBase64 = extra?.audioBase64 || null;
         
         if (useEmotion && audioBase64) {
@@ -305,7 +319,7 @@ export default function useVoiceConversation({
             const userData = raw ? JSON.parse(raw) : {};
             const userId = userData.userId || userData.uid || userData.id || "unknown";
 
-            const data = await sendVoiceToAI({
+            const response = await sendVoiceToAI({
               conversationHistory: history,
               scenario: scenarioRef.current,
               gradeLevel,
@@ -314,12 +328,14 @@ export default function useVoiceConversation({
               curriculumScript: null,
               audioBase64: audioBase64
             });
-            if (data.emotion) {
-              emotionContext = data.emotion;
-              console.log('🎧 Emotion detected:', emotionContext);
+            
+            // Update emotion context state when receiving backend reply
+            if (response?.emotion) {
+              setEmotionContext(response.emotion);
+              console.log('🎧 Emotion detected:', response.emotion);
               
               // Save emotion to Firebase session object
-              lastEmotionRef.current = data.emotion;
+              lastEmotionRef.current = response.emotion;
               
               // NEW — Emotion-aware context - add to history
               setMessages((h) => [
@@ -327,15 +343,37 @@ export default function useVoiceConversation({
                 {
                   id: `emotion-${Date.now()}`,
                   role: "meta",
-                  emotion: data.emotion?.emotion,
-                  intensity: data.emotion?.intensity,
-                  raw: data.emotion,
+                  emotion: response.emotion?.emotion,
+                  intensity: response.emotion?.intensity,
+                  raw: response.emotion,
                   createdAt: new Date().toISOString()
                 },
               ]);
             }
           } catch (err) {
             console.warn('Could not get emotion analysis:', err);
+          }
+        }
+
+        // Emotion-based turn limit check for practice phase
+        if (prevPhase === "practice" || prevPhase === PHASES.SCENARIO) {
+          const humeEmotion = emotionContext || lastEmotionRef.current;
+          const emotion = humeEmotion?.emotion?.toLowerCase() || "neutral";
+          const weight = EMOTION_PHASE_WEIGHTS[emotion] || 1.0;
+          
+          // Count turns in practice/scenario phase
+          const turnCount = messagesRef.current.filter((m) => 
+            m.phase === "practice" || m.phase === PHASES.SCENARIO
+          ).length;
+          
+          // Determine speed of progression based on emotion
+          if (turnCount >= MAX_SCENARIO_TURNS * weight) {
+            console.log("⏳ Emotion-based limit reached → ending session early");
+            setPhase(PHASES.COMPLETE);
+            phaseRef.current = PHASES.COMPLETE;
+            onPhaseChange?.(PHASES.COMPLETE, prevPhase);
+            onFinishSession?.(messagesRef.current);
+            return;
           }
         }
 

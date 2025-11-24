@@ -2,12 +2,28 @@ import React from 'react';
 import { Lightbulb, AlertTriangle, CheckCircle, ArrowRight, BookOpen } from 'lucide-react';
 
 export default function LessonExplanation({ lesson, onStartPractice }) {
+  // Guard against null / fallback data so the UI never crashes
+  if (!lesson) {
+    return (
+      <div className="min-h-screen bg-black text-white p-6 flex items-center justify-center">
+        <p className="text-gray-400">Loading your lesson…</p>
+      </div>
+    );
+  }
+
+  const introduction = lesson.introduction || {};
+  const explanation = lesson.explanation || {};
+  const keyPoints = Array.isArray(explanation.keyPoints) ? explanation.keyPoints : [];
+  const commonMistakes = Array.isArray(explanation.commonMistakes) ? explanation.commonMistakes : [];
+
   return (
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-4">{lesson.introduction.title}</h1>
+          <h1 className="text-3xl font-bold mb-4">
+            {introduction.title || 'Social Skills Practice'}
+          </h1>
           <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mx-auto"></div>
         </div>
 
@@ -18,7 +34,8 @@ export default function LessonExplanation({ lesson, onStartPractice }) {
             <div>
               <h2 className="text-2xl font-bold mb-4 text-blue-400">Main Concept</h2>
               <p className="text-lg text-gray-300 leading-relaxed">
-                {lesson.explanation.mainConcept}
+                {explanation.mainConcept ||
+                  "This social skill helps you connect with others, understand how they feel, and make kind choices in real situations."}
               </p>
             </div>
           </div>
@@ -31,7 +48,7 @@ export default function LessonExplanation({ lesson, onStartPractice }) {
             <div>
               <h2 className="text-2xl font-bold mb-6 text-green-400">Key Points to Remember</h2>
               <div className="space-y-4">
-                {lesson.explanation.keyPoints.map((point, index) => (
+                {(lesson.explanation?.keyPoints || []).map((point, index) => (
                   <div key={index} className="flex items-start gap-3">
                     <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                       <span className="text-white text-sm font-bold">{index + 1}</span>
@@ -51,7 +68,7 @@ export default function LessonExplanation({ lesson, onStartPractice }) {
             <div>
               <h2 className="text-2xl font-bold mb-6 text-orange-400">Common Mistakes to Avoid</h2>
               <div className="space-y-4">
-                {lesson.explanation.commonMistakes.map((mistake, index) => (
+                {(lesson.explanation?.commonMistakes || []).map((mistake, index) => (
                   <div key={index} className="flex items-start gap-3">
                     <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                       <span className="text-white text-sm font-bold">!</span>

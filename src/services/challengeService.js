@@ -1,7 +1,7 @@
 // Real World Challenge Service
 // Handles API calls for generating and managing real-world challenges
 
-const API_BASE_URL = 'http://localhost:3001/api';
+import { apiPath } from "../utils/apiBase";
 
 export const challengeService = {
   // Generate a new real-world challenge
@@ -23,7 +23,7 @@ export const challengeService = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const response = await fetch(`${API_BASE_URL}/adaptive/generate-challenge`, {
+      const response = await fetch(apiPath("/api/adaptive/generate-challenge"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -264,7 +264,7 @@ export const challengeService = {
     try {
       console.log('🎯 Fetching active challenges for user:', userId);
 
-      const response = await fetch(`${API_BASE_URL}/adaptive/active-challenges/${userId}`, {
+      const response = await fetch(apiPath(`/api/adaptive/active-challenges/${userId}`), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -301,7 +301,7 @@ export const challengeService = {
     try {
       console.log('🎉 Completing challenge via API:', challengeId);
 
-      const response = await fetch(`${API_BASE_URL}/adaptive/complete-challenge`, {
+      const response = await fetch(apiPath("/api/adaptive/complete-challenge"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

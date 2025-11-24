@@ -26,6 +26,15 @@ import {
 } from "../services/speechRecognitionService";
 import { savePracticeHistory } from "../services/savePracticeHistory";
 
+// Convert Blob to Base64 for Hume
+async function blobToBase64(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+}
+
 // ---- PROGRESS SUMMARY BUILDER ----
 const buildProgressSummary = (messages, scenario, gradeLevel) => {
   const userTurns = messages.filter((m) => m.role === "user");
@@ -184,6 +193,13 @@ const VoiceCoachOrbScreen = ({
         newPhase
       });
 
+      // Check if emotion or turn limit reached → trigger summary
+      if (newPhase === "complete" || newPhase === "COMPLETE") {
+        console.log("🏁 Emotion or turn limit reached → triggering summary");
+        // The phase completion useEffect will handle the summary
+        return;
+      }
+
       // Reset mic between teaching phases to avoid duplicate triggers
       stopListening();
       shouldIgnoreInputRef.current = true;
@@ -219,6 +235,45 @@ const VoiceCoachOrbScreen = ({
   } = conversation;
 
   /** --------------------------------------
+   * CLEANUP
+   * ------------------------------------- */
+  const cleanup = useCallback(() => {
+    stopRecognition();
+    if (listeningTimeoutRef.current) {
+      clearTimeout(listeningTimeoutRef.current);
+      listeningTimeoutRef.current = null;
+    }
+    isListeningRef.current = false;
+    isSpeakingRef.current = false;
+    shouldIgnoreInputRef.current = false;
+    setIsListening(false);
+    stopOpenAITTSPlayback();
+    localforage
+      .removeItem(PHASE_STORAGE_KEY)
+      .catch((storageError) => {
+        console.warn(
+          "[VoiceCoachOrbScreen] Unable to clear persisted phase:",
+          storageError
+        );
+      });
+  }, []);
+
+  /** --------------------------------------
+   * END SESSION  (MOVED ABOVE all effects that reference it)
+   * ------------------------------------- */
+  const handleSessionEnd = useCallback(
+    (details) => {
+      cancelledRef.current = true;
+      cleanup();
+      onEndSession?.({
+        ...details,
+        messages
+      });
+    },
+    [cleanup, onEndSession, messages]
+  );
+
+  /** --------------------------------------
    * HARD SUPPRESSION WHILE AI IS SPEAKING
    * ------------------------------------- */
   useEffect(() => {
@@ -247,7 +302,16 @@ const VoiceCoachOrbScreen = ({
         setTranscript([latestAI.text]);
       }
     }
-  }, [messages, isSpeaking]);
+    
+    // Safety stop: After a certain number of assistant turns, force wrap-up
+    const conversationLength = messages.filter((m) => m.role === "ai" || m.role === "assistant").length;
+    if (conversationLength >= 10) {
+      console.log("⏳ Safety stop → forcing wrap-up");
+      if (phase !== "complete" && phase !== "COMPLETE") {
+        handleSessionEnd({ phase: "complete", progress: null });
+      }
+    }
+  }, [messages, isSpeaking, phase, handleSessionEnd]);
 
   /** --------------------------------------
    * APPEND TRANSCRIPT
@@ -264,51 +328,28 @@ const VoiceCoachOrbScreen = ({
   }, []);
 
   /** --------------------------------------
-   * CLEANUP
+   * HANDLE USER SPEECH (Audio + Transcript)
+   * After microphone finishes recording
    * ------------------------------------- */
-  const cleanup = useCallback(() => {
-    stopRecognition();
-    if (listeningTimeoutRef.current) {
-      clearTimeout(listeningTimeoutRef.current);
-      listeningTimeoutRef.current = null;
-    }
-    isListeningRef.current = false;
-    isSpeakingRef.current = false;
-    shouldIgnoreInputRef.current = false;
-    setIsListening(false);
-    stopOpenAITTSPlayback();
-    localforage
-      .removeItem(PHASE_STORAGE_KEY)
-      .catch((storageError) => {
-        console.warn(
-          "[VoiceCoachOrbScreen] Unable to clear persisted phase:",
-          storageError
-        );
-      });
-  }, []);
+  const handleUserSpeech = useCallback(
+    async (audioBlob, transcript) => {
+      let audioBase64 = null;
+      
+      // Convert audio blob to base64 if available
+      if (audioBlob) {
+        try {
+          audioBase64 = await blobToBase64(audioBlob);
+        } catch (err) {
+          console.warn("Failed to convert audio blob to base64:", err);
+        }
+      }
+      
+      // Use stored audio if blob conversion wasn't available
+      if (!audioBase64 && lastAudioBase64) {
+        audioBase64 = lastAudioBase64;
+      }
 
-  /** --------------------------------------
-   * END SESSION
-   * ------------------------------------- */
-  const handleSessionEnd = useCallback(
-    (details) => {
-      cancelledRef.current = true;
-      cleanup();
-      onEndSession?.({
-        ...details,
-        messages
-      });
-    },
-    [cleanup, onEndSession, messages]
-  );
-
-  /** --------------------------------------
-   * HANDLE USER MESSAGE (KEY FIX)
-   * stop ignoring input after scenario
-   * ------------------------------------- */
-  const handleUserMessage = useCallback(
-    async (rawText) => {
-      const cleaned = (rawText || "").trim();
+      const cleaned = (transcript || "").trim();
 
       if (!cleaned || cleaned.length < 2) {
         console.warn("Ignoring empty/short transcript:", cleaned);
@@ -338,7 +379,7 @@ const VoiceCoachOrbScreen = ({
         stopListening();
         console.log("🔥 SENDING TO AI:", cleaned);
         await sendUserMessage(cleaned, {
-          audioBase64: lastAudioBase64  // pass Hume audio to backend
+          audioBase64 // NEW - pass Hume audio to backend
         });
       } catch (e) {
         console.error("Voice conversation error:", e);
@@ -349,7 +390,19 @@ const VoiceCoachOrbScreen = ({
         }
       }
     },
-      [appendTranscript, sendUserMessage, stopListening, resumeListeningAfterDelay, isSpeaking]
+    [appendTranscript, sendUserMessage, stopListening, resumeListeningAfterDelay, isSpeaking, lastAudioBase64]
+  );
+
+  /** --------------------------------------
+   * HANDLE USER MESSAGE (Text-only fallback)
+   * stop ignoring input after scenario
+   * ------------------------------------- */
+  const handleUserMessage = useCallback(
+    async (rawText) => {
+      // Use handleUserSpeech with null audioBlob for text-only
+      await handleUserSpeech(null, rawText);
+    },
+    [handleUserSpeech]
   );
 
   /** --------------------------------------

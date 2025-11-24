@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Clock, MessageCircle, Target, Calendar, CheckCircle, Star } from 'lucide-react';
 import { getUserData } from './utils/storage';
+import { apiPath } from '../../utils/apiBase';
 
 const LearningPreferencesScreen = ({ darkMode, onNavigate, gradeLevel }) => {
   const [preferences, setPreferences] = useState({
@@ -24,7 +25,7 @@ const LearningPreferencesScreen = ({ darkMode, onNavigate, gradeLevel }) => {
       
       const userId = currentUserData.userId || 'guest_' + Date.now();
       
-      const response = await fetch(`http://localhost:3001/api/adaptive/preferences/${userId}`);
+      const response = await fetch(apiPath(`/api/adaptive/preferences/${userId}`));
       const data = await response.json();
       
       if (data.success && data.preferences) {
@@ -47,7 +48,7 @@ const LearningPreferencesScreen = ({ darkMode, onNavigate, gradeLevel }) => {
     try {
       const userId = userData.userId || 'guest_' + Date.now();
       
-      const response = await fetch(`http://localhost:3001/api/adaptive/preferences/${userId}`, {
+      const response = await fetch(apiPath(`/api/adaptive/preferences/${userId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

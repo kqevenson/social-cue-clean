@@ -19,6 +19,7 @@ import {
   Heart,
   ArrowRight
 } from 'lucide-react';
+import { apiPath } from '../../utils/apiBase';
 
 const ParentDashboard = ({ childUserId, darkMode }) => {
   const [analytics, setAnalytics] = useState(null);
@@ -37,7 +38,7 @@ const ParentDashboard = ({ childUserId, darkMode }) => {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/adaptive/analytics/${childUserId}`);
+      const response = await fetch(apiPath(`/api/adaptive/analytics/${childUserId}`));
       const result = await response.json();
       
       if (result.success) {
@@ -55,7 +56,7 @@ const ParentDashboard = ({ childUserId, darkMode }) => {
 
   const fetchInsights = async () => {
     try {
-      const response = await fetch(`http://localhost:3001/api/adaptive/progress-insights/${childUserId}`);
+      const response = await fetch(apiPath(`/api/adaptive/progress-insights/${childUserId}`));
       const result = await response.json();
       
       if (result.success) {

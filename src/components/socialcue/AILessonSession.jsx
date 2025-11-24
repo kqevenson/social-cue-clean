@@ -1,228 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { lessonApiService } from '../../services/lessonApi';
+import { lessonApiService } from '../../services/lessonApi.js';
 import { getLearnerProfile } from '../../firebaseHelpers';
 import adaptiveErrorHandler from '../../services/adaptiveErrorHandler';
 import LessonLoader from './animations/LessonLoader';
 import LessonIntroduction from './lessons/LessonIntroduction';
 import LessonExplanation from './lessons/LessonExplanation';
 import LessonSummary from './lessons/LessonSummary';
+import LessonVideoScene from '../lessons/LessonVideoScene';
 import AIPracticeSession from "../AIPracticeSession";
 import { ErrorBoundaryFallback } from './animations/ErrorBoundaryFallback';
+import { generateEmotionAwareMCQs } from "../../utils/generateEmotionAwareMCQs";
 import { ToastNotification } from './animations';
 import { LessonSkeleton } from './animations/SkeletonScreens';
+import { normalizeLesson, createFallbackLesson } from '../../services/lessonNormalizer';
 
 function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   const [lessonState, setLessonState] = useState('loading'); // loading, introduction, explanation, practice, summary, error
   const [lesson, setLesson] = useState(null);
+  const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
   const [errorType, setErrorType] = useState('general');
   const [pointsEarned, setPointsEarned] = useState(0);
   const [practiceSessionComplete, setPracticeSessionComplete] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [videoEmotionData, setVideoEmotionData] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastType, setToastType] = useState('info');
   const [showToast, setShowToast] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [fallbackMode, setFallbackMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadAILesson();
-    
-    // Listen for network status changes
-    const handleNetworkChange = (event) => {
-      setIsOnline(event.detail.isOnline);
-      if (event.detail.isOnline && fallbackMode) {
-        showToastMessage('Connection restored! AI features are back online.', 'success');
-        adaptiveErrorHandler.resetFallbackMode();
-        setFallbackMode(false);
-      }
-    };
-    
-    window.addEventListener('networkStatusChange', handleNetworkChange);
-    
-    return () => {
-      window.removeEventListener('networkStatusChange', handleNetworkChange);
-    };
-  }, [fallbackMode]);
-
-  const showToastMessage = (message, type = 'info', duration = 4000) => {
-    setToastMessage(message);
-    setToastType(type);
-    setShowToast(true);
-  };
-
-  const loadAILesson = async () => {
-    try {
-      console.log('🤖 Loading AI lesson for session:', sessionId);
-      
-      // Check for interrupted session first
-      const interruptedSession = adaptiveErrorHandler.resumeInterruptedSession();
-      if (interruptedSession) {
-        showToastMessage('Resuming your previous session...', 'info');
-      }
-      
-      // Get learner profile data for personalization
-      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      const learnerId = userData.userId || 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
-      
-      let learnerProfile = null;
-      try {
-        learnerProfile = await getLearnerProfile(learnerId);
-        console.log('📊 Learner profile loaded:', learnerProfile);
-      } catch (error) {
-        console.log('⚠️ No learner profile found, using defaults');
-        showToastMessage('Using default settings - your progress will still be saved', 'warning');
-      }
-
-      // Generate cache key
-      const topicName = getTopicName(sessionId);
-      const currentSkillLevel = learnerProfile?.currentLevel || 1;
-      const learnerStrengths = learnerProfile?.strengths || ['general social skills'];
-      const learnerWeaknesses = learnerProfile?.needsWork || ['general social skills'];
-      
-      const cacheKey = lessonApiService.generateCacheKey(
-        topicName, 
-        gradeLevel, 
-        currentSkillLevel, 
-        learnerStrengths, 
-        learnerWeaknesses
-      );
-
-      // Check cache first
-      let aiLesson = lessonApiService.getCachedLesson(cacheKey);
-      
-      if (!aiLesson) {
-        console.log('🔄 No cached lesson found, generating new one...');
-        
-        // Show loading screen
-        setLessonState('loading');
-        
-        // Check if we should use fallback mode
-        if (!isOnline || adaptiveErrorHandler.fallbackMode) {
-          console.log('🔄 Using fallback lesson generation');
-          setFallbackMode(true);
-          showToastMessage('Using basic lesson mode - AI features unavailable', 'warning');
-          
-          // Create a basic lesson structure
-          aiLesson = createFallbackLesson(topicName, gradeLevel);
-        } else {
-          try {
-            // Generate new lesson with error handling
-            aiLesson = await adaptiveErrorHandler.retryOperation(
-              () => lessonApiService.generateLesson(
-                topicName,
-                gradeLevel,
-                currentSkillLevel,
-                learnerStrengths,
-                learnerWeaknesses
-              ),
-              'lesson_generation',
-              { topicName, gradeLevel, currentSkillLevel }
-            );
-            
-            // Cache the lesson
-            lessonApiService.cacheLesson(aiLesson, cacheKey);
-            showToastMessage('AI lesson generated successfully!', 'success');
-          } catch (error) {
-            console.warn('AI lesson generation failed, using fallback:', error);
-            setFallbackMode(true);
-            showToastMessage('Using basic lesson mode - AI unavailable', 'warning');
-            aiLesson = createFallbackLesson(topicName, gradeLevel);
-          }
-        }
-      } else {
-        console.log('📦 Using cached lesson:', aiLesson.introduction.title);
-        showToastMessage('Loading your personalized lesson...', 'info');
-      }
-
-      setLesson(aiLesson);
-      setLessonState('introduction');
-      
-    } catch (error) {
-      console.error('❌ Error loading AI lesson:', error);
-      const errorType = adaptiveErrorHandler.classifyError(error);
-      setErrorType(errorType);
-      setError(error);
-      setLessonState('error');
-      showToastMessage(adaptiveErrorHandler.getUserFriendlyMessage(error, errorType), 'error');
-    }
-  };
-
-  const createFallbackLesson = (topicName, gradeLevel) => {
-    console.log('🔄 Creating fallback lesson for:', topicName);
-    
-    return {
-      introduction: {
-        title: `${topicName} Practice`,
-        description: `Let's practice ${topicName.toLowerCase()} skills together!`,
-        objectives: [
-          'Understand basic social skills',
-          'Practice making good choices',
-          'Learn from feedback'
-        ],
-        estimatedTime: '5-10 minutes'
-      },
-      explanation: {
-        title: `What is ${topicName}?`,
-        content: `${topicName} is an important social skill that helps us interact well with others.`,
-        keyPoints: [
-          'Be respectful to others',
-          'Listen carefully',
-          'Think before you act'
-        ],
-        examples: [
-          {
-            title: 'Good Example',
-            description: 'Approaching someone with a smile and friendly greeting'
-          },
-          {
-            title: 'What to Avoid',
-            description: 'Interrupting when others are talking'
-          }
-        ],
-        tips: [
-          'Take your time',
-          'Be yourself',
-          'Practice makes perfect'
-        ]
-      },
-      practice: {
-        scenarios: [
-          {
-            context: 'You are at school and want to make a new friend.',
-            prompt: 'What should you do?',
-            options: [
-              {
-                text: 'Walk up and introduce yourself',
-                isGood: true,
-                feedback: 'Great choice! Introducing yourself is a good way to start a friendship.',
-                points: 10
-              },
-              {
-                text: 'Wait for them to talk to you first',
-                isGood: false,
-                feedback: 'Sometimes it\'s okay to wait, but being friendly first can help make friends.',
-                proTip: 'Try saying "Hi, I\'m [your name]. What\'s your name?"'
-              }
-            ]
-          }
-        ]
-      },
-      summary: {
-        title: 'Great job practicing!',
-        message: 'You\'ve completed the practice session. Keep practicing these skills!',
-        nextSteps: [
-          'Try these skills with friends',
-          'Practice at home',
-          'Come back for more practice'
-        ]
-      },
-      isFallback: true
-    };
-  };
+  // Load lesson data passed from LessonsScreen
+  const storedLesson = JSON.parse(localStorage.getItem("currentLessonData") || "{}");
+  const incomingLesson = storedLesson.aiLesson || null;
+  const incomingVideo = storedLesson.videoUrl || null;
 
   const getTopicName = (sessionId) => {
+    // Handle string sessionIds (like "small-talk")
     const topicMap = {
+      'small-talk': 'Small Talk Mastery',
+      'active-listening': 'Active Listening',
+      'body-language': 'Body Language',
+      'confidence-building': 'Building Confidence',
+      'conflict-resolution': 'Conflict Resolution',
       1: 'Making Friends',
       2: 'Active Listening',
       3: 'Body Language',
@@ -232,14 +53,65 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       7: 'Empathy',
       8: 'Assertiveness'
     };
-    return topicMap[sessionId] || 'Social Skills';
+    return topicMap[sessionId] || storedLesson.title || 'Social Skills';
   };
+
+  const showToastMessage = (message, type = 'info', duration = 4000) => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+  };
+
+  const loadLesson = async () => {
+    try {
+      setIsLoading(true);
+
+      const lessonTitle = storedLesson.title || getTopicName(sessionId);
+      const lessonId = storedLesson.id || sessionId;
+
+      const res = await lessonApiService.startLesson({
+        title: lessonTitle,
+        lessonId: lessonId,
+        gradeLevel: gradeLevel,
+      });
+
+      setLesson(normalizeLesson(res.lesson));
+      setVideoUrl(res.videoUrl || null);
+      setLessonState("introduction");
+    } catch (err) {
+      console.error("❌ Lesson load failed:", err);
+      setError("Unable to load lesson");
+      setLessonState("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Use stored lesson if available (already loaded by LessonsScreen)
+    if (incomingLesson) {
+      console.log("✅ Using stored lesson data:", incomingLesson.title || incomingLesson.id);
+      setLesson(normalizeLesson(incomingLesson));
+      setVideoUrl(incomingVideo);
+      setLessonState("introduction");
+      setIsLoading(false);
+      return;
+    }
+
+    // Only fetch from API if no stored lesson
+    console.log("⚠️ No stored lesson found, fetching from API...");
+    loadLesson();
+  }, [sessionId, gradeLevel]);
 
   const handleStartLesson = () => {
     setLessonState('explanation');
   };
 
   const handleStartPractice = () => {
+    setLessonState('scene_video');
+  };
+
+  const handleVideoSceneComplete = () => {
     setLessonState('practice');
   };
 
@@ -259,7 +131,19 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     setLessonState('loading');
     
     try {
-      await loadAILesson();
+      // Reload lesson using new unified API
+      const lessonTitle = storedLesson.title || getTopicName(sessionId);
+      const lessonId = storedLesson.id || sessionId;
+      
+      const res = await lessonApiService.startLesson({
+        title: lessonTitle,
+        lessonId: lessonId,
+        gradeLevel: gradeLevel,
+      });
+      
+      setLesson(normalizeLesson(res.lesson));
+      setVideoUrl(res.videoUrl || null);
+      setLessonState("introduction");
       showToastMessage('Retry successful!', 'success');
     } catch (error) {
       showToastMessage('Retry failed. Using basic mode.', 'warning');
@@ -336,8 +220,54 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     );
   }
 
+  // Show video scene step
+  if (lessonState === 'scene_video') {
+    return (
+      <LessonVideoScene
+        gradeLevel={gradeLevel}
+        videoUrl={incomingVideo}
+        topicId={storedLesson.id}
+        darkMode={darkMode}
+        onContinue={handleVideoSceneComplete}
+        onVideoAnalyzed={(emotionData) => {
+          setVideoEmotionData(emotionData); // used by Patch 5
+        }}
+      />
+    );
+  }
+
   // Show practice session
   if (lessonState === 'practice') {
+    // Generate emotion-aware MCQs before rendering practice
+    let emotionMCQ = null;
+    let enhancedLesson = lesson;
+
+    if (lesson?.practice?.scenarios && videoEmotionData) {
+      try {
+        emotionMCQ = generateEmotionAwareMCQs({
+          practiceScenarios: lesson.practice.scenarios,
+          videoEmotionData,
+          gradeLevel,
+          topicId: lesson?.id || sessionId
+        });
+
+        // Update lesson with emotion-aware scenarios
+        enhancedLesson = {
+          ...lesson,
+          practice: {
+            ...lesson.practice,
+            scenarios: emotionMCQ.updatedScenarios,
+            dominantEmotion: emotionMCQ.dominantEmotion,
+            difficultyLevel: emotionMCQ.difficultyApplied
+          }
+        };
+      } catch (err) {
+        console.warn("Error generating emotion-aware MCQs:", err);
+        // Fallback to original lesson
+        enhancedLesson = lesson;
+      }
+    }
+
     return (
       <AIPracticeSession
         sessionId={sessionId}
@@ -346,8 +276,10 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         gradeLevel={gradeLevel}
         soundEffects={soundEffects}
         autoReadText={autoReadText}
-        aiLesson={lesson}
+        aiLesson={enhancedLesson}
         onComplete={handlePracticeComplete}
+        videoEmotionData={videoEmotionData}
+        emotionMCQ={emotionMCQ}
       />
     );
   }

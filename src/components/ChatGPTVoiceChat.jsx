@@ -2,6 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, MessageCircle, ArrowLeft, Sparkles } from 'lucide-react';
 import useVoiceConversation from '../hooks/useVoiceConversation';
 import { UserProfile } from '../utils/userProfile';
+import { sendVoiceToAI, getUserId } from '../services/voiceConversationApi';
+
+// Convert Blob to Base64 for Hume
+async function blobToBase64(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+}
 
 const ChatGPTVoiceChat = ({ scenario, onClose }) => {
   const gradeLevel = UserProfile.getGrade() || '6';
@@ -53,6 +63,45 @@ const ChatGPTVoiceChat = ({ scenario, onClose }) => {
   const handleSend = async (event) => {
     event.preventDefault();
     if (!userInput.trim()) return;
+    
+    // TODO: When audio recording is implemented, capture audioBlob here
+    // Example: const audioBlob = await recordAudio();
+    // const audioBase64 = await blobToBase64(audioBlob);
+    
+    // For now, send text-only message
+    // When audio is available, uncomment below to send with emotion analysis
+    /*
+    let audioBase64 = null;
+    if (audioBlob) {
+      audioBase64 = await blobToBase64(audioBlob);
+      
+      // Send to backend for emotion analysis
+      try {
+        const userId = getUserId();
+        const conversationHistory = messages.map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.text || m.content
+        }));
+        
+        const response = await sendVoiceToAI({
+          conversationHistory,
+          scenario: normalizedScenario,
+          gradeLevel,
+          userId,
+          phase: currentPhase || 'intro',
+          curriculumScript: null,
+          audioBase64 // NEW
+        });
+        
+        if (response?.emotion) {
+          console.log("🔥 Emotion detected:", response.emotion);
+        }
+      } catch (err) {
+        console.error("Error sending audio to backend:", err);
+      }
+    }
+    */
+    
     await sendUserMessage(userInput.trim());
     setUserInput('');
   };

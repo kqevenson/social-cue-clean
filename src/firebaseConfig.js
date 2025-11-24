@@ -12,14 +12,16 @@ import { getAuth } from 'firebase/auth';
 // 2. Add a web app to your project
 // 3. Copy the config object and paste it below
 const firebaseConfig = {
-    apiKey: "AIzaSyBo836PZY5YBmv6e0xjrsPH0wg-5c7yCXQ",
-    authDomain: "social-cue-2025.firebaseapp.com",
-    projectId: "social-cue-2025",
-    storageBucket: "social-cue-2025.firebasestorage.app",
-    messagingSenderId: "828360561679",
-    appId: "1:828360561679:web:68b42b0b9e806d17d03f7a",
-    measurementId: "G-2GCFVB5LJL"
-  };
+  apiKey: "AIzaSyBo836PZY5YBmv6e0xjrsPH0wg-5c7yCXQ",
+  authDomain: "social-cue-2025.firebaseapp.com",
+  projectId: "social-cue-2025",
+  storageBucket: "social-cue-2025.appspot.com",
+  messagingSenderId: "828360561679",
+  appId: "1:828360561679:web:68b42b0b9e806d17d03f7a",
+  measurementId: "G-2GCFVB5LJL",
+  databaseURL: "https://social-cue-2025-default-rtdb.firebaseio.com/"
+};
+
 
 // Initialize Firebase app
 // This creates the main Firebase app instance

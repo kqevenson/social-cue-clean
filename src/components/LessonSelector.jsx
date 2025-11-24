@@ -1,39 +1,62 @@
-import React from 'react';
-import curriculumIndex from '../content/curriculum/curriculum-index';
+import React, { useState } from "react";
+import { lessonApiService } from "../services/lessonApi.js";
+import LessonViewScreen from "../screens/LessonViewScreen.jsx";
 
-const LessonSelector = ({ gradeLevel = '6', onLessonSelect }) => {
-  // Normalize input to match curriculum keys
-  const getGradeKey = (level) => {
-    const n = parseInt(level);
-    if (n <= 2 || level === 'k') return 'k-2';
-    if (n <= 5) return '3-5';
-    if (n <= 8) return '6-8';
-    return '9-12';
-  };
+export default function LessonSelector() {
+  const [currentLesson, setCurrentLesson] = useState(null);
 
-  const gradeKey = getGradeKey(gradeLevel);
-  const lessons = curriculumIndex[gradeKey] || [];
+  const topics = [
+    { title: "Small Talk", gradeLevel: "6" },
+    { title: "Confidence", gradeLevel: "6" },
+    { title: "Joining Conversations", gradeLevel: "6" },
+  ];
+
+  async function handleStartLesson(topicObj) {
+    try {
+      const res = await lessonApiService.startLesson({
+        title: topicObj.title,
+        gradeLevel: topicObj.gradeLevel
+      });
+      setCurrentLesson(res.lesson);
+    } catch (err) {
+      console.error("❌ Lesson failed:", err);
+    }
+  }
+
+  if (currentLesson) {
+    return (
+      <LessonViewScreen
+        lesson={currentLesson}
+        onBack={() => setCurrentLesson(null)}
+      />
+    );
+  }
 
   return (
-    <div className="lesson-selector">
-      <h3>Pick a lesson to practice</h3>
-      <ul>
-        {lessons.map((lesson, i) => (
-          <li key={i}>
-            <button onClick={() => onLessonSelect(lesson)}>
-              {lesson.title}
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div style={{ padding: 20, color: "white" }}>
+      <h1 style={{ fontSize: "28px", fontWeight: "bold" }}>
+        Choose a Lesson
+      </h1>
+
+      {topics.map((t) => (
+        <button
+          key={t.title}
+          onClick={() => handleStartLesson(t)}
+          style={{
+            display: "block",
+            padding: "15px 20px",
+            marginTop: 10,
+            background: "#1f1f1f",
+            borderRadius: 8,
+            color: "white",
+            border: "1px solid #333",
+            width: "100%",
+            textAlign: "left",
+          }}
+        >
+          {t.title} (Grade {t.gradeLevel})
+        </button>
+      ))}
     </div>
   );
-};
-
-export default LessonSelector;
-
-
-
-
-
-
+}

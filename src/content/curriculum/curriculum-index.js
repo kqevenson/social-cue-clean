@@ -87,6 +87,51 @@ const curriculum = {
     setupPrompt: `Let’s practice what to say and how to act when someone says no. Think of a time someone didn’t include you. What could you say or think to stay calm and kind?`,
     estimatedDuration: 6,
     characterRole: 'Coach Cue'
+  },
+
+  'making-friends': {
+    id: 'making-friends',
+    icon: '🤝',
+    category: 'initiating-connections',
+    title: {
+      K: 'Making New Friends',
+      1: 'Becoming Friends with Classmates',
+      2: 'How to Make a New Friend',
+      3: 'Meeting New People',
+      4: 'Becoming Friends at Recess',
+      5: 'Making Friends at Lunch',
+      6: 'Making Friends at School',
+      7: 'Becoming Friends Without Feeling Awkward',
+      8: 'Starting New Friendships',
+      9: 'How to Talk and Make Friends',
+      10: 'Making Friends with Confidence',
+      11: 'Building New Friendships',
+      12: 'Connecting and Making New Friends'
+    },
+    description: {
+      K: 'You want to play with someone and become friends.',
+      1: 'You want to become friends with a classmate.',
+      2: 'You want to make a new friend at school.',
+      3: 'You want to get to know someone new.',
+      4: 'You meet someone new at recess and want to be friends.',
+      5: 'You sit near someone new and want to talk to them.',
+      6: 'You want to make a new friend at lunch.',
+      7: 'You pass someone in the hall and want to become friends.',
+      8: 'You\'re in class or lunch and want to form a new friendship.',
+      9: 'You want to join a group and make friends naturally.',
+      10: 'You want to make new friends in a new situation.',
+      11: 'You want to form a new friendship in class or a club.',
+      12: 'You want to build a connection and become friends with someone new.'
+    },
+    learningObjectives: [
+      'Learn how to introduce yourself naturally',
+      'Practice showing interest in others',
+      'Understand how friendships form',
+      'Build confidence in social interactions'
+    ],
+    setupPrompt: `Let's practice how to make a new friend. Think about someone you'd like to talk to. What's one friendly thing you could say to start building a connection?`,
+    estimatedDuration: 6,
+    characterRole: 'Coach Cue'
   }
 };
 

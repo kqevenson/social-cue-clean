@@ -148,6 +148,22 @@ Use a calm, supportive tone. Adjust to the learner's emotion.`;
     }
   }
 
+  // Emotion tone mapping
+  const emotionToneMap = {
+    anxious: "slow, gentle, reassuring tone. Encourage without pressure.",
+    nervous: "calm, warm, steady tone. Normalize difficulty.",
+    frustrated: "soothing, validating, patient tone. Suggest resets.",
+    sad: "soft, warm, nurturing tone. Simple interactions only.",
+    neutral: "warm, clear, natural tone.",
+    happy: "positive, encouraging tone.",
+    excited: "energetic, enthusiastic tone.",
+    confident: "challenging but supportive tone."
+  };
+
+  const emotionTone = emotionContext?.emotion
+    ? emotionToneMap[emotionContext.emotion.toLowerCase()] || emotionToneMap.neutral
+    : emotionToneMap.neutral;
+
   // SYSTEM PROMPT — defines Cue's personality & behavior
   const baseSystem = `
 You are CUE — a warm, friendly, supportive social coach.
@@ -158,6 +174,7 @@ Always respond directly to the learner's last message.
 Adjust tone to grade level: ${gradeLevel}.
 Topic: ${topicName}.
 ${emotionInstruction ? "\nEMOTION-ADAPTIVE GUIDANCE:\n" + emotionInstruction : ""}
+ADAPT TONE BASED ON EMOTION: ${emotionTone}.
 
 GOALS:
 - Keep the learner comfortable.

@@ -18,6 +18,7 @@ import {
   Eye,
   Sparkles
 } from 'lucide-react';
+import { apiPath } from '../../utils/apiBase';
 import SessionReplayModal from './SessionReplayModal';
 
 const ParentChildOverview = ({ childUserId, darkMode, onNavigate }) => {
@@ -41,7 +42,7 @@ const ParentChildOverview = ({ childUserId, darkMode, onNavigate }) => {
       setLoading(true);
       
       // Fetch analytics data
-      const analyticsResponse = await fetch(`http://localhost:3001/api/adaptive/analytics/${childUserId}`);
+      const analyticsResponse = await fetch(apiPath(`/api/adaptive/analytics/${childUserId}`));
       const analyticsResult = await analyticsResponse.json();
       
       if (analyticsResult.success) {
@@ -54,7 +55,7 @@ const ParentChildOverview = ({ childUserId, darkMode, onNavigate }) => {
       }
       
       // Fetch insights
-      const insightsResponse = await fetch(`http://localhost:3001/api/adaptive/progress-insights/${childUserId}`);
+      const insightsResponse = await fetch(apiPath(`/api/adaptive/progress-insights/${childUserId}`));
       const insightsResult = await insightsResponse.json();
       
       if (insightsResult.success) {
@@ -62,7 +63,7 @@ const ParentChildOverview = ({ childUserId, darkMode, onNavigate }) => {
       }
       
       // Fetch goals
-      const goalsResponse = await fetch(`http://localhost:3001/api/goals/${childUserId}?status=active`);
+      const goalsResponse = await fetch(apiPath(`/api/goals/${childUserId}?status=active`));
       const goalsResult = await goalsResponse.json();
       
       if (goalsResult.success) {

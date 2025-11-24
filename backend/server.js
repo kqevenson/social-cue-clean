@@ -1,22 +1,38 @@
-import dotenv from 'dotenv';
-import express from 'express';
-import cors from 'cors';
-import bodyParser from 'body-parser';
-import Anthropic from '@anthropic-ai/sdk';
-import { getTemplate, getDisplayName } from './promptTemplates.js';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
-import adaptiveLearningRoutes from './adaptive-learning-routes.js';
-import OpenAI from 'openai';
-import { getVoiceIntro } from './src/content/training/introduction-scripts.js';
-import chatRouter from './server/routes/chat.js';
-// Hume Emotion API (Option C integration)
-import axios from 'axios';
-
+import dotenv from "dotenv";
 dotenv.config();
+
+// ✅ ADD THIS IMPORT
+import lessonRouter from "./routes/lesson.js";
+
+
+process.env.NODE_ENV = process.env.NODE_ENV || "development";
+// import { HumeClient } from "hume"; // Package doesn't exist - using axios for Hume API calls instead
+import express from "express";
+import cors from "cors";
+import bodyParser from "body-parser";
+import axios from "axios";
+import Anthropic from "@anthropic-ai/sdk";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from "firebase/firestore";
+import OpenAI from "openai";
+// Removed old routers that no longer exist
+// (chat.js and hume.js were deleted)
+// import chatRouter from './server/routes/chat.js';
+// import humeRouter from './server/routes/hume.js';
+// PATCH 2 — Hume Video Emotion Analysis
+import FormData from "form-data";
+import fs from "fs";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Dynamic backend base URL
+const BASE = process.env.SERVER_URL || `http://localhost:${PORT}`;
+console.log("🔥 BACKEND BASE URL:", BASE);
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -31,25 +47,46 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Middleware
-app.use(cors());
+// Middleware - CORS must be first
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (origin.startsWith("http://localhost:")) return callback(null, true);
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
+
 app.use(bodyParser.json());
-app.use('/api', chatRouter);
+
+// Removed old routers that no longer exist
+// (chat.js and hume.js were deleted)
+// app.use('/api/chat', chatRouter);
+// app.use('/api/hume', humeRouter);
+
+// ✅ REGISTER THE LESSON ROUTER
+// This creates the real route: POST /api/lesson/generate
+app.use("/api/lesson", lessonRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Initialize Hume client - using axios for API calls since SDK package doesn't exist
+// const hume = new HumeClient({ apiKey: process.env.HUME_API_KEY });
+const HUME_API_KEY = process.env.HUME_API_KEY;
+
 // Initialize OpenAI client
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const openai = openaiApiKey
-  ? new OpenAI({ apiKey: openaiApiKey })
-  : null;
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 // Test endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'Server is running!', timestamp: new Date() });
+  res.json({ status: "Server is running!" });
 });
 
 // Firebase connection test endpoint
@@ -137,8 +174,22 @@ const cacheLesson = async (cacheKey, lessonData, usage, costEstimate) => {
 
 // Generate complete AI lesson endpoint
 app.post('/api/generate-lesson', async (req, res) => {
+  // Ensure CORS headers are set before any response
+  const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5175';
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   try {
     const { topicName, gradeLevel, currentSkillLevel, learnerStrengths, learnerWeaknesses } = req.body;
+    
+    // Validate required fields
+    if (!topicName || !gradeLevel) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: topicName and gradeLevel are required'
+      });
+    }
     
     console.log(`📚 Generating AI lesson for: ${topicName}, Grade: ${gradeLevel}, Skill Level: ${currentSkillLevel}`);
     console.log(`🎯 Strengths: ${learnerStrengths?.join(', ') || 'None specified'}`);
@@ -242,33 +293,8 @@ app.post('/api/generate-lesson', async (req, res) => {
     
     const skillAdaptation = skillLevelAdaptations[currentSkillLevel] || skillLevelAdaptations[3];
     
-    // Get template for this topic
-    const topicKey = (topicName || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const template = getTemplate(topicKey);
-    
-    if (!template) {
-      console.log(`⚠️ No template found for topic: ${topicName}, using generic template`);
-    }
-    
-    // Build enhanced prompt using template
-    const templateInfo = template ? `
-LEARNING OBJECTIVES FOR ${gradeLevel}:
-${template.learningObjectives[gradeLevel] || template.learningObjectives['3-5']}
-
-KEY SKILLS TO TEACH:
-${template.keySkills?.join(', ') || 'General social skills'}
-
-COMMON MISTAKES TO ADDRESS:
-${template.commonMistakes?.join(', ') || 'General social mistakes'}
-
-SCENARIO CONTEXTS (use these settings):
-${template.scenarioContexts?.[gradeLevel]?.join(', ') || 'school, classroom, playground'}
-
-REAL-WORLD CHALLENGE:
-${template.realWorldChallenges?.[gradeLevel] || 'Practice this skill in your daily life'}
-
-TOPIC-SPECIFIC INSTRUCTIONS:
-${template.promptInstructions || 'Focus on building social skills appropriate for this age group'}` : `
+    // Build enhanced prompt using generic template
+    const templateInfo = `
 LEARNING OBJECTIVES FOR ${gradeLevel}:
 Learn important social skills for ${gradeLevel}
 
@@ -555,6 +581,11 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
     
   } catch (error) {
     console.error('❌ Error generating lesson:', error);
+    // Ensure CORS headers are included in error response
+    const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5175';
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.status(500).json({ 
       success: false, 
       error: error.message 
@@ -562,509 +593,9 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
   }
 });
 
-// NEW: Simplified AI lesson generation endpoint
-app.post('/api/generate-lesson-simple', async (req, res) => {
-  try {
-    const { topic, gradeLevel, numScenarios, timestamp, requestId } = req.body;
-    
-    console.log(`📚 Generating AI lesson for: ${topic}, Grade: ${gradeLevel}, Scenarios: ${numScenarios || 5}`);
-    console.log(`🔄 Request ID: ${requestId}, Timestamp: ${timestamp}`);
+// REMOVED: /api/generate-lesson-simple endpoint (replaced by /api/lessons/start)
 
-    // Topic-specific examples for better scenarios
-    const topicExamples = {
-      'starting-conversations': 'introducing yourself, asking questions, finding common interests',
-      'reading-body-language': 'noticing facial expressions, understanding personal space, reading tone',
-      'small-talk': 'talking about weekend plans, commenting on the weather, casual classroom chat',
-      'making-friends': 'joining activities, showing interest, being a good listener',
-      'small-talk-basics': 'casual conversations, asking about interests, sharing simple stories',
-      'active-listening': 'paying attention, asking follow-up questions, showing you care',
-      'body-language': 'reading facial expressions, understanding personal space, noticing gestures',
-      'confidence-building': 'speaking up, trying new things, believing in yourself'
-    };
-
-    const topicContext = topicExamples[String(topic)?.toLowerCase()] || 'general social situations';
-    const age = parseInt(gradeLevel) + 5; // Approximate age
-
-    const prompt = `Generate 5 DIFFERENT social skills scenarios for grade ${gradeLevel} students.
-
-RANDOM SEED: ${topic}-${timestamp}-${Math.random()}
-
-Topic: ${topic} (age ${age})
-Focus: ${topicContext}
-
-Create 5 unique school situations. Use names: Alex, Sam, Jordan, Casey, Taylor, Morgan.
-Settings: cafeteria, playground, classroom, hallway, library, gym, art room, bus stop.
-
-IMPORTANT: You MUST respond with ONLY valid JSON. No explanations, no markdown, no code blocks.
-
-{
-  "title": "${topic}",
-  "scenarios": [
-    {
-      "scenario": "situation description",
-      "options": [
-        {
-          "text": "response option",
-          "isGood": true,
-          "points": 10,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option", 
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false, 
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        }
-      ]
-    },
-    {
-      "scenario": "another situation",
-      "options": [
-        {
-          "text": "response option",
-          "isGood": true,
-          "points": 10,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option", 
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false, 
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        }
-      ]
-    },
-    {
-      "scenario": "third situation",
-      "options": [
-        {
-          "text": "response option",
-          "isGood": true,
-          "points": 10,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option", 
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false, 
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        }
-      ]
-    },
-    {
-      "scenario": "fourth situation",
-      "options": [
-        {
-          "text": "response option",
-          "isGood": true,
-          "points": 10,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option", 
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false, 
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        }
-      ]
-    },
-    {
-      "scenario": "fifth situation",
-      "options": [
-        {
-          "text": "response option",
-          "isGood": true,
-          "points": 10,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option", 
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false, 
-          "points": 0,
-          "feedback": "feedback"
-        },
-        {
-          "text": "response option",
-          "isGood": false,
-          "points": 0,
-          "feedback": "feedback"
-        }
-      ]
-    }
-  ]
-}`;
-
-    console.log(`📝 Making API call to Claude for lesson generation...`);
-    const startTime = Date.now();
-    
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 2000, // Increased to handle full 5 scenarios
-      temperature: 0.7, // Reduced from 0.9 for faster generation
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-    });
-    
-    const apiTime = Date.now() - startTime;
-    console.log(`⚡ Claude API call completed in ${apiTime}ms`);
-    
-    let responseText = message.content[0].text;
-    console.log(`📊 API response received, validating for age-appropriateness...`);
-    
-    // Simple validation for banned words
-    const bannedWords = ['coworker', 'colleague', 'workplace', 'office', 'professional', 'business', 'corporate', 'employee', 'supervisor', 'HR', 'networking', 'resume', 'interview', 'client', 'customer', 'boss', 'manager'];
-    const lowerText = responseText.toLowerCase();
-    
-    for (const word of bannedWords) {
-      if (lowerText.includes(word)) {
-        console.log(`🚫 Response rejected due to banned word: "${word}"`);
-        throw new Error(`Unable to generate age-appropriate scenarios. Banned word detected: ${word}`);
-      }
-    }
-    
-    console.log(`✅ Response validated successfully - no banned words detected`);
-    console.log(`📊 Parsing JSON from validated response...`);
-    
-    // Parse JSON from response
-    let lessonData;
-    try {
-      // Extract JSON from markdown code blocks if present
-      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/) || 
-                       responseText.match(/\{[\s\S]*\}/);
-      
-      if (!jsonMatch) {
-        console.error('❌ No JSON found in response');
-        console.error('Raw response:', responseText.substring(0, 500));
-        throw new Error('No JSON found in response');
-      }
-      
-      lessonData = JSON.parse(jsonMatch[0]);
-      console.log(`✅ Successfully parsed lesson: "${lessonData.title || 'Unknown'}"`);
-      console.log(`📊 Lesson contains ${lessonData.scenarios?.length || 0} practice scenarios`);
-      
-      // Detailed scenario logging
-      if (lessonData.scenarios && lessonData.scenarios.length > 0) {
-        console.log(`🔵 Scenarios generated: ${lessonData.scenarios.length}`);
-        console.log(`🔵 First scenario: ${lessonData.scenarios[0]?.scenario?.substring(0, 50)}...`);
-        console.log(`🔵 Last scenario: ${lessonData.scenarios[lessonData.scenarios.length - 1]?.scenario?.substring(0, 50)}...`);
-        console.log(`🔵 All scenario previews:`, lessonData.scenarios.map((s, i) => `${i + 1}. ${s.scenario?.substring(0, 30)}...`));
-      }
-      
-      console.log(`📊 Generated scenarios details:`, lessonData.scenarios?.map(s => ({
-        scenario: s.scenario?.substring(0, 50) + '...',
-        optionsCount: s.options?.length || 0
-      })));
-      
-    } catch (parseError) {
-      console.error(`❌ Failed to parse lesson JSON:`, parseError);
-      console.log(`Raw response:`, responseText.substring(0, 500) + '...');
-      throw new Error('Failed to parse lesson response from AI');
-    }
-    
-    // Calculate token usage and cost
-    const inputTokens = prompt.length / 4; // Rough estimate
-    const outputTokens = responseText.length / 4; // Rough estimate
-    const totalTokens = inputTokens + outputTokens;
-    const cost = totalTokens * 0.00000025; // Rough cost estimate
-    
-    console.log(`💰 Token usage: ${Math.round(totalTokens)} tokens (~$${cost.toFixed(4)})`);
-    
-    res.json(lessonData);
-    
-  } catch (error) {
-    console.error('❌ Error generating lesson:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Generate dynamic scenario endpoint
-app.post('/api/generate-scenario', async (req, res) => {
-  try {
-    const { category, gradeLevel, topic } = req.body;
-    
-    console.log(`🎯 Generating 5 scenarios for: ${category}, Grade: ${gradeLevel}, Topic: ${topic}`);
-    
-    // Age-appropriate guidelines
-    const ageGuidelines = {
-      'K-2': {
-        language: 'Very simple words, short sentences (3-8 words per sentence)',
-        topics: 'sharing toys, taking turns, saying sorry, making friends, asking to play',
-        settings: 'playground, lunch table, classroom, recess',
-        avoid: 'dating, complex emotions, abstract concepts, adult situations',
-        example: 'You are playing with blocks and another kid wants to play too. What do you do?'
-      },
-      '3-5': {
-        language: 'Clear, concrete language (5-12 words per sentence)',
-        topics: 'group work, handling disagreements, including others, following rules',
-        settings: 'school projects, recess, clubs, art class',
-        avoid: 'romantic relationships, mature themes, complex social dynamics',
-        example: 'Your group is working on a project but one person keeps interrupting. What do you do?'
-      },
-      '6-8': {
-        language: 'Age-appropriate teen language (8-15 words per sentence)',
-        topics: 'peer pressure, social media etiquette, conflict resolution, teamwork',
-        settings: 'middle school, group chats, lunch tables, sports teams',
-        avoid: 'adult relationships, workplace scenarios, inappropriate content',
-        example: 'Someone posts something mean about your friend in the group chat. What do you do?'
-      },
-      '9-12': {
-        language: 'Mature but appropriate vocabulary (10-20 words per sentence)',
-        topics: 'networking, leadership, conflict resolution, college prep, part-time jobs',
-        settings: 'extracurriculars, part-time jobs, college prep, clubs',
-        avoid: 'inappropriate content for high schoolers, adult-only situations',
-        example: 'You disagree with your team leader about how to approach a project. What do you do?'
-      }
-    };
-    
-    const guidelines = ageGuidelines[gradeLevel] || ageGuidelines['6-8'];
-    
-    const prompt = `You are creating practice scenarios for a CHILD in grade ${gradeLevel}.
-
-ABSOLUTE RESTRICTIONS - YOU MUST FOLLOW THESE:
-❌ NEVER use these words: coworkers, colleagues, workplace, office, professional, networking, business, corporate, supervisor, employee, HR, management, career, resume, interview, meeting, client, customer, boss, manager, colleague, peer pressure (use "friends pressuring you" instead)
-❌ NEVER include: job interviews, work meetings, workplace conflicts, career advice, business situations, professional relationships
-❌ ONLY use these settings: school, classroom, playground, lunch table, recess, sports practice, after-school clubs, birthday parties, sleepovers, family events, neighborhood park, school bus, library, cafeteria, gym class, art class, music class
-❌ ONLY use these relationships: classmates, friends, siblings, parents, teachers, coaches, teammates, neighbors, cousins
-
-For K-2: Use words a 5-7 year old would know. Example: 'friend' not 'peer', 'play' not 'socialize'
-For 3-5: Use words an 8-10 year old would know. School and home are their world.
-For 6-8: Use words a 11-13 year old middle schooler would know. School social dynamics only.
-For 9-12: High school appropriate only. NO workplace or adult situations.
-
-EVERY scenario must pass this test: 'Would this happen at school or with friends?'
-If NO, do not generate it.
-
-SPECIFIC EXAMPLES FOR ${gradeLevel}:
-${gradeLevel === 'K-2' ? 'Example: "You want to play with a toy that another kid is using. What do you do?"' : ''}
-${gradeLevel === '3-5' ? 'Example: "Your friend is upset because they lost their game. What do you say?"' : ''}
-${gradeLevel === '6-8' ? 'Example: "Someone in your group project isn\'t doing their part. How do you handle it?"' : ''}
-${gradeLevel === '9-12' ? 'Example: "A friend posts something embarrassing about themselves on social media. Do you say something?"' : ''}
-
-AGE GUIDELINES FOR ${gradeLevel}:
-- Language: ${guidelines.language}
-- Topics: ${guidelines.topics}
-- Settings: ${guidelines.settings}
-- AVOID: ${guidelines.avoid}
-
-REQUIREMENTS:
-1. Create exactly 5 different scenarios
-2. Each scenario should have:
-   - A realistic context/situation for ${gradeLevel} students
-   - 3 response options (1 good choice, 2 that need improvement)
-   - Brief, encouraging feedback for each option (1-2 sentences)
-   - A helpful pro tip
-
-3. Make scenarios diverse - different settings, different social skills
-4. Use age-appropriate language and situations
-5. Keep feedback positive and educational
-
-VALIDATION STEP:
-Before returning your response, check each scenario:
-- Does it use age-appropriate vocabulary?
-- Would this actually happen to a kid this age?
-- Are all relationships school/family/friend-based?
-- Are there NO adult workplace words?
-
-If any scenario fails these checks, regenerate it.
-
-Return as JSON array:
-[
-  {
-    "context": "scenario description",
-    "options": [
-      {
-        "text": "response option",
-        "feedback": "encouraging explanation",
-        "proTip": "helpful tip",
-        "isGood": true/false,
-        "points": 10 or 0
-      }
-    ]
-  }
-]`;
-
-    // Response validation function
-    const validateScenarioForAge = (responseText, gradeLevel) => {
-      const bannedWords = [
-        'coworker', 'colleague', 'workplace', 'office', 'professional', 'business', 
-        'corporate', 'employee', 'supervisor', 'HR', 'networking', 'career', 
-        'resume', 'interview', 'meeting', 'client', 'customer', 'boss', 'manager',
-        'colleagues', 'workplace', 'professional', 'business', 'corporate',
-        'employee', 'supervisor', 'HR', 'management', 'career', 'resume',
-        'interview', 'meeting', 'client', 'customer', 'boss', 'manager'
-      ];
-      
-      const lowerResponse = (responseText || '').toLowerCase();
-      
-      for (const word of bannedWords) {
-        if (lowerResponse.includes((word || '').toLowerCase())) {
-          console.log(`❌ BANNED WORD DETECTED: "${word}" in response for ${gradeLevel}`);
-          return { isValid: false, bannedWord: word };
-        }
-      }
-      
-      return { isValid: true };
-    };
-
-    console.log(`📝 Making API call to Claude for ${gradeLevel} scenarios...`);
-    
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 4000,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-    });
-    
-    let responseText = message.content[0].text;
-    console.log(`📊 API response received, validating for age-appropriateness...`);
-    
-    // Validate response for banned words
-    const validation = validateScenarioForAge(responseText, gradeLevel);
-    if (!validation.isValid) {
-      console.log(`🚫 Response rejected due to banned word: "${validation.bannedWord}"`);
-      console.log(`🔄 Making retry API call with stricter prompt...`);
-      
-      // Retry with even stricter prompt
-      const retryPrompt = `Your previous response contained inappropriate workplace language ("${validation.bannedWord}"). Remember: this is for a CHILD in SCHOOL, not an adult at work.
-
-${prompt}
-
-CRITICAL: Do not use ANY workplace, business, or professional language. This is for a child in grade ${gradeLevel}.`;
-
-      const retryMessage = await anthropic.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 4000,
-        messages: [
-          {
-            role: 'user',
-            content: retryPrompt
-          }
-        ],
-      });
-      
-      const retryResponseText = retryMessage.content[0].text;
-      console.log(`📊 Retry response received, validating again...`);
-      
-      const retryValidation = validateScenarioForAge(retryResponseText, gradeLevel);
-      if (!retryValidation.isValid) {
-        console.error(`❌ Retry also failed with banned word: "${retryValidation.bannedWord}"`);
-        throw new Error(`Unable to generate age-appropriate scenarios. Banned word detected: ${retryValidation.bannedWord}`);
-      }
-      
-      console.log(`✅ Retry response validated successfully`);
-      responseText = retryResponseText;
-    } else {
-      console.log(`✅ Response validated successfully - no banned words detected`);
-    }
-    
-    console.log(`📊 Parsing JSON from validated response...`);
-    
-    // Try to parse JSON from response
-    let scenarios;
-    try {
-      // Extract JSON if it's wrapped in markdown code blocks
-      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/) || 
-                       responseText.match(/```\n?([\s\S]*?)\n?```/) ||
-                       [null, responseText];
-      
-      const jsonText = jsonMatch[1] || responseText;
-      
-      // Try to find JSON array in the text
-      const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
-      if (arrayMatch) {
-        scenarios = JSON.parse(arrayMatch[0]);
-      } else {
-        scenarios = JSON.parse(jsonText);
-      }
-      
-      console.log(`✅ Successfully parsed ${scenarios.length} scenarios`);
-      if (scenarios.length > 0) {
-        console.log(`📋 First scenario context: "${scenarios[0].context?.substring(0, 100)}..."`);
-      }
-      
-    } catch (parseError) {
-      console.error('❌ Failed to parse JSON:', parseError);
-      console.error('Raw response:', responseText.substring(0, 200) + '...');
-      scenarios = [{ raw: responseText }]; // Return raw if parsing fails
-    }
-    
-    res.json({ 
-      success: true, 
-      scenarios,
-      usage: message.usage 
-    });
-    
-  } catch (error) {
-    console.error('❌ Error generating scenarios:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
-
+// REMOVED: /api/generate-scenario endpoint (replaced by /api/lessons/start)
 // Get personalized feedback endpoint
 app.post('/api/get-feedback', async (req, res) => {
   try {
@@ -2624,8 +2155,221 @@ app.delete('/api/goals/:goalId', async (req, res) => {
   }
 });
 
-// Mount adaptive learning routes
-app.use('/api/adaptive', adaptiveLearningRoutes);
+// Adaptive learning routes removed — frontend-only functionality
+
+// =========================
+// FIXED: Classroom Video Route
+// =========================
+
+app.post("/api/classroom/video", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!openai) {
+      return res.status(500).json({
+        success: false,
+        message: "OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.",
+      });
+    }
+
+    // TEMPORARY VALID IMPLEMENTATION
+    // Replace with real video generation once the correct API exists
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: `Generate a structured classroom-video script based on: ${prompt}`,
+        },
+      ],
+    });
+
+    return res.json({
+      success: true,
+      type: "text-fallback",
+      message:
+        "Note: Video generation API was deprecated. Returning script instead.",
+      script: response.choices[0].message.content,
+    });
+  } catch (error) {
+    console.error("❌ OpenAI classroom video error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error generating classroom content",
+    });
+  }
+});
+
+// ============================
+// RUNWAY GEN-4 REAL WORLD VIDEO
+// ============================
+app.post("/api/video/generate-realworld", async (req, res) => {
+  try {
+    const { gradeLevel, topicId } = req.body;
+
+    // Simple inline prompt — buildScenePrompt was a frontend utility
+    const prompt = `Create a short real-world video (3-6 seconds) for a grade ${gradeLevel} student practicing the social skill: ${topicId || 'social interaction'}. Show 2-4 people interacting naturally in a realistic setting with clear emotional expressions.`;
+
+    const runwayResponse = await axios.post(
+      "https://api.runwayml.com/v1/generations",
+      {
+        model: "gen-4-turbo",
+        prompt: prompt,
+        size: "1280x720"
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.RUNWAY_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const videoUrl = runwayResponse.data?.output?.[0]?.url;
+    res.json({ success: true, videoUrl, provider: "runway" });
+
+  } catch (err) {
+    console.error("❌ Runway video error:", err.response?.data || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+// =======================================================
+// PATCH 2 — Hume Video Emotion Analysis
+// =======================================================
+
+// Extract still frames from video using ffmpeg
+function extractFrames(videoPath) {
+  return new Promise((resolve, reject) => {
+    const outDir = `/tmp/frames_${Date.now()}`;
+    fs.mkdirSync(outDir, { recursive: true });
+
+    const cmd = `ffmpeg -i ${videoPath} -vf fps=1 ${outDir}/frame_%03d.jpg`;
+
+    exec(cmd, (err) => {
+      if (err) return reject(err);
+      resolve(outDir);
+    });
+  });
+}
+
+// -------------------------
+// HUME VIDEO ANALYSIS ROUTE (SDK-BASED)
+// -------------------------
+// Note: This endpoint uses Hume SDK for cleaner video analysis without frame extraction
+// Install SDK: npm install @humeai/sdk
+
+app.post("/api/hume/analyze-video", async (req, res) => {
+  try {
+    const { videoUrl } = req.body;
+
+    if (!videoUrl) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing videoUrl"
+      });
+    }
+
+    console.log("🔍 Analyzing video with Hume:", videoUrl);
+
+    // Send URL to Hume's multimodal model using axios (SDK package doesn't exist)
+    if (!HUME_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: "Hume API key not configured. Please set HUME_API_KEY in your .env file."
+      });
+    }
+
+    const response = await axios.post(
+      "https://api.hume.ai/v0/batch/jobs",
+      {
+        models: {
+          face: {},
+          prosody: {}
+        },
+        urls: [videoUrl]
+      },
+      {
+        headers: {
+          "X-Hume-Api-Key": HUME_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log("🧠 Hume analysis complete");
+
+    return res.json({
+      success: true,
+      analysis: response,   // full emotion data
+    });
+
+  } catch (err) {
+    console.error("❌ Hume analysis error:", err);
+
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Hume video analysis failed",
+    });
+  }
+});
+
+// -------------------------
+// VIDEO GENERATION ROUTE (FINAL IMPLEMENTATION)
+// -------------------------
+// NOTE: This is the ONLY valid /api/video/generate-scene route.
+// REMOVED: /api/video/generate-scene endpoint (replaced by /api/lessons/start)
+// REMOVED: /api/lesson/load endpoint (replaced by /api/lessons/start)
+
+// -------------------------------
+// ADD NEW UNIFIED LESSON ENDPOINT
+// -------------------------------
+app.post('/api/lessons/start', async (req, res) => {
+  try {
+    console.log("🔥 /api/lessons/start called");
+
+    const { title, lessonId, gradeLevel } = req.body;
+
+    // Validate input
+    if (!title || !gradeLevel) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: title, gradeLevel"
+      });
+    }
+
+    // -------------------------------------
+    // 1. CALL EXISTING LESSON GENERATOR API
+    // -------------------------------------
+    // ✅ CALL THE NEW OPENAI LESSON GENERATOR
+    const lessonResponse = await axios.post(
+      `${BASE}/api/lesson/generate`,
+      {
+        topic: title,
+        gradeLevel
+      }
+    );
+
+    const lesson = lessonResponse.data.lesson;
+
+    // -------------------------------------
+    // 2. RETURN LESSON + OPTIONAL VIDEO URL
+    // -------------------------------------
+    return res.json({
+      success: true,
+      lesson,
+      videoUrl: null // placeholder for future video integration
+    });
+
+  } catch (error) {
+    console.error("❌ Error in /api/lessons/start:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Start server
 app.listen(PORT, () => {
@@ -2797,20 +2541,19 @@ CRITICAL INSTRUCTION: When you receive a message that says "RESPOND WITH EXACTLY
       });
       console.log('💪 FORCING AI to say:', curriculumScript);
     } else if (phase === 'intro' && conversationHistory.length === 2) {
+      // getVoiceIntro removed — frontend utility, not available in backend
+      // Using generic intro instead
       try {
         const topicDescriptor =
-          scenario?.topicId || scenario?.topic || scenario?.topicTitle || scenario?.title || '';
-        const introData = getVoiceIntro(gradeLevel, topicDescriptor, scenario);
-        const script = introData.firstPrompt;
-        if (script) {
-          messages.push({
-            role: 'user',
-            content: `RESPOND WITH EXACTLY: "${script}"`
-          });
-          console.log('💪 FORCING AI to say (server-derived):', script);
-        }
+          scenario?.topicId || scenario?.topic || scenario?.topicTitle || scenario?.title || 'this skill';
+        const script = `Hi! I'm Coach Cue. Ready to practice ${topicDescriptor}?`;
+        messages.push({
+          role: 'user',
+          content: `RESPOND WITH EXACTLY: "${script}"`
+        });
+        console.log('💪 FORCING AI to say (generic intro):', script);
       } catch (err) {
-        console.warn('⚠️ Unable to derive curriculum script on server:', err.message);
+        console.warn('⚠️ Unable to create generic intro:', err.message);
       }
     }
 

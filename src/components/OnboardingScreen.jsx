@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRight, AlertCircle, Target, Clock, Heart, Zap } from 'lucide-react';
 import ErrorToast from './ErrorToast';
 import QuickTutorialModal from './socialcue/QuickTutorialModal';
+import { apiPath } from '../utils/apiBase';
 
 function OnboardingScreen({ onComplete }) {
   const [step, setStep] = useState(1);
@@ -251,7 +252,7 @@ function OnboardingScreen({ onComplete }) {
     try {
       console.log('🚀 Initializing adaptive learning for user:', userId);
       
-      const response = await fetch('http://localhost:3001/api/adaptive/init', {
+      const response = await fetch(apiPath('/api/adaptive/init'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

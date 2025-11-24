@@ -10,6 +10,8 @@ import {
   BookOpen,
   Brain
 } from 'lucide-react';
+import WebcamEmotionMonitor from "./WebcamEmotionMonitor";
+import EmotionOptInModal from "./EmotionOptInModal";
 import {
   topics,
   getGradeBandFromGrade,
@@ -75,7 +77,17 @@ export default function AIPracticeSession({
   gradeLevel = '6-8',
   selectedTopicId,
   onBack,
-  onStartScenario
+  onStartScenario,
+  // NEW: Props from AILessonSession (lesson flow)
+  aiLesson = null,
+  onComplete = null,
+  sessionId = null,
+  onNavigate = null,
+  darkMode = true,
+  soundEffects = false,
+  autoReadText = false,
+  videoEmotionData = null,
+  emotionMCQ = null
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -83,6 +95,23 @@ export default function AIPracticeSession({
   const [generatedScenario, setGeneratedScenario] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const location = useLocation();
+  
+  // Practice quiz state
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [practiceQuestions, setPracticeQuestions] = useState([]);
+  const [inLessonPractice, setInLessonPractice] = useState(false);
+  
+  const [emotionEnabled, setEmotionEnabled] = useState(() => {
+    return localStorage.getItem("emotionEnabled") === "true";
+  });
+  const [showEmotionOptIn, setShowEmotionOptIn] = useState(() => {
+    return localStorage.getItem("emotionOptInAsked") !== "true";
+  });
+  const [emotionState, setEmotionState] = useState({ dominant: "neutral", raw: {} });
+  const [coachMode, setCoachMode] = useState("normal");
 
   const numericGrade = useMemo(() => {
     const locationGrade = location?.state?.grade ?? location?.state?.gradeLevel ?? null;
@@ -111,6 +140,32 @@ export default function AIPracticeSession({
   const topicIdToUse = selectedTopicId ?? locationTopicId ?? null;
 
   useEffect(() => {
+    // CASE 1: Lesson flow - aiLesson provided from AILessonSession
+    if (aiLesson) {
+      console.log("✅ Using AI lesson data from lesson flow:", aiLesson.title || aiLesson.id);
+      
+      // Extract practice scenarios from the lesson
+      const scenarios = aiLesson.practice?.scenarios || aiLesson.practice?.steps || [];
+      
+      if (scenarios.length > 0) {
+        setPracticeQuestions(scenarios);
+        setInLessonPractice(true);
+        setActiveTopic({
+          id: aiLesson.id || sessionId,
+          title: aiLesson.title || aiLesson.introduction?.title || 'Practice Session',
+          description: aiLesson.introduction?.objective || ''
+        });
+        setError(null);
+        setLoading(false);
+        return;
+      } else {
+        // No practice questions - complete with default points
+        if (onComplete) onComplete(50);
+        return;
+      }
+    }
+
+    // CASE 2: Practice tab flow - use selectedTopicId (existing behavior)
     if (!topicIdToUse) {
       setError('No topic selected. Please choose one.');
       setGeneratedScenario(null);
@@ -144,7 +199,7 @@ export default function AIPracticeSession({
     };
 
     loadScenario();
-  }, [topicIdToUse, numericGrade]);
+  }, [topicIdToUse, numericGrade, aiLesson, sessionId]);
 
   const regenerateScenario = useCallback(() => {
     if (!activeTopic) return;
@@ -156,29 +211,228 @@ export default function AIPracticeSession({
     }, 150);
   }, [activeTopic, numericGrade]);
 
+  // Handle emotion results coming from Hume
+  const handleEmotion = (data) => {
+    if (!data || !data[0]) return;
+
+    const sorted = Object.entries(data[0].emotions || {})
+      .sort((a, b) => b[1] - a[1]);
+
+    const dominant = sorted[0]?.[0] || "neutral";
+
+    setEmotionState({
+      dominant,
+      raw: data[0].emotions,
+    });
+  };
+
+  // Adaptive coaching logic
+  useEffect(() => {
+    if (!emotionEnabled) return;
+
+    if (emotionState.dominant === "confused") {
+      setCoachMode("extra-help");
+    } 
+    else if (emotionState.dominant === "frustrated") {
+      setCoachMode("slow-down");
+    } 
+    else if (emotionState.dominant === "excited") {
+      setCoachMode("harder");
+    } 
+    else {
+      setCoachMode("normal");
+    }
+
+  }, [emotionState, emotionEnabled]);
+
+  // Practice quiz handlers
+  const handleAnswerSelect = (answerId) => {
+    if (showFeedback) return; // Prevent changing answer after submission
+    setSelectedAnswer(answerId);
+  };
+
+  const handleSubmitAnswer = () => {
+    if (!selectedAnswer) return;
+    
+    const currentQuestion = practiceQuestions[currentQuestionIndex];
+    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+    
+    if (isCorrect) {
+      setCorrectAnswers(prev => prev + 1);
+    }
+    
+    setShowFeedback(true);
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < practiceQuestions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+      setSelectedAnswer(null);
+      setShowFeedback(false);
+    } else {
+      // Practice complete - calculate points
+      // Account for the current question's correctness
+      const currentQuestion = practiceQuestions[currentQuestionIndex];
+      const currentIsCorrect = selectedAnswer === currentQuestion.correctAnswer;
+      const finalCorrectCount = currentIsCorrect ? correctAnswers + 1 : correctAnswers;
+      
+      const pointsPerQuestion = 10;
+      const earnedPoints = finalCorrectCount * pointsPerQuestion + 10; // bonus for completing
+      if (onComplete) onComplete(earnedPoints);
+    }
+  };
+
   const handleStartPractice = () => {
+    // If from lesson flow with onComplete callback
+    if (aiLesson && onComplete) {
+      // Simulate practice completion with points
+      const earnedPoints = 50; // Or calculate based on performance
+      onComplete(earnedPoints);
+      return;
+    }
+
+    // Existing practice tab behavior
     if (!generatedScenario || typeof onStartScenario !== 'function') return;
+    
+    const introLine = generatedScenario.introLine ??
+      generatedScenario.prompt ??
+      generatedScenario.warmupQuestion ??
+      generatedScenario.title ??
+      'Let\'s get started!';
+    
     onStartScenario({
       scenario: {
         ...generatedScenario,
-        introLine:
-          generatedScenario.introLine ??
-          generatedScenario.prompt ??
-          generatedScenario.warmupQuestion ??
-          generatedScenario.title ??
-          'Let’s get started!'
+        introLine
       },
       gradeLevel: String(numericGrade),
-      gradeBand
+      gradeBand,
+      coachMode // Pass coach mode to practice session
     });
   };
+
+  // Lesson Practice Mode UI
+  if (inLessonPractice && practiceQuestions.length > 0) {
+    const currentQuestion = practiceQuestions[currentQuestionIndex];
+    const progress = ((currentQuestionIndex + 1) / practiceQuestions.length) * 100;
+    
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'} p-6`}>
+        <div className="max-w-2xl mx-auto">
+          {/* Progress Bar */}
+          <div className="mb-8">
+            <div className="flex justify-between text-sm mb-2">
+              <span>Question {currentQuestionIndex + 1} of {practiceQuestions.length}</span>
+              <span>{Math.round(progress)}% Complete</span>
+            </div>
+            <div className={`h-2 rounded-full ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Question Card */}
+          <div className={`rounded-3xl p-8 mb-6 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200 shadow-lg'}`}>
+            {/* Situation */}
+            {currentQuestion.situation && (
+              <div className={`mb-6 p-4 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
+                <p className={`text-sm font-medium mb-1 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>Situation:</p>
+                <p className={darkMode ? 'text-gray-200' : 'text-gray-700'}>{currentQuestion.situation}</p>
+              </div>
+            )}
+
+            {/* Question */}
+            <h2 className={`text-xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {currentQuestion.question}
+            </h2>
+
+            {/* Answer Options */}
+            <div className="space-y-3">
+              {currentQuestion.options?.map((option) => {
+                const isSelected = selectedAnswer === option.id;
+                const isCorrectAnswer = option.id === currentQuestion.correctAnswer;
+                
+                let optionStyle = darkMode ? 'bg-white/5 border-white/10 hover:border-blue-500/50' : 'bg-gray-50 border-gray-200 hover:border-blue-300';
+                
+                if (showFeedback) {
+                  if (isCorrectAnswer) {
+                    optionStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-300';
+                  } else if (isSelected && !isCorrectAnswer) {
+                    optionStyle = 'bg-red-500/20 border-red-500 text-red-300';
+                  }
+                } else if (isSelected) {
+                  optionStyle = darkMode ? 'bg-blue-500/20 border-blue-500' : 'bg-blue-50 border-blue-500';
+                }
+
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => handleAnswerSelect(option.id)}
+                    disabled={showFeedback}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${optionStyle}`}
+                  >
+                    <span className="font-bold mr-3">{option.id}.</span>
+                    {option.text}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Feedback */}
+            {showFeedback && (
+              <div className={`mt-6 p-4 rounded-xl ${
+                selectedAnswer === currentQuestion.correctAnswer 
+                  ? 'bg-emerald-500/20 border border-emerald-500/30' 
+                  : 'bg-orange-500/20 border border-orange-500/30'
+              }`}>
+                <p className={`font-medium ${
+                  selectedAnswer === currentQuestion.correctAnswer ? 'text-emerald-300' : 'text-orange-300'
+                }`}>
+                  {selectedAnswer === currentQuestion.correctAnswer 
+                    ? currentQuestion.feedbackCorrect || '✓ Great job! That\'s correct!'
+                    : currentQuestion.feedbackIncorrect || `The correct answer was ${currentQuestion.correctAnswer}.`
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Action Button */}
+          <div className="flex justify-end">
+            {!showFeedback ? (
+              <button
+                onClick={handleSubmitAnswer}
+                disabled={!selectedAnswer}
+                className={`px-8 py-3 rounded-xl font-bold transition-all ${
+                  selectedAnswer 
+                    ? 'bg-gradient-to-r from-blue-500 to-emerald-400 text-white hover:shadow-lg' 
+                    : `${darkMode ? 'bg-white/10 text-gray-500' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
+                }`}
+              >
+                Submit Answer
+              </button>
+            ) : (
+              <button
+                onClick={handleNextQuestion}
+                className="px-8 py-3 rounded-xl font-bold bg-gradient-to-r from-blue-500 to-emerald-400 text-white hover:shadow-lg transition-all"
+              >
+                {currentQuestionIndex < practiceQuestions.length - 1 ? 'Next Question →' : 'Complete Lesson 🎉'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <LoadingView onBack={onBack} />;
   if (error) return <ErrorView message={error} onBack={onBack} onRetry={regenerateScenario} />;
   if (!generatedScenario) {
     return (
       <ErrorView
-        message="We couldn’t generate a scenario for this topic."
+        message="We couldn't generate a scenario for this topic."
         onBack={onBack}
         onRetry={regenerateScenario}
       />
@@ -186,7 +440,31 @@ export default function AIPracticeSession({
   }
 
   return (
-    <div className="min-h-screen bg-black text-white relative">
+    <>
+      {/* Emotion opt-in modal */}
+      {showEmotionOptIn && (
+        <EmotionOptInModal
+          onEnable={() => {
+            localStorage.setItem("emotionEnabled", "true");
+            localStorage.setItem("emotionOptInAsked", "true");
+            setEmotionEnabled(true);
+            setShowEmotionOptIn(false);
+          }}
+          onDisable={() => {
+            localStorage.setItem("emotionEnabled", "false");
+            localStorage.setItem("emotionOptInAsked", "true");
+            setEmotionEnabled(false);
+            setShowEmotionOptIn(false);
+          }}
+        />
+      )}
+
+      {/* Real-time emotion analyzer */}
+      {emotionEnabled && (
+        <WebcamEmotionMonitor onEmotion={handleEmotion} />
+      )}
+
+      <div className="min-h-screen bg-black text-white relative">
       {onBack && (
         <button
           onClick={onBack}
@@ -290,5 +568,6 @@ export default function AIPracticeSession({
         </div>
       </div>
     </div>
+    </>
   );
 }

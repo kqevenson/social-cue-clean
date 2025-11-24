@@ -100,3 +100,4 @@ To fully enable emotion analysis:
 3. Convert to base64 and send to backend
 4. Use emotion-enhanced responses from backend
 
+

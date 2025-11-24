@@ -1,150 +1,149 @@
-// -------------------------------------------------------------
-// AIBehaviorConfig.js — SOCIAL CUE 2025 BEHAVIOR ENGINE (v2)
-// -------------------------------------------------------------
-// This engine produces:
-// - Natural, friend-like intros (“Hey Kelsey! I’m Cue!”)
-// - Grade-aware speech patterns (K-2 vs 9-12)
-// - Warm, short, engaging social coaching
-// - Dynamic scenario generation
-// - Teaching + micro-tips + turn-taking
-// - Phased conversation flow
-// -------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// AIBehaviorConfig.js — SOCIAL CUE AUTONOMY ENGINE (2025 natural edition)
+// ---------------------------------------------------------------------------
+// Purpose:
+// • Give Cue personality + warmth
+// • Provide soft conversational guidance (not rigid rules)
+// • Allow full scenario autonomy
+// • Keep grade-level tone awareness
+// • Let Cue teach naturally, not with templates
+// • Maintain smooth intro → preview → demonstrate → repeat → feedback flow
+// • Support personaEngine + teachingEngine seamlessly
+// ---------------------------------------------------------------------------
 
 import { personaEngine } from "../../services/personaEngine.js";
 
-
-// -------------------------------------------------------------
-// 1. MICRO TEACHING BANKS — short, child-friendly tips per topic
-// -------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 1. MICRO TIPS (kept flexible — NOT force-applied)
+// ---------------------------------------------------------------------------
 export const MICRO_TIPS = {
   "small-talk-basics": [
-    "Try giving a small wave first.",
-    "A tiny question keeps things going.",
-    "Short and friendly always works.",
-    "Notice something and mention it."
+    "Start with something small and friendly.",
+    "Let it feel natural — no pressure.",
+    "A simple question keeps things moving.",
+    "Noticing something around you helps."
   ],
+
   "active-listening": [
-    "Nodding shows you're listening.",
-    "Try repeating one word they said.",
-    "A tiny 'oh wow?' goes a long way.",
-    "Ask a soft follow-up question."
+    "Show you're tuned in by reacting to what they say.",
+    "A small follow-up can show interest.",
+    "A quick nod or comment keeps it real.",
+    "Try repeating one little detail."
   ],
+
   "confidence-building": [
-    "You get braver every time you try.",
-    "Your voice matters even if it's small.",
-    "One brave step is all it takes.",
-    "You can handle this, I know you can."
+    "Start with one comfortable thought.",
+    "Take your time — no rush.",
+    "One brave sentence is enough.",
+    "You can speak softly and still sound confident."
   ],
+
   "resolving-conflicts": [
-    "Start calm. Tone changes everything.",
-    "Saying the feeling helps a lot.",
-    "Look for the middle ground.",
-    "Ask, 'What would help right now?'"
+    "Try naming what you noticed.",
+    "A calm tone goes a long way.",
+    "Look for common ground.",
+    "Asking how they feel can help."
+  ],
+
+  "joining-groups": [
+    "Start by connecting to what they're talking about.",
+    "Standing nearby helps you warm into it.",
+    "A small opener gets you included.",
+    "Try reacting to what someone said."
   ]
 };
 
-
-// -------------------------------------------------------------
-// 2. GRADE-BASED RESPONSE RULES
-// -------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 2. GRADE-BASED STYLE PROFILES (soft, not limiting)
+// ---------------------------------------------------------------------------
+// Guides tone, pacing, and personality but DOES NOT restrict autonomy
 export const GRADE_RULES = {
-  "k-2": { maxWords: 8, speechRate: 0.86, friendly: true, slang: false },
-  "3-5": { maxWords: 12, speechRate: 0.9, friendly: true, slang: "soft" },
-  "6-8": { maxWords: 15, speechRate: 0.95, friendly: "peer", slang: "mild" },
-  "9-12": { maxWords: 20, speechRate: 1.0, friendly: "peer", slang: "natural" }
+  "k-2":  { style: "very warm, simple, cheerful", maxWords: 12 },
+  "3-5":  { style: "friendly, energetic, curious", maxWords: 16 },
+  "6-8":  { style: "casual, upbeat, real", maxWords: 20 },
+  "9-12": { style: "natural, confident, peer-like", maxWords: 26 }
 };
 
-
-// -------------------------------------------------------------
-// 3. PRAISE AND FEEDBACK CLIPS
-// -------------------------------------------------------------
-export const FEEDBACK_SNIPS = {
-  praise: ["Nice!", "Love that!", "Strong move!", "Good choice!", "Smooth!"],
-  nudge: ["Try it softer.", "Maybe friendlier.", "Give it one more shot.", "Try that again gently."]
-};
-
-
-// -------------------------------------------------------------
-// 4. INTRODUCTION FLOW — 3 turns, natural & friendly
-// -------------------------------------------------------------
-export function buildIntroFlow({ gradeLevel, topicName, learnerName, lastScenario }) {
-  const namePrefix = learnerName ? `${learnerName}, ` : "";
+// ---------------------------------------------------------------------------
+// 3. NATURAL INTRO BUILDER — simple, warm, flexible
+// ---------------------------------------------------------------------------
+export function buildIntroFlow({ gradeLevel, topicName, learnerName }) {
+  const persona = personaEngine.getPersona(gradeLevel);
 
   return {
-    turn1: `Hey ${namePrefix}I'm Cue! Today we're practicing ${topicName}.`,
+    turn1: persona.greet(),
 
-    turn2: `Before we get started — have you tried this before?`,
+    turn2: learnerName
+      ? `Nice to meet you, ${learnerName}. Today we'll practice ${topicName}.`
+      : `Before we start practicing ${topicName}, what's your name?`,
 
-    turn3: `Awesome. Let's jump in and practice ${topicName} together!`
+    turn3: `Great. Let’s get into it.`
   };
 }
 
-
-// -------------------------------------------------------------
-// 5. TEACHING TURN — provides tips + asks learner to try again
-// -------------------------------------------------------------
-export function buildTeachingTurn({ gradeLevel, topicId, learnerMessage }) {
-  const persona = personaEngine.getPersona(gradeLevel);
-  const gradeKey = personaEngine.getPersonaKey(gradeLevel);
-  const rules = GRADE_RULES[gradeKey];
-  const tips = MICRO_TIPS[topicId] || ["Try keeping it simple."];
-
-  // Choose a micro-teaching tip
-  const tip = tips[Math.floor(Math.random() * tips.length)];
-
-  // Choose praise-like tone from persona
-  const praise = persona.praise();
-
-  // Construct response
-  let text = `${praise} ${tip} Your turn!`;
-
-  // Word limit per grade
-  const words = text.split(/\s+/);
-  if (words.length > rules.maxWords) {
-    text = `${words.slice(0, rules.maxWords).join(" ")}…`;
-  }
-
-  return text.trim();
+// ---------------------------------------------------------------------------
+// 4. NATURAL DEMONSTRATION BUILDER
+// ---------------------------------------------------------------------------
+// Cue uses this when giving an example of *exactly what she might say*
+export function buildDemonstrationLine({ scenarioText }) {
+  return `Here's how I might start: "${scenarioText}"`;
 }
 
+// ---------------------------------------------------------------------------
+// 5. NATURAL FEEDBACK (light coaching, no rigid rules)
+// ---------------------------------------------------------------------------
+export function buildTeachingTurn({ gradeLevel, topicId, learnerMessage }) {
+  const persona = personaEngine.getPersona(gradeLevel);
+  const tips = MICRO_TIPS[topicId] || MICRO_TIPS["small-talk-basics"];
 
-// -------------------------------------------------------------
-// 6. PHASE STRUCTURE — where learner is in the flow
-// -------------------------------------------------------------
+  const praise = persona.praise();
+  const tip = tips[Math.floor(Math.random() * tips.length)];
+
+  // Single warm, natural line.
+  return `${praise} ${tip}`;
+}
+
+// ---------------------------------------------------------------------------
+// 6. SOFT PHASE STRUCTURE — NO rigid templates
+// ---------------------------------------------------------------------------
+// Used only by useVoiceConversation to keep the UI predictable,
+// NOT to restrict how Cue speaks.
 export const PHASES = {
-  INTRO_1: "intro-1",       // greeting
-  INTRO_2: "intro-2",       // check-in
-  INTRO_3: "intro-3",       // scenario intro ("imagine this…")
-  INTRO_PREVIEW: "intro_preview", // skill preview before practice
-  DEMONSTRATE: "demonstrate", // demonstration phase
-  REPEAT: "repeat",         // guided repetition phase
-  SCENARIO: "scenario",     // learner tries it
-  TEACHING: "teaching",     // skill coaching
-  VARIATION: "variation",   // new version of scenario
-  COMPLETE: "complete"      // exit phase
+  INTRO_1: "INTRO_1",
+  INTRO_2: "INTRO_2",
+  INTRO_3: "INTRO_3",
+
+  INTRO_PREVIEW: "INTRO_PREVIEW",  // scenario explanation
+  DEMONSTRATE: "DEMONSTRATE",       // Cue gives example
+  REPEAT: "REPEAT",                 // learner tries
+
+  TEACHING: "TEACHING",             // Cue gives coaching
+  VARIATION: "VARIATION",           // fresh scenario practice
+
+  COMPLETE: "COMPLETE"
 };
 
-export function getNextPhase(phase) {
-  switch (phase) {
+// Soft automatic next-phase helper:
+export function getNextPhase(prev) {
+  switch (prev) {
     case PHASES.INTRO_1: return PHASES.INTRO_2;
     case PHASES.INTRO_2: return PHASES.INTRO_3;
     case PHASES.INTRO_3: return PHASES.INTRO_PREVIEW;
-    case PHASES.SCENARIO: return PHASES.TEACHING;
-    case PHASES.TEACHING: return PHASES.VARIATION;
-    default: return PHASES.COMPLETE;
+    case PHASES.REPEAT:  return PHASES.TEACHING;
+    case PHASES.TEACHING:return PHASES.VARIATION;
+    default:             return PHASES.COMPLETE;
   }
 }
 
-
-// -------------------------------------------------------------
-// 7. EXPORT FINAL BEHAVIOR CONFIG
-// -------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// FINAL EXPORT
+// ---------------------------------------------------------------------------
 export const AI_BEHAVIOR_CONFIG = {
   MICRO_TIPS,
-  FEEDBACK_SNIPS,
   GRADE_RULES,
   buildIntroFlow,
   buildTeachingTurn,
+  buildDemonstrationLine,
   PHASES,
   getNextPhase
 };

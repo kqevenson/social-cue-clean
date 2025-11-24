@@ -1,10 +1,22 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+import { apiPath } from "../utils/apiBase";
+import axios from "axios";
+
+// Default export for lessonApi.js
+const api = {
+  post: async (path, data) => {
+    // Automatically add /api prefix if not present
+    const fullPath = path.startsWith('/api') ? path : `/api${path}`;
+    return await axios.post(apiPath(fullPath), data);
+  }
+};
+
+export default api;
 
 export const apiService = {
   // Test server connection
   async healthCheck() {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
+      const response = await fetch(apiPath("/api/health"));
       return await response.json();
     } catch (error) {
       console.error('Health check failed:', error);
@@ -17,7 +29,7 @@ export const apiService = {
     try {
       console.log(`🚀 API: Generating scenarios for ${category}, Grade: ${gradeLevel}`);
       
-      const response = await fetch(`${API_BASE_URL}/generate-scenario`, {
+      const response = await fetch(apiPath("/api/generate-scenario"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +74,7 @@ export const apiService = {
     try {
       console.log(`🎯 API: Generating personalized feedback for grade ${gradeLevel}`);
       
-      const response = await fetch(`${API_BASE_URL}/generate-feedback`, {
+      const response = await fetch(apiPath("/api/generate-feedback"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -15,6 +15,7 @@ import {
   Trash2,
   Edit
 } from 'lucide-react';
+import { apiPath } from '../../utils/apiBase';
 
 function GoalsScreen({ userData, darkMode, onNavigate }) {
   const [goals, setGoals] = useState([]);
@@ -32,7 +33,6 @@ function GoalsScreen({ userData, darkMode, onNavigate }) {
   };
 
   // Configuration for API usage
-  const API_BASE_URL = 'http://localhost:3001';
   const USE_API = true; // Set to false to use localStorage only
   
   // localStorage key for goals
@@ -96,7 +96,7 @@ function GoalsScreen({ userData, darkMode, onNavigate }) {
       // If API is enabled and we have a userId, try to sync with backend
       if (USE_API && userId) {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/goals/${userId}`);
+          const response = await fetch(apiPath(`/api/goals/${userId}`));
           
           // Check if response is actually JSON
           const contentType = response.headers.get('content-type');
@@ -166,7 +166,7 @@ function GoalsScreen({ userData, darkMode, onNavigate }) {
       // If API is enabled, try to get AI recommendations
       if (USE_API && userId) {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/goals/generate-recommendations/${userId}`, {
+          const response = await fetch(apiPath(`/api/goals/generate-recommendations/${userId}`), {
             method: 'POST'
           });
 
@@ -272,7 +272,7 @@ function GoalsScreen({ userData, darkMode, onNavigate }) {
       // Optionally sync to API in background
       if (USE_API && userId) {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/goals/create`, {
+          const response = await fetch(apiPath("/api/goals/create"), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(goalData)
@@ -349,7 +349,7 @@ function GoalsScreen({ userData, darkMode, onNavigate }) {
       // Optionally sync to API in background
       if (USE_API && userId) {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/goals/create`, {
+          const response = await fetch(apiPath("/api/goals/create"), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(goalData)
@@ -394,7 +394,7 @@ function GoalsScreen({ userData, darkMode, onNavigate }) {
       // Optionally sync to API in background
       if (USE_API && userId) {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/goals/${goalId}`, {
+          const response = await fetch(apiPath(`/api/goals/${goalId}`), {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId })
