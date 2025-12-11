@@ -60,6 +60,10 @@ export default function useVoiceConversation({
   onError,
   onAudioBase64,      // NEW callback from Orb
   useEmotion = true,  // enable emotion sensing
+  disableTTS = false, // NEW: disable OpenAI TTS when using streaming avatar
+  onAIResponse,       // NEW: callback when AI responds (for streaming avatar to speak)
+  visualEmotionContext = null, // NEW: visual emotion from webcam (Hume face analysis)
+  voiceEmotionContext = null, // NEW: voice emotion from Hume EVI (real-time voice analysis)
 }) {
   // ---------------------------------------------------------------------------
   // STATE
@@ -82,11 +86,15 @@ export default function useVoiceConversation({
   const allowMicInputRef = useRef(true);
   const ttsLockRef = useRef(false);
   const lastEmotionRef = useRef(null);
+  const disableTTSRef = useRef(disableTTS);
+  const onAIResponseRef = useRef(onAIResponse);
 
   // Sync refs
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { scenarioRef.current = scenario; }, [scenario]);
+  useEffect(() => { disableTTSRef.current = disableTTS; }, [disableTTS]);
+  useEffect(() => { onAIResponseRef.current = onAIResponse; }, [onAIResponse]);
 
   // ---------------------------------------------------------------------------
   // OPENAI CLIENT INIT
@@ -134,7 +142,35 @@ export default function useVoiceConversation({
 
         stopRecognition(); // ALWAYS stop mic before TTS
 
-        // TTS PLAY
+        // If TTS is disabled (streaming avatar handles voice), just notify and return
+        // Use ref to get current value, not closure value
+        console.log("🔇 TTS check - disableTTSRef.current:", disableTTSRef.current);
+        if (disableTTSRef.current) {
+          console.log("🔇 TTS disabled - streaming avatar will speak");
+          console.log("🔇 onAIResponseRef.current exists:", !!onAIResponseRef.current);
+          setIsSpeaking(true);
+          onAudioStart?.();
+          onAIResponseRef.current?.(text); // Let streaming avatar handle it
+
+          // We'll rely on the avatar's onSpeakEnd to call onAudioComplete
+          // For now, set a reasonable timeout as fallback
+          const estimatedDuration = Math.max(3000, text.length * 60); // ~60ms per char
+          setTimeout(() => {
+            if (ttsLockRef.current) {
+              setIsSpeaking(false);
+              allowMicInputRef.current = true;
+              ttsLockRef.current = false;
+              onAudioComplete?.();
+
+              if (newPhase === PHASES.COMPLETE) {
+                onFinishSession?.(messagesRef.current);
+              }
+            }
+          }, estimatedDuration);
+          return;
+        }
+
+        // TTS PLAY (OpenAI)
         await playVoiceResponseWithOpenAI(text, {
           onAudioStart: () => {
             setIsSpeaking(true);
@@ -158,7 +194,7 @@ export default function useVoiceConversation({
         ttsLockRef.current = false;
       }
     },
-    [onAudioStart, onAudioComplete, onFinishSession]
+    [onAudioStart, onAudioComplete, onFinishSession, onPhaseChange]
   );
 
   // ---------------------------------------------------------------------------
@@ -378,6 +414,9 @@ export default function useVoiceConversation({
         }
 
         // AI RESPONSE
+        // Combine Hume EVI voice emotion with any backend emotion analysis
+        const combinedVoiceEmotion = voiceEmotionContext || emotionContext;
+
         const ai = await generateConversationResponse({
           openai: openaiRef.current,
           currentPhase: prevPhase,
@@ -387,7 +426,8 @@ export default function useVoiceConversation({
           difficulty: 1,
           scenario: scenarioRef.current,
           practiceHistory,
-          emotionContext // Pass emotion context if available
+          emotionContext: combinedVoiceEmotion, // Hume EVI voice emotion or backend emotion
+          visualEmotionContext // Visual/face emotion context if available
         });
 
         await speakAI(ai.aiResponse, ai.nextPhase);
@@ -436,6 +476,25 @@ export default function useVoiceConversation({
   }, []);
 
   // ---------------------------------------------------------------------------
+  // SIGNAL AVATAR SPEECH COMPLETION (for streaming avatar mode)
+  // Call this when the external avatar (Tavus/streaming) finishes speaking
+  // ---------------------------------------------------------------------------
+  const signalSpeechComplete = useCallback(() => {
+    console.log("🔊 signalSpeechComplete called - releasing TTS locks");
+    if (ttsLockRef.current) {
+      setIsSpeaking(false);
+      allowMicInputRef.current = true;
+      ttsLockRef.current = false;
+      onAudioComplete?.();
+
+      // Check if session is complete
+      if (phaseRef.current === PHASES.COMPLETE) {
+        onFinishSession?.(messagesRef.current);
+      }
+    }
+  }, [onAudioComplete, onFinishSession]);
+
+  // ---------------------------------------------------------------------------
   // RETURN HOOK API
   // ---------------------------------------------------------------------------
   return {
@@ -445,6 +504,7 @@ export default function useVoiceConversation({
     isLoading,
     startConversation,
     sendUserMessage,
-    resetConversation
+    resetConversation,
+    signalSpeechComplete  // NEW: Allow external components to signal speech completion
   };
 }

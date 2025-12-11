@@ -1,227 +1,139 @@
-// backend/routes/lesson.js — FULL NUCLEAR REBUILD
+// backend/routes/lesson.js — FULL REBUILD (Scenario Builder Engine)
 
 import express from "express";
 import OpenAI from "openai";
-import { runwayGenerate } from "../services/runwayService.js";
-import { analyzeEmotion } from "../services/humeService.js";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+// Load .env BEFORE creating OpenAI client
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-console.log("✅ LESSON.JS ROUTE FILE LOADED");
+import { generateLesson } from "../services/lessonGenerator.js";
+import { generateVideo } from "../services/heygenService.js";
+import { analyzeEmotion } from "../services/humeService.js";
 
 const router = express.Router();
 
+console.log("🔑 lesson.js - OPENAI_KEY loaded:", process.env.OPENAI_KEY ? "Yes" : "No");
+
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_KEY,
+  apiKey: process.env.OPENAI_KEY
 });
 
 /**
  * POST /api/lessons/start
- * Generates a complete lesson package:
- * - Intro
- * - Explanation
- * - Multi-step MCQ practice
- * - OpenAI video storyboard scenes
+ * Generates:
+ *  - warmup
+ *  - 3-turn practice
+ *  - wrap-up reflection prompt
+ *  - (optionally) video scenes
  */
 router.post("/start", async (req, res) => {
-  console.log("========== LESSON.JS /START HIT ==========");
-  console.log("📥 Raw body:", req.body);
-  
   try {
-    const { title, gradeLevel } = req.body;
-    
-    console.log("📥 Parsed - Title:", title, "| Grade:", gradeLevel);
-    
-    // Validate title exists
-    if (!title) {
-      console.log("❌ Missing title - returning 400");
-      return res.status(400).json({ success: false, error: "Title is required" });
-    }
-    
-    const topic = title; // Use title as topic for OpenAI prompt
+    const { topic, gradeLevel } = req.body;
 
-    const gradeHints = {
-      "K-2": "Use extremely simple words and friendly examples.",
-      "3-5": "Use elementary-level clarity with examples.",
-      "6-8": "Use middle-school level clarity, relatable situations.",
-      "9-12": "Use teen-appropriate nuance, realistic social dynamics."
-    };
-    const gradeHint = gradeHints[gradeLevel] || "Use age-appropriate clarity.";
+    const lesson = await generateLesson(topic, gradeLevel);
 
-    console.log("🚀 Calling OpenAI...");
+    // Generate video from videoScenes using HeyGen (AI avatar)
+    let videoUrl = null;
+    if (lesson.videoScenes && lesson.videoScenes.length > 0) {
+      try {
+        console.log("🎬 Generating HeyGen avatar video from scenes...");
+        // Create script from voiceovers for AI avatar to speak
+        const script = lesson.videoScenes
+          .map((s) => s.voiceover || s.narration || s.description || "")
+          .filter(text => text.trim().length > 0)
+          .join(" ");
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: "Return ONLY valid JSON that matches the schema. No extra prose."
-        },
-        {
-          role: "user",
-          content: `
-Generate a social-skills lesson about "${topic}" for grade ${gradeLevel}.
-Use this guidance: ${gradeHint}
-
-Return JSON in EXACT shape:
-
-{
-  "lesson": {
-    "id": "string",
-    "title": "string",
-    "introduction": {
-      "title": "string",
-      "objective": "string"
-    },
-    "explanation": {
-      "text": "string"
-    },
-    "practice": {
-      "steps": [
-        {
-          "id": "string",
-          "situation": "string",
-          "question": "string",
-          "options": [
-            { "id": "A", "text": "string", "isCorrect": false },
-            { "id": "B", "text": "string", "isCorrect": false },
-            { "id": "C", "text": "string", "isCorrect": false }
-          ],
-          "correctAnswer": "A",
-          "feedbackCorrect": "string",
-          "feedbackIncorrect": "string"
+        if (script) {
+          videoUrl = await generateVideo(script, gradeLevel, {
+            title: lesson.title || topic || "Social Skills Lesson"
+          });
+          console.log("✅ Video generated:", videoUrl ? "Success" : "No URL returned");
         }
-      ]
-    },
-    "video": {
-      "scenes": [
-        {
-          "id": "string",
-          "description": "string",
-          "shotType": "string",
-          "voiceover": "string"
-        }
-      ]
+      } catch (videoErr) {
+        console.warn("⚠️ Video generation failed (non-critical):", videoErr.message);
+        // Continue without video - don't fail the whole lesson
+      }
     }
-  }
-}
-`
-        }
-      ]
-    });
-
-    console.log("✅ OpenAI response received");
-
-    let generated;
-    try {
-      generated = JSON.parse(completion.choices[0].message.content);
-      console.log("✅ JSON parsed successfully");
-    } catch (parseErr) {
-      console.error("❌ JSON parse failure:", parseErr);
-      return res.status(200).json({
-        success: true,
-        lesson: {
-          id: "fallback",
-          title: topic,
-          introduction: {
-            title: `Learning About ${topic}`,
-            objective: "Understand this skill and how to apply it."
-          },
-          explanation: { text: "Let's work through this lesson together." },
-          practice: { steps: [] },
-          video: { scenes: [] }
-        }
-      });
-    }
-
-    console.log("✅ Returning lesson to frontend");
-    return res.json({
-      success: true,
-      lesson: generated.lesson
-    });
-
-  } catch (err) {
-    console.error("❌ Lesson start error:", err.message);
-    return res.status(500).json({
-      success: false,
-      error: err.message || "Lesson generation failed."
-    });
-  }
-});
-
-
-/**
- * POST /api/lessons/submit
- * Checks the learner's answer, returns feedback.
- */
-router.post("/submit", async (req, res) => {
-  try {
-    const { step, answer } = req.body;
-
-    if (!step || !answer) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing step or answer."
-      });
-    }
-
-    const correct = answer === step.correctAnswer;
 
     return res.json({
       success: true,
-      correct,
-      feedback: correct ? step.feedbackCorrect : step.feedbackIncorrect
+      lesson,
+      videoUrl,
     });
   } catch (err) {
-    console.error("Submit error:", err);
+    console.error("Lesson error:", err);
     return res.status(500).json({
       success: false,
-      error: err.message || "Submission failed."
+      error: err.message,
     });
   }
 });
-
 
 /**
  * POST /api/lessons/video
- * Takes OpenAI scenes → sends them to Runway → returns MP4 URL.
+ * Generates an AI avatar video using HeyGen
  */
 router.post("/video", async (req, res) => {
   try {
-    const { scenes, topic, gradeLevel } = req.body;
+    const { scenes, script, gradeLevel, title } = req.body;
 
-    if (!scenes || scenes.length === 0) {
+    let videoScript = script;
+
+    // If scenes provided, extract voiceovers into script
+    if (!videoScript && scenes && scenes.length > 0) {
+      videoScript = scenes
+        .map((s) => s.voiceover || s.narration || s.description || "")
+        .filter(text => text.trim().length > 0)
+        .join(" ");
+    }
+
+    if (!videoScript) {
       return res.status(400).json({
         success: false,
-        error: "Missing scene descriptions."
+        error: "No script or scenes provided"
       });
     }
 
-    // Build consolidated Runway prompt
-    const promptText = scenes.map(
-      (s, i) =>
-        `Scene ${i + 1}: ${s.description} — Shot: ${s.shotType}. Voiceover: "${s.voiceover}"`
-    ).join(" ");
-
-    console.log("🎬 Runway prompt:", promptText);
-
-    const videoUrl = await runwayGenerate(promptText, gradeLevel);
+    const videoUrl = await generateVideo(videoScript, gradeLevel, { title });
 
     return res.json({
       success: true,
-      videoUrl
+      videoUrl,
     });
-
   } catch (err) {
-    console.error("Video generation error:", err);
+    console.error("Video error:", err);
     return res.status(500).json({
       success: false,
-      error: err.message || "Video generation failed."
+      error: err.message,
     });
   }
 });
 
+/**
+ * POST /api/lessons/emotion
+ * Analyzes a 10–30 sec webcam clip
+ */
+router.post("/emotion", async (req, res) => {
+  try {
+    const { videoUrl } = req.body;
+    const analysis = await analyzeEmotion(videoUrl);
+
+    return res.json({
+      success: true,
+      analysis,
+    });
+  } catch (err) {
+    console.error("Emotion error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
 
 export default router;

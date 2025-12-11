@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { apiPath } from "../utils/apiBase";
 
 export default function WebcamEmotionMonitor({ onEmotion }) {
   const videoRef = useRef(null);
@@ -52,7 +53,7 @@ export default function WebcamEmotionMonitor({ onEmotion }) {
 
       // send to backend
       try {
-        const res = await fetch("/api/hume/emotion", {
+        const res = await fetch(apiPath("/api/hume/emotion"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageBase64: base64 }),
@@ -82,5 +83,6 @@ export default function WebcamEmotionMonitor({ onEmotion }) {
     />
   );
 }
+
 
 

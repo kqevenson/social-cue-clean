@@ -6,20 +6,19 @@ export function normalizeLesson(raw) {
   const lesson = { ...raw };
 
   // ---------------- INTRODUCTION ----------------
+  // Map warmup to introduction
   lesson.introduction = lesson.introduction || {};
-  lesson.introduction.title = lesson.introduction.title || "Social Skills Lesson";
-  lesson.introduction.objective = lesson.introduction.objective || "";
-  lesson.introduction.whyItMatters = lesson.introduction.whyItMatters || "";
+  lesson.introduction.title = lesson.introduction.title || lesson.title || "Social Skills Lesson";
+  lesson.introduction.objective = lesson.introduction.objective || lesson.warmup?.prompt || "";
+  lesson.introduction.whyItMatters = lesson.introduction.whyItMatters || lesson.warmup?.whyItMatters || "";
   lesson.introduction.estimatedTime = lesson.introduction.estimatedTime || "5-10 minutes";
 
   // ---------------- EXPLANATION ----------------
+  // Map content to explanation (use warmup as main concept if no explanation)
   const exp = lesson.explanation || {};
 
   lesson.explanation = {
-    mainConcept:
-      exp.mainConcept ||
-      exp.content ||
-      "This skill helps us interact in positive ways.",
+    mainConcept: exp.mainConcept || exp.content || lesson.warmup?.prompt || "This skill helps us interact in positive ways.",
     keyPoints: Array.isArray(exp.keyPoints) ? exp.keyPoints : ["Be respectful", "Listen", "Think before responding"],
     commonMistakes: Array.isArray(exp.commonMistakes)
       ? exp.commonMistakes
@@ -27,20 +26,20 @@ export function normalizeLesson(raw) {
   };
 
   // ---------------- PRACTICE ----------------
-  const practice = lesson.practice || lesson.practiceScenarios || {};
-  const scenarios =
-    practice.scenarios ||
-    practice.practiceScenarios ||
-    lesson.scenarios ||
-    [];
+  // Preserve practice.turns from OpenAI AND map to scenarios
+  const practice = lesson.practice || {};
+  const turns = practice.turns || [];
+  const scenarios = practice.scenarios || practice.practiceScenarios || [];
 
   lesson.practice = {
-    scenarios: Array.isArray(scenarios) ? scenarios : []
+    turns: Array.isArray(turns) ? turns : [],
+    scenarios: Array.isArray(scenarios) ? scenarios : turns  // Use turns as scenarios if no scenarios
   };
 
   // ---------------- SUMMARY ----------------
+  // Map wrapup to summary
   lesson.summary = lesson.summary || {};
-  lesson.summary.whatYouLearned = lesson.summary.whatYouLearned || "Great work practicing!";
+  lesson.summary.whatYouLearned = lesson.summary.whatYouLearned || lesson.wrapup?.prompt || "Great work practicing!";
   lesson.summary.keyTakeaway = lesson.summary.keyTakeaway || "Small social skills make a big difference.";
   lesson.summary.realWorldChallenge = lesson.summary.realWorldChallenge || "Try this skill today.";
   lesson.summary.nextTopic = lesson.summary.nextTopic || "More practice coming soon.";

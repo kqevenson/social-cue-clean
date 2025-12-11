@@ -145,7 +145,7 @@ export default function AIPracticeSession({
       console.log("✅ Using AI lesson data from lesson flow:", aiLesson.title || aiLesson.id);
       
       // Extract practice scenarios from the lesson
-      const scenarios = aiLesson.practice?.scenarios || aiLesson.practice?.steps || [];
+      const scenarios = aiLesson.practice?.turns || aiLesson.practice?.scenarios || aiLesson.practice?.steps || [];
       
       if (scenarios.length > 0) {
         setPracticeQuestions(scenarios);

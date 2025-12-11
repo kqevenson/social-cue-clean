@@ -3,6 +3,7 @@ dotenv.config();
 
 // ✅ ADD THIS IMPORT
 import lessonRouter from "./routes/lesson.js";
+import tavusRouter from "./routes/tavus.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -67,8 +68,11 @@ app.use(bodyParser.json());
 // app.use('/api/hume', humeRouter);
 
 // ✅ REGISTER THE LESSON ROUTER
-// This creates the real route: POST /api/lesson/generate
-app.use("/api/lesson", lessonRouter);
+// This creates the real route: POST /api/lessons/start
+app.use("/api/lessons", lessonRouter);
+
+// ✅ REGISTER TAVUS ROUTER for conversational video avatars
+app.use("/api/tavus", tavusRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -81,12 +85,183 @@ const HUME_API_KEY = process.env.HUME_API_KEY;
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_KEY
 });
 
 // Test endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: "Server is running!" });
+});
+
+// ============================================
+// HUME EVI ACCESS TOKEN ENDPOINT
+// ============================================
+// Generates a short-lived access token for Hume EVI WebSocket connection
+app.get('/api/hume/access-token', async (req, res) => {
+  const humeApiKey = process.env.HUME_API_KEY;
+  const humeSecret = process.env.HUME_CLIENT_SECRET;
+
+  if (!humeApiKey || !humeSecret) {
+    console.error('❌ Hume API credentials not configured');
+    return res.status(500).json({
+      error: 'Hume API credentials not configured',
+      details: 'Missing HUME_API_KEY or HUME_CLIENT_SECRET'
+    });
+  }
+
+  try {
+    // Get access token from Hume API
+    const response = await axios.post(
+      'https://api.hume.ai/oauth2-cc/token',
+      new URLSearchParams({
+        grant_type: 'client_credentials'
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        auth: {
+          username: humeApiKey,
+          password: humeSecret
+        }
+      }
+    );
+
+    const accessToken = response.data.access_token;
+    console.log('✅ Hume EVI access token generated');
+
+    res.json({
+      accessToken,
+      expiresIn: response.data.expires_in || 3600
+    });
+  } catch (error) {
+    console.error('❌ Failed to get Hume access token:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to get Hume access token',
+      details: error.response?.data?.error_description || error.message
+    });
+  }
+});
+
+// Diagnostic endpoint to test API keys
+app.get('/api/test-keys', (req, res) => {
+  const colossyanKey = process.env.COLOSSYAN_API_KEY;
+  const humeKey = process.env.HUME_API_KEY;
+  const humeSecret = process.env.HUME_CLIENT_SECRET;
+
+  console.log("🔑 Testing API Keys...");
+  console.log("   COLOSSYAN_API_KEY:", colossyanKey ? `${colossyanKey.substring(0, 10)}...` : "NOT SET");
+  console.log("   HUME_API_KEY:", humeKey ? `${humeKey.substring(0, 10)}...` : "NOT SET");
+  console.log("   HUME_CLIENT_SECRET:", humeSecret ? `${humeSecret.substring(0, 10)}...` : "NOT SET");
+
+  res.json({
+    colossyan: {
+      loaded: !!colossyanKey,
+      prefix: colossyanKey ? colossyanKey.substring(0, 10) + "..." : null
+    },
+    hume: {
+      apiKeyLoaded: !!humeKey,
+      secretLoaded: !!humeSecret,
+      apiKeyPrefix: humeKey ? humeKey.substring(0, 10) + "..." : null
+    }
+  });
+});
+
+// Test Colossyan API connection
+app.get('/api/test-colossyan', async (req, res) => {
+  const colossyanKey = process.env.COLOSSYAN_API_KEY;
+
+  if (!colossyanKey) {
+    return res.status(500).json({ success: false, error: "COLOSSYAN_API_KEY not configured" });
+  }
+
+  const keyInfo = {
+    prefix: colossyanKey.substring(0, 10) + "...",
+    length: colossyanKey.length
+  };
+
+  try {
+    // Test by listing generated videos (correct endpoint)
+    const response = await axios.get(
+      "https://app.colossyan.com/api/v1/generated-videos?limit=1",
+      {
+        headers: {
+          "Authorization": `Bearer ${colossyanKey}`
+        }
+      }
+    );
+
+    console.log("✅ Colossyan API connection successful");
+    res.json({
+      success: true,
+      message: "Colossyan API connected",
+      keyInfo,
+      note: "Ready to generate AI avatar educational videos"
+    });
+  } catch (err) {
+    console.error("❌ Colossyan API test failed:", err.response?.data || err.message);
+    res.json({
+      success: false,
+      error: err.response?.data?.error || err.response?.data?.message || err.message,
+      status: err.response?.status,
+      keyInfo,
+      hint: "Check your API key at colossyan.com"
+    });
+  }
+});
+
+// Test Hume API connection
+app.get('/api/test-hume', async (req, res) => {
+  const humeKey = process.env.HUME_API_KEY;
+  const humeSecret = process.env.HUME_CLIENT_SECRET;
+
+  if (!humeKey) {
+    return res.status(500).json({ success: false, error: "HUME_API_KEY not configured" });
+  }
+
+  const keyInfo = {
+    apiKeyLength: humeKey.length,
+    apiKeyPrefix: humeKey.substring(0, 10),
+    secretConfigured: !!humeSecret
+  };
+
+  try {
+    // Test by listing jobs (doesn't create anything)
+    const response = await axios.get(
+      "https://api.hume.ai/v0/batch/jobs",
+      {
+        headers: {
+          "X-Hume-Api-Key": humeKey
+        }
+      }
+    );
+
+    console.log("✅ Hume API connection successful");
+    res.json({
+      success: true,
+      message: "Hume API connected",
+      jobsFound: response.data?.length || 0,
+      keyInfo
+    });
+  } catch (err) {
+    console.error("❌ Hume API test failed:", err.response?.data || err.message);
+
+    // Check for specific error types
+    const errorData = err.response?.data;
+    const isInvalidKey = errorData?.fault?.faultstring === "Invalid ApiKey" ||
+                         errorData?.fault?.detail?.errorcode === "oauth.v2.InvalidApiKey";
+
+    res.json({
+      success: false,
+      error: isInvalidKey ? "Invalid API Key" : (errorData?.fault?.faultstring || err.message),
+      status: err.response?.status,
+      keyInfo,
+      hint: isInvalidKey
+        ? "Your Hume API key is invalid or expired. Get a new one from https://platform.hume.ai/settings/keys"
+        : "Check your API key at https://platform.hume.ai/settings/keys",
+      emotionDetectionStatus: "disabled - will skip emotion detection gracefully"
+    });
+  }
 });
 
 // Firebase connection test endpoint
@@ -2201,39 +2376,366 @@ app.post("/api/classroom/video", async (req, res) => {
 });
 
 // ============================
-// RUNWAY GEN-4 REAL WORLD VIDEO
+// COLOSSYAN AI AVATAR VIDEO GENERATION
 // ============================
+const COLOSSYAN_API_BASE = "https://app.colossyan.com/api/v1";
+
 app.post("/api/video/generate-realworld", async (req, res) => {
   try {
-    const { gradeLevel, topicId } = req.body;
+    const { gradeLevel, topicId, script } = req.body;
 
-    // Simple inline prompt — buildScenePrompt was a frontend utility
-    const prompt = `Create a short real-world video (3-6 seconds) for a grade ${gradeLevel} student practicing the social skill: ${topicId || 'social interaction'}. Show 2-4 people interacting naturally in a realistic setting with clear emotional expressions.`;
+    if (!process.env.COLOSSYAN_API_KEY) {
+      return res.json({
+        success: false,
+        error: "Colossyan API key not configured",
+        videoUrl: null
+      });
+    }
 
-    const runwayResponse = await axios.post(
-      "https://api.runwayml.com/v1/generations",
-      {
-        model: "gen-4-turbo",
-        prompt: prompt,
-        size: "1280x720"
-      },
+    // Generate a script if not provided
+    const videoScript = script || `Hello! Let's practice a social skill today. We're going to learn about ${topicId || 'social interaction'}. Watch carefully and think about how the people in this scenario are feeling and communicating.`;
+
+    console.log("🎬 Creating Colossyan avatar video...");
+
+    // Avatar selection based on grade level
+    const avatarConfig = ["K-2", "3-5"].includes(gradeLevel)
+      ? { name: "nina1", voice: "Mnp10f391U8qfaHTmj81" }  // Friendly female for younger
+      : { name: "lisa1", voice: "English_witty_female_1" }; // Professional for older
+
+    // Build the video creative payload per Colossyan API docs
+    const payload = {
+      videoCreative: {
+        settings: {
+          name: `Social Skills: ${topicId || 'Lesson'}`,
+          videoSize: {
+            width: 1920,
+            height: 1080
+          },
+          alphaChannel: false
+        },
+        scenes: [
+          {
+            name: "main",
+            duration: Math.max(10, Math.ceil(videoScript.length / 15)),
+            tracks: [
+              {
+                type: "actor",
+                variant: "full_body",
+                view: "front",
+                actor: avatarConfig.name,
+                text: videoScript,
+                speakerId: avatarConfig.voice,
+                position: { x: 420, y: 0 },
+                size: { width: 1080, height: 1080 },
+                rotation: 0
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    const response = await axios.post(
+      `${COLOSSYAN_API_BASE}/video-generation-jobs`,
+      payload,
       {
         headers: {
-          Authorization: `Bearer ${process.env.RUNWAY_API_KEY}`,
+          "Authorization": `Bearer ${process.env.COLOSSYAN_API_KEY}`,
           "Content-Type": "application/json"
         }
       }
     );
 
-    const videoUrl = runwayResponse.data?.output?.[0]?.url;
-    res.json({ success: true, videoUrl, provider: "runway" });
+    const jobId = response.data?.id;
+    const videoId = response.data?.videoId;
+
+    if (!jobId && !videoId) {
+      console.log("Colossyan response:", response.data);
+      return res.status(500).json({ success: false, error: "Failed to start video generation" });
+    }
+
+    console.log("🎬 Colossyan job created:", jobId, "videoId:", videoId);
+
+    // Poll for video completion
+    const videoUrl = await pollColossyanVideo(jobId || videoId, videoId);
+    if (!videoUrl) {
+      return res.status(500).json({ success: false, error: "Video generation timed out or failed" });
+    }
+
+    res.json({ success: true, videoUrl, provider: "colossyan" });
 
   } catch (err) {
-    console.error("❌ Runway video error:", err.response?.data || err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("❌ Colossyan video error:", err.response?.data || err);
+    res.status(500).json({ success: false, error: err.response?.data?.error || err.message });
   }
 });
 
+// Helper function to poll Colossyan video status
+async function pollColossyanVideo(jobId, videoId) {
+  const maxAttempts = 60; // Max 5 minutes
+  const pollInterval = 5000; // 5 seconds between polls
+
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+    try {
+      // Check job status
+      const jobResponse = await axios.get(
+        `${COLOSSYAN_API_BASE}/video-generation-jobs/${jobId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${process.env.COLOSSYAN_API_KEY}`
+          }
+        }
+      );
+
+      const status = jobResponse.data?.status;
+      console.log(`🎬 Colossyan job ${jobId} status: ${status}`);
+
+      if (status === "finished" || status === "completed" || status === "ready") {
+        // Get the actual video URL
+        const vid = jobResponse.data?.videoId || videoId;
+        if (vid) {
+          const videoResponse = await axios.get(
+            `${COLOSSYAN_API_BASE}/generated-videos/${vid}`,
+            {
+              headers: {
+                "Authorization": `Bearer ${process.env.COLOSSYAN_API_KEY}`
+              }
+            }
+          );
+          const videoUrl = videoResponse.data?.publicUrl || videoResponse.data?.url;
+          console.log("✅ Colossyan video ready:", videoUrl);
+          return videoUrl;
+        }
+      }
+
+      if (status === "failed" || status === "error") {
+        console.error("❌ Colossyan video failed:", jobResponse.data?.error);
+        return null;
+      }
+    } catch (err) {
+      if (err.response?.status !== 404) {
+        console.error("❌ Error polling Colossyan:", err.response?.data || err.message);
+      }
+    }
+  }
+
+  console.warn("⚠️ Colossyan video timed out after 5 minutes");
+  return null;
+}
+
+
+// =======================================================
+// HUME EMOTION DETECTION ENDPOINTS
+// =======================================================
+
+// -------------------------
+// REAL-TIME IMAGE EMOTION DETECTION (for webcam frames)
+// -------------------------
+app.post("/api/hume/emotion", async (req, res) => {
+  try {
+    const { imageBase64 } = req.body;
+
+    if (!imageBase64) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing imageBase64"
+      });
+    }
+
+    // Return neutral emotions gracefully if API key not configured
+    if (!HUME_API_KEY) {
+      return res.json({
+        success: true,
+        emotions: [{ emotions: { neutral: 0.5 } }],
+        note: "Hume API not configured - returning default"
+      });
+    }
+
+    // Use Hume's batch API with base64 image data
+    const response = await axios.post(
+      "https://api.hume.ai/v0/batch/jobs",
+      {
+        models: {
+          face: {}
+        },
+        files: [
+          {
+            content_type: "image/jpeg",
+            data: imageBase64
+          }
+        ]
+      },
+      {
+        headers: {
+          "X-Hume-Api-Key": HUME_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    // Batch jobs are async - get job ID and poll for results
+    const jobId = response.data?.job_id;
+    if (!jobId) {
+      // Try to get immediate results if available
+      return res.json({
+        success: true,
+        emotions: response.data?.predictions || []
+      });
+    }
+
+    // Poll for job completion (with timeout)
+    const maxAttempts = 10;
+    const pollInterval = 500;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const statusResponse = await axios.get(
+        `https://api.hume.ai/v0/batch/jobs/${jobId}/predictions`,
+        {
+          headers: {
+            "X-Hume-Api-Key": HUME_API_KEY
+          }
+        }
+      );
+
+      if (statusResponse.data && statusResponse.data.length > 0) {
+        // Extract emotions from face predictions
+        const predictions = statusResponse.data[0]?.results?.predictions?.[0]?.models?.face?.grouped_predictions?.[0]?.predictions || [];
+
+        const emotions = predictions.map(pred => ({
+          emotions: pred.emotions?.reduce((acc, e) => {
+            acc[e.name] = e.score;
+            return acc;
+          }, {}) || {}
+        }));
+
+        return res.json({
+          success: true,
+          emotions: emotions.length > 0 ? emotions : [{ emotions: { neutral: 0.5 } }]
+        });
+      }
+    }
+
+    // Timeout - return neutral
+    return res.json({
+      success: true,
+      emotions: [{ emotions: { neutral: 0.5 } }]
+    });
+
+  } catch (err) {
+    console.error("❌ Hume emotion detection error:", err.response?.data || err.message);
+    // Return neutral emotions on error to not break the UI
+    return res.json({
+      success: true,
+      emotions: [{ emotions: { neutral: 0.5 } }]
+    });
+  }
+});
+
+// -------------------------
+// REAL-TIME AUDIO EMOTION DETECTION (WebSocket streaming)
+// -------------------------
+// For real-time audio analysis during practice sessions
+app.post("/api/hume/analyze-audio", async (req, res) => {
+  try {
+    const { audioBase64 } = req.body;
+
+    if (!audioBase64) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing audioBase64"
+      });
+    }
+
+    if (!HUME_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: "Hume API key not configured"
+      });
+    }
+
+    // Use Hume's batch API for prosody analysis
+    const response = await axios.post(
+      "https://api.hume.ai/v0/batch/jobs",
+      {
+        models: {
+          prosody: {}
+        },
+        files: [
+          {
+            content_type: "audio/wav",
+            data: audioBase64
+          }
+        ]
+      },
+      {
+        headers: {
+          "X-Hume-Api-Key": HUME_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const jobId = response.data?.job_id;
+    if (!jobId) {
+      return res.json({
+        success: true,
+        emotions: null
+      });
+    }
+
+    // Poll for completion
+    const maxAttempts = 15;
+    const pollInterval = 500;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const statusResponse = await axios.get(
+        `https://api.hume.ai/v0/batch/jobs/${jobId}/predictions`,
+        {
+          headers: {
+            "X-Hume-Api-Key": HUME_API_KEY
+          }
+        }
+      );
+
+      if (statusResponse.data && statusResponse.data.length > 0) {
+        const prosodyResults = statusResponse.data[0]?.results?.predictions?.[0]?.models?.prosody?.grouped_predictions?.[0]?.predictions || [];
+
+        if (prosodyResults.length > 0) {
+          const emotions = prosodyResults[0].emotions || [];
+          const sorted = emotions.sort((a, b) => b.score - a.score);
+          const topEmotion = sorted[0];
+
+          return res.json({
+            success: true,
+            emotions: {
+              dominant: topEmotion?.name || "neutral",
+              intensity: topEmotion?.score || 0.5,
+              all: emotions
+            }
+          });
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      emotions: null
+    });
+
+  } catch (err) {
+    console.error("❌ Hume audio analysis error:", err.response?.data || err.message);
+    return res.json({
+      success: true,
+      emotions: null
+    });
+  }
+});
 
 // =======================================================
 // PATCH 2 — Hume Video Emotion Analysis
@@ -2325,52 +2827,52 @@ app.post("/api/hume/analyze-video", async (req, res) => {
 // -------------------------------
 // ADD NEW UNIFIED LESSON ENDPOINT
 // -------------------------------
-app.post('/api/lessons/start', async (req, res) => {
-  try {
-    console.log("🔥 /api/lessons/start called");
-
-    const { title, lessonId, gradeLevel } = req.body;
-
-    // Validate input
-    if (!title || !gradeLevel) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields: title, gradeLevel"
-      });
-    }
-
-    // -------------------------------------
-    // 1. CALL EXISTING LESSON GENERATOR API
-    // -------------------------------------
-    // ✅ CALL THE NEW OPENAI LESSON GENERATOR
-    const lessonResponse = await axios.post(
-      `${BASE}/api/lesson/generate`,
-      {
-        topic: title,
-        gradeLevel
-      }
-    );
-
-    const lesson = lessonResponse.data.lesson;
-
-    // -------------------------------------
-    // 2. RETURN LESSON + OPTIONAL VIDEO URL
-    // -------------------------------------
-    return res.json({
-      success: true,
-      lesson,
-      videoUrl: null // placeholder for future video integration
-    });
-
-  } catch (error) {
-    console.error("❌ Error in /api/lessons/start:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
+// DISABLED: app.post('/api/lessons/start', async (req, res) => {
+// DISABLED:   try {
+// DISABLED:     console.log("🔥 /api/lessons/start called");
+// DISABLED: 
+// DISABLED:     const { title, lessonId, gradeLevel } = req.body;
+// DISABLED: 
+// DISABLED:     // Validate input
+// DISABLED:     if (!title || !gradeLevel) {
+// DISABLED:       return res.status(400).json({
+// DISABLED:         success: false,
+// DISABLED:         error: "Missing required fields: title, gradeLevel"
+// DISABLED:       });
+// DISABLED:     }
+// DISABLED: 
+// DISABLED:     // -------------------------------------
+// DISABLED:     // 1. CALL EXISTING LESSON GENERATOR API
+// DISABLED:     // -------------------------------------
+// DISABLED:     // ✅ CALL THE NEW OPENAI LESSON GENERATOR
+// DISABLED:     const lessonResponse = await axios.post(
+// DISABLED:       `${BASE}/api/lessons/start`,
+// DISABLED:       {
+// DISABLED:         topic: title,
+// DISABLED:         gradeLevel
+// DISABLED:       }
+// DISABLED:     );
+// DISABLED: 
+// DISABLED:     const lesson = lessonResponse.data.lesson;
+// DISABLED: 
+// DISABLED:     // -------------------------------------
+// DISABLED:     // 2. RETURN LESSON + OPTIONAL VIDEO URL
+// DISABLED:     // -------------------------------------
+// DISABLED:     return res.json({
+// DISABLED:       success: true,
+// DISABLED:       lesson,
+// DISABLED:       videoUrl: null // placeholder for future video integration
+// DISABLED:     });
+// DISABLED: 
+// DISABLED:   } catch (error) {
+// DISABLED:     console.error("❌ Error in /api/lessons/start:", error);
+// DISABLED:     res.status(500).json({
+// DISABLED:       success: false,
+// DISABLED:       error: error.message
+// DISABLED:     });
+// DISABLED:   }
+// DISABLED: });
+// DISABLED: 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
@@ -2576,5 +3078,64 @@ CRITICAL INSTRUCTION: When you receive a message that says "RESPOND WITH EXACTLY
   } catch (error) {
     console.error('❌ Voice conversation error:', error);
     return res.status(500).json({ error: error.message || 'Voice conversation failed' });
+  }
+});
+
+// ============================================
+// AI Conversation Analysis for Incognito Mode
+// ============================================
+app.post('/api/ai/analyze-conversation', async (req, res) => {
+  if (!openai) {
+    return res.status(500).json({ error: 'OpenAI API key not configured' });
+  }
+
+  const { transcript, gradeLevel = '6', sessionDuration = 0 } = req.body || {};
+
+  if (!transcript || transcript.length < 10) {
+    return res.json({ suggestion: null, reason: 'Transcript too short' });
+  }
+
+  try {
+    const systemPrompt = `You are an AI coach analyzing a student's conversation in real-time.
+Your job is to provide ONE brief coaching suggestion based on their speech patterns.
+
+Grade level: ${gradeLevel}
+Session duration: ${sessionDuration} seconds
+
+Analyze the transcript and return ONLY ONE of these suggestion codes (or null if no suggestion needed):
+- "ask_question" - if they should ask the other person a question
+- "slow_down" - if they seem to be speaking too fast or rambling
+- "take_breath" - if they seem nervous or overwhelmed
+- "your_turn" - if there's been a long pause and they should speak
+- "good_job" - if they're doing well and deserve encouragement
+- "be_confident" - if they seem unsure of themselves
+- "listen_more" - if they're dominating the conversation
+
+Return JSON format: { "suggestion": "code_here" or null, "confidence": 0.0-1.0 }
+
+Only suggest if confidence > 0.6. Don't over-coach.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Analyze this transcript:\n\n"${transcript}"` }
+      ],
+      max_tokens: 100,
+      temperature: 0.3,
+      response_format: { type: 'json_object' }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+
+    // Only return suggestion if confidence is high enough
+    if (result.confidence && result.confidence < 0.6) {
+      return res.json({ suggestion: null, reason: 'Low confidence' });
+    }
+
+    return res.json({ suggestion: result.suggestion || null });
+  } catch (error) {
+    console.error('❌ AI conversation analysis error:', error);
+    return res.status(500).json({ error: error.message });
   }
 });

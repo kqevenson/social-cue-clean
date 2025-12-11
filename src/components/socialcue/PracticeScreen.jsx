@@ -10,6 +10,13 @@ import {
 import { AI_BEHAVIOR_CONFIG } from "../../content/training/AIBehaviorConfig";
 import { ArrowRight } from "lucide-react";
 import { savePracticeHistory } from "../../services/savePracticeHistory";
+import { generateSceneBackground } from "../../services/dalleImageService";
+import {
+  createSceneContext,
+  setSceneBackgroundImage,
+  clearSceneContext,
+  getSceneDataForDallE
+} from "../../services/sceneContextManager";
 
 const PracticeScreen = ({ darkMode }) => {
   const [userGradeBand, setUserGradeBand] = useState("6-8");
@@ -19,6 +26,8 @@ const PracticeScreen = ({ darkMode }) => {
   const [selectedSession, setSelectedSession] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sessionSummary, setSessionSummary] = useState(null);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState(null);
+  const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
 
   useEffect(() => {
     try {
@@ -62,11 +71,42 @@ const PracticeScreen = ({ darkMode }) => {
         topicName={pendingTopic.title}
         gradeLevel={userGradeNumber}
         learnerName={learnerName}
-        onStartSession={(scenarioObject) => {
+        onStartSession={async (scenarioObject) => {
+          // Clear any previous scene context
+          clearSceneContext();
+
+          // Create FIXED scene context for this entire session
+          const sceneContext = createSceneContext(scenarioObject, userGradeBand);
+          console.log("🎬 Scene context created:", sceneContext.fullScenarioPrompt);
+
+          // Start generating background image (don't block session start)
+          setIsGeneratingBackground(true);
+          setBackgroundImageUrl(null);
+
+          // Generate DALL-E background using scene context data
+          const promptData = getSceneDataForDallE();
+          generateSceneBackground(promptData)
+            .then((imageUrl) => {
+              if (imageUrl) {
+                setBackgroundImageUrl(imageUrl);
+                // Store in scene context manager for persistence
+                setSceneBackgroundImage(imageUrl);
+                console.log("🎨 Background image ready and stored in context");
+              }
+            })
+            .catch((err) => {
+              console.warn("Background generation failed (non-critical):", err);
+            })
+            .finally(() => {
+              setIsGeneratingBackground(false);
+            });
+
+          // Start session immediately (don't wait for image)
           setSelectedSession({
             scenario: scenarioObject,
             learnerName: learnerName,
             gradeLevel: userGradeBand,
+            sceneContext: sceneContext, // Pass scene context to session
           });
           setPendingTopic(null);
         }}
@@ -114,8 +154,14 @@ const PracticeScreen = ({ darkMode }) => {
         learnerName={selectedSession.learnerName}
         behaviorConfig={AI_BEHAVIOR_CONFIG}
         autoStart={true}
+        backgroundImageUrl={backgroundImageUrl}
+        isLoadingBackground={isGeneratingBackground}
         onEndSession={async (data) => {
           console.log("📊 Practice session complete:", data);
+
+          // Clear the scene context when session ends
+          clearSceneContext();
+          console.log("🧹 Scene context cleared");
 
           if (data?.progress) {
             try {
@@ -123,17 +169,17 @@ const PracticeScreen = ({ darkMode }) => {
               const stored = localStorage.getItem("socialCueUserData");
               const userData = stored ? JSON.parse(stored) : {};
               const userId = userData?.userId || userData?.id || "guest";
-              
+
               // Use sessionCompletedAt as sessionId
               const sessionId = data.progress.sessionCompletedAt || new Date().toISOString();
-              
+
               // Save complete progress object to Firestore
               await savePracticeHistory(userId, sessionId, data.progress);
               console.log("✅ Progress saved to Firestore");
             } catch (err) {
               console.error("❌ Error saving progress:", err);
             }
-            
+
             // 🚀 SHOW SUMMARY SCREEN
             setSessionSummary(data.progress);
           }

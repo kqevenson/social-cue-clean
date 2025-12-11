@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { lessonApiService } from "../services/lessonApi.js";
-import LessonViewScreen from "../screens/LessonViewScreen.jsx";
+import LessonWarmupScreen from "../screens/LessonWarmupScreen.jsx";
+import { startLesson } from "../services/lessonApi.js";
 
 export default function LessonSelector() {
   const [currentLesson, setCurrentLesson] = useState(null);
@@ -8,53 +8,41 @@ export default function LessonSelector() {
   const topics = [
     { title: "Small Talk", gradeLevel: "6" },
     { title: "Confidence", gradeLevel: "6" },
-    { title: "Joining Conversations", gradeLevel: "6" },
+    { title: "Joining Conversations", gradeLevel: "6" }
   ];
 
   async function handleStartLesson(topicObj) {
     try {
-      const res = await lessonApiService.startLesson({
-        title: topicObj.title,
-        gradeLevel: topicObj.gradeLevel
-      });
-      setCurrentLesson(res.lesson);
+      const lesson = await startLesson(topicObj.title, topicObj.gradeLevel);
+      setCurrentLesson(lesson);
     } catch (err) {
       console.error("❌ Lesson failed:", err);
     }
   }
 
   if (currentLesson) {
-    return (
-      <LessonViewScreen
-        lesson={currentLesson}
-        onBack={() => setCurrentLesson(null)}
-      />
-    );
+    return <LessonWarmupScreen lesson={currentLesson} goBack={() => setCurrentLesson(null)} />;
   }
 
   return (
     <div style={{ padding: 20, color: "white" }}>
-      <h1 style={{ fontSize: "28px", fontWeight: "bold" }}>
-        Choose a Lesson
-      </h1>
+      <h1 style={{ fontSize: 26, fontWeight: "bold" }}>Choose a Lesson</h1>
 
       {topics.map((t) => (
         <button
           key={t.title}
           onClick={() => handleStartLesson(t)}
           style={{
-            display: "block",
-            padding: "15px 20px",
             marginTop: 10,
-            background: "#1f1f1f",
+            padding: 14,
+            width: "100%",
+            background: "#1e1e1e",
             borderRadius: 8,
             color: "white",
-            border: "1px solid #333",
-            width: "100%",
-            textAlign: "left",
+            border: "1px solid #333"
           }}
         >
-          {t.title} (Grade {t.gradeLevel})
+          {t.title}
         </button>
       ))}
     </div>

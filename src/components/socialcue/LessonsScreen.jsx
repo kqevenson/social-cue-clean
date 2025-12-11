@@ -313,16 +313,30 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
         gradeLevel,
       });
 
-      // Store loaded lesson in localStorage
-      localStorage.setItem(
-        "currentLessonData",
-        JSON.stringify({
-          aiLesson: response.lesson,
-          videoUrl: response.videoUrl,
-          id: lesson.id,
-          title: lesson.title
-        })
-      );
+      console.log("📦 API Response received:", {
+        hasResponse: !!response,
+        hasLesson: !!response.lesson,
+        lessonType: typeof response.lesson,
+        lessonKeys: response.lesson ? Object.keys(response.lesson) : null,
+        videoUrl: response.videoUrl
+      });
+
+      // Store loaded lesson in localStorage BEFORE navigating
+      const lessonData = {
+        aiLesson: response.lesson,
+        videoUrl: response.videoUrl,
+        id: lesson.id,
+        title: lesson.title
+      };
+      console.log("📦 Storing lesson data:", lessonData);
+      localStorage.setItem("currentLessonData", JSON.stringify(lessonData));
+      
+      // Verify it was stored
+      const stored = JSON.parse(localStorage.getItem("currentLessonData") || "{}");
+      console.log("📦 Verified stored data:", {
+        hasAiLesson: !!stored.aiLesson,
+        aiLessonKeys: stored.aiLesson ? Object.keys(stored.aiLesson) : null
+      });
 
       //-----------------------------------------------------------
       // 4. Navigate to AI lesson session

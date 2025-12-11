@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star } from 'lucide-react';
+import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, UserCircle } from 'lucide-react';
 import { apiPath } from '../utils/apiBase';
 import { getUserData, saveUserData } from './socialcue/utils/storage';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
 import HomeScreen from './socialcue/HomeScreen';
 import PracticeScreen from './socialcue/PracticeScreen';
 import PracticeSessionResults from './socialcue/PracticeSessionResults';
+import PracticeSummaryScreen from '../screens/PracticeSummaryScreen';
 import ProgressScreen from './socialcue/ProgressScreen';
 import SettingsScreen from './socialcue/SettingsScreen';
 import ParentDashboard from './socialcue/ParentDashboard';
@@ -16,6 +17,7 @@ import LessonsScreen from './socialcue/LessonsScreen';
 import LearningPreferencesScreen from './socialcue/LearningPreferencesScreen';
 import GoalsScreen from './socialcue/GoalsScreen';
 import BottomNav from './socialcue/BottomNav';
+import IncognitoModeScreen from '../screens/IncognitoModeScreen';
 
 function SocialCueApp({ onLogout }) {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -61,7 +63,7 @@ function SocialCueApp({ onLogout }) {
         { id: 'home', label: 'Home', icon: Home },
         { id: 'lessons', label: 'Lessons', icon: BookOpen },
         { id: 'practice', label: 'Practice', icon: Target },
-        { id: 'goals', label: 'Goals', icon: Star },
+        { id: 'choose-coach', label: 'Coach', icon: UserCircle },
         { id: 'progress', label: 'Progress', icon: TrendingUp },
         { id: 'settings', label: 'Settings', icon: Settings }
       ];
@@ -69,15 +71,31 @@ function SocialCueApp({ onLogout }) {
   };
 
   // Define handleNavigate early using useCallback so it can be used in useEffect
-  const handleNavigate = useCallback((screen, sid) => {
-    console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
+  const handleNavigate = useCallback((screen, propsOrSessionId) => {
+    console.log('🧭 Navigating to:', screen, propsOrSessionId ? JSON.stringify(propsOrSessionId).slice(0, 100) : '');
     setCurrentScreen(screen);
+
+    // Handle props object (for screens like practice-summary)
+    if (propsOrSessionId && typeof propsOrSessionId === 'object') {
+      setScreenProps(propsOrSessionId);
+      // If it contains sessionId, also set that
+      if (propsOrSessionId.sessionId) {
+        setSessionId(propsOrSessionId.sessionId);
+      }
+      // Reload user data
+      const data = getUserData();
+      setUserData(data);
+      return;
+    }
+
+    // Handle simple sessionId (number)
+    const sid = propsOrSessionId;
     if (sid) {
       setSessionId(sid);
       // Set topicName based on sessionId
       const topicMap = {
         1: 'Small Talk Basics',
-        2: 'Active Listening', 
+        2: 'Active Listening',
         3: 'Reading Body Language',
         4: 'Building Confidence',
         5: 'Conflict Resolution',
@@ -86,7 +104,7 @@ function SocialCueApp({ onLogout }) {
         8: 'Assertiveness'
       };
       const topicName = topicMap[sid] || 'Social Skills';
-      
+
       // Update user data with topicName
       const currentData = getUserData();
       const updatedData = { ...currentData, topicName };
@@ -132,11 +150,14 @@ function SocialCueApp({ onLogout }) {
   // Register navigation event listener *after* handleNavigate exists
   useEffect(() => {
     function onNav(e) {
-      const screen = e.detail?.screen;
-      const props = e.detail?.props || {};
+      const detail = e.detail || {};
+      const screen = detail.screen;
 
       if (screen) {
-        handleNavigate(screen, props);
+        // Pass all detail properties except 'screen' as props
+        const { screen: _, ...props } = detail;
+        const hasProps = Object.keys(props).length > 0;
+        handleNavigate(screen, hasProps ? props : undefined);
       }
     }
 
@@ -357,21 +378,44 @@ function SocialCueApp({ onLogout }) {
         )}
 
         {currentScreen === 'practice-summary' && (
-          <PracticeSessionResults
-            progress={screenProps?.progress}
-            darkMode={darkMode}
-            onNavigate={handleNavigate}
+          screenProps?.conversationId ? (
+            <PracticeSummaryScreen
+              conversationId={screenProps?.conversationId}
+              scenario={screenProps?.scenario}
+              messages={screenProps?.messages || []}
+              onNavigate={handleNavigate}
+              onClose={() => handleNavigate('home')}
+            />
+          ) : (
+            <PracticeSessionResults
+              progress={screenProps?.progress}
+              darkMode={darkMode}
+              onNavigate={handleNavigate}
+            />
+          )
+        )}
+
+        {currentScreen === 'choose-coach' && (
+          <IncognitoModeScreen
+            gradeLevel={userData?.gradeLevel || '6-8'}
+            onBack={() => handleNavigate('home')}
+            onSessionComplete={(summary) => {
+              console.log('Incognito session complete:', summary);
+            }}
           />
         )}
-      </div>
 
-      <BottomNav 
-        currentScreen={currentScreen}
-        onNavigate={handleNavigate}
-        darkMode={darkMode}
-        navItems={navItems}
-        newGoalsCount={newGoalsCount}
-      />
+              </div>
+
+      {currentScreen !== 'choose-coach' && (
+        <BottomNav
+          currentScreen={currentScreen}
+          onNavigate={handleNavigate}
+          darkMode={darkMode}
+          navItems={navItems}
+          newGoalsCount={newGoalsCount}
+        />
+      )}
 
         <style>{`
           .custom-scrollbar::-webkit-scrollbar { height: 8px; }

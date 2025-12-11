@@ -1,20 +1,22 @@
-// backend/services/runwayService.js — NUCLEAR REWRITE
+// backend/services/runwayService.js — Runway API v1 (image_to_video)
 
 import axios from "axios";
 import { ENV } from "../config/env.js";
 
-/**
- * runwayGenerate(promptText, gradeLevel)
- *
- * Accepts:
- * - promptText → combined scenes / storyboard text
- * - gradeLevel → optional, shapes tone/vibe
- *
- * Returns:
- * - Final MP4 URL from RunwayML
- */
+const RUNWAY_API_BASE = "https://api.dev.runwayml.com/v1";
+const RUNWAY_API_VERSION = "2024-11-06";
+const POLL_INTERVAL_MS = 5000; // 5 seconds between polls
+const MAX_POLL_ATTEMPTS = 60; // Max 5 minutes wait
 
-export async function runwayGenerate(promptText, gradeLevel = "6") {
+/**
+ * runwayGenerate(promptText, gradeLevel, imageUrl)
+ *
+ * NOTE: Runway API only supports image_to_video (not text_to_video)
+ * If no imageUrl provided, we'll use OpenAI DALL-E to generate a starting image
+ *
+ * Returns: Final MP4 URL or null on failure
+ */
+export async function runwayGenerate(promptText, gradeLevel = "6", imageUrl = null) {
   try {
     // Check if Runway key exists
     if (!ENV.RUNWAY_KEY || ENV.RUNWAY_KEY === 'placeholder') {
@@ -22,7 +24,7 @@ export async function runwayGenerate(promptText, gradeLevel = "6") {
       return null;
     }
 
-    // Grade-level styling (better visuals for certain age groups)
+    // Grade-level styling
     const gradeStyles = {
       "K-2": "friendly, bright colors, soft edges, welcoming classroom",
       "3-5": "colorful classroom, simple interactions",
@@ -31,49 +33,133 @@ export async function runwayGenerate(promptText, gradeLevel = "6") {
     };
 
     const style = gradeStyles[gradeLevel] || "natural school setting";
+    const finalPrompt = `${promptText}. Visual style: ${style}. Natural cinematography, supportive and positive emotion.`.trim();
 
-    // 🔥 Build final RunwayML prompt
-    const finalPrompt = `
-      ${promptText}
-      Visual style: ${style}.
-      Medium: natural cinematography.
-      Emotion: supportive, positive, empowering.
-      Composition: clean framing, realistic skin tones, natural lighting.
-      Output: 1280x720 classroom or school setting video.
-    `.trim();
+    console.log("🟣 Runway prompt:", finalPrompt.substring(0, 100) + "...");
 
-    console.log("🟣 Sending RunwayML Prompt:", finalPrompt);
+    const headers = {
+      Authorization: `Bearer ${ENV.RUNWAY_KEY}`,
+      "Content-Type": "application/json",
+      "X-Runway-Version": RUNWAY_API_VERSION
+    };
 
-    const response = await axios.post(
-      "https://api.runwayml.com/v1/generations",
-      {
-        model: "gen-4-turbo",
-        prompt: finalPrompt,
-        size: "1280x720"
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${ENV.RUNWAY_KEY}`,
-          "Content-Type": "application/json"
-        }
+    // If no image provided, generate one with DALL-E first
+    let startingImage = imageUrl;
+    if (!startingImage) {
+      console.log("🎨 No starting image - generating with DALL-E...");
+      startingImage = await generateStartingImage(promptText, style);
+      if (!startingImage) {
+        console.warn("⚠️ Could not generate starting image - skipping video");
+        return null;
       }
+    }
+
+    // Use image_to_video endpoint with gen4_turbo model
+    console.log("🟣 Starting Runway image_to_video generation...");
+    const response = await axios.post(
+      `${RUNWAY_API_BASE}/image_to_video`,
+      {
+        model: "gen4_turbo",
+        promptImage: startingImage,
+        promptText: finalPrompt,
+        ratio: "1280:720",
+        duration: 5
+      },
+      { headers }
     );
 
-    const url =
-      response?.data?.output?.[0]?.url ||
-      response?.data?.image_url ||
-      null;
-
-    if (!url) {
-      console.warn("⚠️ Runway returned no output URL:", response.data);
+    const taskId = response.data?.id;
+    if (!taskId) {
+      console.warn("⚠️ Runway returned no task ID");
       return null;
     }
 
-    return url;
-  } catch (err) {
-    console.error("❌ RunwayML Generation Error:", err.message);
+    console.log("🟣 Runway task created:", taskId);
 
-    // Safe fallback
+    // Poll for completion
+    const videoUrl = await pollRunwayTask(taskId, headers);
+    return videoUrl;
+
+  } catch (err) {
+    const errorDetails = err.response?.data || err.message;
+    console.error("❌ RunwayML Generation Error:", errorDetails);
     return null;
   }
+}
+
+/**
+ * Generate a starting image using OpenAI DALL-E
+ */
+async function generateStartingImage(promptText, style) {
+  try {
+    if (!ENV.OPENAI_KEY) {
+      console.warn("⚠️ No OpenAI key for DALL-E image generation");
+      return null;
+    }
+
+    const OpenAI = (await import("openai")).default;
+    const openai = new OpenAI({ apiKey: ENV.OPENAI_KEY });
+
+    // Create a scene description for the image
+    const imagePrompt = `A photorealistic scene: ${promptText.substring(0, 200)}. Style: ${style}. High quality, natural lighting, suitable for video animation.`;
+
+    console.log("🎨 DALL-E prompt:", imagePrompt.substring(0, 80) + "...");
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: imagePrompt,
+      n: 1,
+      size: "1792x1024", // Closest to 16:9
+      quality: "standard"
+    });
+
+    const imageUrl = response.data?.[0]?.url;
+    if (imageUrl) {
+      console.log("✅ DALL-E image generated");
+    }
+    return imageUrl || null;
+
+  } catch (err) {
+    console.error("❌ DALL-E image generation failed:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Poll Runway task until completion
+ */
+async function pollRunwayTask(taskId, headers) {
+  for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+    // Wait before polling
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+
+    try {
+      const statusResponse = await axios.get(
+        `${RUNWAY_API_BASE}/tasks/${taskId}`,
+        { headers }
+      );
+
+      const status = statusResponse.data?.status;
+      console.log(`🟣 Runway task ${taskId} status: ${status}`);
+
+      if (status === "SUCCEEDED") {
+        const videoUrl = statusResponse.data?.output?.[0] || null;
+        console.log("✅ Runway video generated:", videoUrl);
+        return videoUrl;
+      }
+
+      if (status === "FAILED") {
+        console.error("❌ Runway task failed:", statusResponse.data?.error || statusResponse.data);
+        return null;
+      }
+
+      // Continue polling if PENDING or RUNNING
+    } catch (err) {
+      console.error("❌ Error polling Runway task:", err.response?.data || err.message);
+      return null;
+    }
+  }
+
+  console.warn("⚠️ Runway task timed out after 5 minutes");
+  return null;
 }

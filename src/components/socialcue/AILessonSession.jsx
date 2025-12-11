@@ -33,6 +33,10 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
   // Load lesson data passed from LessonsScreen
   const storedLesson = JSON.parse(localStorage.getItem("currentLessonData") || "{}");
+  console.log("📦 Retrieved lesson data:", storedLesson);
+  console.log("📦 aiLesson:", storedLesson.aiLesson);
+  console.log("📦 aiLesson type:", typeof storedLesson.aiLesson);
+  console.log("📦 aiLesson keys:", storedLesson.aiLesson ? Object.keys(storedLesson.aiLesson) : null);
   const incomingLesson = storedLesson.aiLesson || null;
   const incomingVideo = storedLesson.videoUrl || null;
 
@@ -87,12 +91,37 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
     }
   };
 
+  // Track lessonState changes
   useEffect(() => {
+    console.log("🔄 lessonState changed to:", lessonState);
+  }, [lessonState]);
+
+  useEffect(() => {
+    console.log("🔄 AILessonSession useEffect triggered", {
+      sessionId,
+      gradeLevel,
+      hasIncomingLesson: !!incomingLesson,
+      incomingLessonType: typeof incomingLesson,
+      incomingLessonValue: incomingLesson
+    });
+    
     // Use stored lesson if available (already loaded by LessonsScreen)
     if (incomingLesson) {
-      console.log("✅ Using stored lesson data:", incomingLesson.title || incomingLesson.id);
-      setLesson(normalizeLesson(incomingLesson));
+      console.log("✅ Using stored lesson data:", {
+        title: incomingLesson.title,
+        id: incomingLesson.id,
+        hasIntroduction: !!incomingLesson.introduction,
+        hasPractice: !!incomingLesson.practice,
+        keys: Object.keys(incomingLesson)
+      });
+      const normalized = normalizeLesson(incomingLesson);
+      console.log("📦 Normalized lesson:", {
+        hasLesson: !!normalized,
+        lessonState: normalized ? Object.keys(normalized) : null
+      });
+      setLesson(normalized);
       setVideoUrl(incomingVideo);
+      console.log("📦 Setting lessonState to 'introduction'");
       setLessonState("introduction");
       setIsLoading(false);
       return;
@@ -202,6 +231,12 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
   // Show lesson introduction
   if (lessonState === 'introduction') {
+    console.log("📦 Rendering introduction screen", {
+      hasLesson: !!lesson,
+      lessonType: typeof lesson,
+      lessonKeys: lesson ? Object.keys(lesson) : null,
+      hasIntroduction: lesson?.introduction ? Object.keys(lesson.introduction) : null
+    });
     return (
       <LessonIntroduction 
         lesson={lesson} 
@@ -286,6 +321,11 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
   // Show lesson summary
   if (lessonState === 'summary') {
+    console.log("⚠️ Rendering summary screen - lessonState is 'summary'", {
+      lessonState,
+      hasLesson: !!lesson,
+      pointsEarned
+    });
     return (
       <LessonSummary
         lesson={lesson}

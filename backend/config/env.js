@@ -1,7 +1,8 @@
 export const ENV = {
-  OPENAI_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_KEY: process.env.OPENAI_KEY,
   ANTHROPIC_KEY: process.env.ANTHROPIC_API_KEY,
-  RUNWAY_KEY: process.env.RUNWAY_KEY || process.env.RUNWAY_API_KEY,
+  SIMLI_KEY: process.env.SIMLI_API_KEY,
+  TAVUS_API_KEY: process.env.TAVUS_API_KEY,
   HUME_API_KEY: process.env.HUME_API_KEY,
   HUME_SECRET: process.env.HUME_CLIENT_SECRET,
   PORT: process.env.PORT || 3001,

@@ -18,9 +18,10 @@ export function initRecognition() {
   }
 
   recognition = new window.webkitSpeechRecognition();
-  recognition.continuous = false;
+  recognition.continuous = true; // Keep listening continuously for better responsiveness
   recognition.interimResults = true;
   recognition.lang = 'en-US';
+  recognition.maxAlternatives = 1; // Faster processing with single alternative
 
   recognition.onresult = (event) => {
     if (globalTTSLock.isSpeaking) {
@@ -76,9 +77,8 @@ export function startRecognition() {
     return;
   }
 
-  // Do not start again if already active
+  // Do not start again if already active (silent return to avoid console spam)
   if (isRecognitionActive) {
-    console.warn('Recognition already active, not restarting');
     return;
   }
 
@@ -86,7 +86,8 @@ export function startRecognition() {
     recognition.start();
     isRecognitionActive = true;
   } catch (e) {
-    console.warn('Recognition already started');
+    // Silent catch - recognition may already be started
+    isRecognitionActive = true;
   }
 }
 

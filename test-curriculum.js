@@ -12,3 +12,4 @@ console.log('9-12 lessons:', curriculum.getTotalLessons('9-12'));
 
 
 
+
