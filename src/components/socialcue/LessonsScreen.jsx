@@ -10,10 +10,6 @@ import StatusBadge from './progress/StatusBadge';
 import ProgressStats from './progress/ProgressStats';
 import CelebrationAnimation from './progress/CelebrationAnimation';
 import ActiveChallengesSection from './ActiveChallengesSection';
-import axios from 'axios';
-import { apiPath } from "../../utils/apiBase";
-import { lessonApiService } from "../../services/lessonApi.js";
-import LessonSelector from '../LessonSelector';
 
 // Challenge Card Component
 const ChallengeCard = ({ challenge, onComplete, onSkip, onLogAttempt, darkMode }) => {
@@ -144,10 +140,6 @@ const ChallengeCard = ({ challenge, onComplete, onSkip, onLogAttempt, darkMode }
 };
 
 function LessonsScreen({ userData, onNavigate, darkMode }) {
-  const [selectedLesson, setSelectedLesson] = useState(null);
-  const [lessonContent, setLessonContent] = useState(null);
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [lessonProgress, setLessonProgress] = useState([]);
   const [progressStats, setProgressStats] = useState(null);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
@@ -155,7 +147,6 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
   const [showCelebration, setShowCelebration] = useState(false);
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [lessonToRestart, setLessonToRestart] = useState(null);
-  const gradeLevel = userData?.gradeLevel || userData?.grade || "6";
   
   // Active challenges state
   const [activeChallenges, setActiveChallenges] = useState([]);
@@ -198,30 +189,6 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
 
   const learnerId = getUserId();
 
-  //------------------------------------------------------------
-  // NEW: Unified lesson loader (lesson + video)
-  //------------------------------------------------------------
-  const loadLesson = async (lesson) => {
-    try {
-      setIsLoading(true);
-      setSelectedLesson(lesson);
-
-      const response = await lessonApiService.startLesson({
-        title: lesson.title,
-        lessonId: lesson.id,
-        gradeLevel,
-      });
-
-      setLessonContent(response.lesson);
-      setVideoUrl(response.videoUrl);
-
-    } catch (error) {
-      console.error("❌ Error loading lesson:", error);
-      alert("Unable to load lesson. Try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const [lessons, setLessons] = useState([
     {
@@ -295,60 +262,50 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
     }
   }, []);
 
-  const handleStartLesson = async (lessonId) => {
-    try {
-      console.log("📘 Starting AI lesson for:", lessonId);
+  const handleStartLesson = (lessonId) => {
+    console.log('Starting lesson:', lessonId);
 
-      const lesson = lessons.find(l => l.id === lessonId);
-      if (!lesson) {
-        console.error("❌ Lesson not found:", lessonId);
-        return;
-      }
-
-      setIsLoading(true);
-
-      const response = await lessonApiService.startLesson({
-        title: lesson.title,
-        lessonId: lesson.id,
-        gradeLevel,
-      });
-
-      console.log("📦 API Response received:", {
-        hasResponse: !!response,
-        hasLesson: !!response.lesson,
-        lessonType: typeof response.lesson,
-        lessonKeys: response.lesson ? Object.keys(response.lesson) : null,
-        videoUrl: response.videoUrl
-      });
-
-      // Store loaded lesson in localStorage BEFORE navigating
-      const lessonData = {
-        aiLesson: response.lesson,
-        videoUrl: response.videoUrl,
-        id: lesson.id,
-        title: lesson.title
-      };
-      console.log("📦 Storing lesson data:", lessonData);
-      localStorage.setItem("currentLessonData", JSON.stringify(lessonData));
-      
-      // Verify it was stored
-      const stored = JSON.parse(localStorage.getItem("currentLessonData") || "{}");
-      console.log("📦 Verified stored data:", {
-        hasAiLesson: !!stored.aiLesson,
-        aiLessonKeys: stored.aiLesson ? Object.keys(stored.aiLesson) : null
-      });
-
-      //-----------------------------------------------------------
-      // 4. Navigate to AI lesson session
-      //-----------------------------------------------------------
-      onNavigate("lesson", lessonId);
-
-    } catch (error) {
-      console.error("❌ Error starting AI lesson:", error);
-      alert("Unable to load lesson. Try again.");
-    } finally {
-      setIsLoading(false);
+    if (!lessonId) {
+      console.error('Lesson ID is undefined');
+      return;
     }
+
+    // Check if this lesson was just completed to trigger celebration
+    const progress = getLessonProgressData(lessonId);
+    if (progress && progress.status === 'completed') {
+      setShowCelebration(true);
+    }
+
+    // Navigate to practice session with the lesson topic
+    const lesson = lessons.find(l => l.id === lessonId);
+    if (!lesson) {
+      console.error('Lesson not found:', lessonId);
+      return;
+    }
+
+    if (!lesson.topic) {
+      console.error('Lesson topic is missing for lesson:', lessonId);
+      return;
+    }
+
+    console.log('Starting lesson with topic:', lesson.topic);
+
+    // Map lesson ID to session ID for PracticeSession
+    const sessionIdMap = {
+      'small-talk': 1,
+      'active-listening': 2,
+      'body-language': 3,
+      'confidence-building': 4,
+      'conflict-resolution': 5
+    };
+
+    // Update user data with the correct topicName before navigating
+    const userData = getUserData();
+    const updatedUserData = { ...userData, topicName: lesson.topic };
+    saveUserData(updatedUserData);
+
+    // Navigate to AI-powered MCQ lesson session (separate from voice practice)
+    onNavigate('lessonSession', sessionIdMap[lessonId] || 1);
   };
 
   const handleRestartLesson = (lesson) => {
@@ -511,7 +468,7 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
           const backupProgress = JSON.parse(localStorage.getItem('lessonProgressBackup') || '[]');
           if (backupProgress.length > 0) {
             console.log('🔄 Found backup progress, attempting to sync...');
-            // Navigate to practice home screen
+            // The sync will happen in PracticeSession when user starts a lesson
           }
         } catch (error) {
           console.error('❌ Error checking backup progress:', error);
@@ -736,82 +693,6 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
   }
 
   // No blocking error state - lessons will always show
-
-  // If a lesson is selected, show lesson view
-  if (selectedLesson) {
-    return (
-      <div className={`min-h-screen p-6 ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="max-w-4xl mx-auto">
-          <div className="lesson-view">
-            <button
-              onClick={() => {
-                setSelectedLesson(null);
-                setLessonContent(null);
-                setVideoUrl(null);
-              }}
-              className={`back-btn mb-4 px-4 py-2 rounded-lg font-medium transition-colors ${
-                darkMode 
-                  ? 'bg-white/10 text-white hover:bg-white/20' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              ← Back
-            </button>
-
-            {/* ✅ NEW: render video + lesson */}
-            {isLoading && <p className="text-center py-8">Loading lesson...</p>}
-
-            {!isLoading && lessonContent && (
-              <>
-                {videoUrl && (
-                  <video
-                    src={videoUrl}
-                    controls
-                    className="rounded-xl mb-4 w-full"
-                  />
-                )}
-
-                <h2 className="text-2xl font-bold mb-2">
-                  {lessonContent.introduction?.title}
-                </h2>
-
-                <p className="text-md mb-4">
-                  {lessonContent.introduction?.objective}
-                </p>
-
-                <h3 className="text-xl mt-6 font-semibold">
-                  Practice Questions
-                </h3>
-
-                {lessonContent.practiceScenarios?.map((s, i) => (
-                  <div key={i} className={`scenario-card mb-4 p-4 rounded-xl ${
-                    darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200'
-                  }`}>
-                    <p className="font-medium mb-2">{s.situation}</p>
-                    <p className="mb-3">{s.question}</p>
-                    <ul className="mt-2 space-y-2">
-                      {s.options.map((opt, oi) => (
-                        <li
-                          key={oi}
-                          className={`p-3 rounded-lg border ${
-                            darkMode 
-                              ? 'bg-white/10 border-white/5' 
-                              : 'bg-gray-50 border-gray-200'
-                          }`}
-                        >
-                          {opt.text}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`min-h-screen p-6 ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>

@@ -1,50 +1,39 @@
-import React, { useState } from "react";
-import LessonWarmupScreen from "../screens/LessonWarmupScreen.jsx";
-import { startLesson } from "../services/lessonApi.js";
+import React from 'react';
+import curriculumIndex from '../content/curriculum/curriculum-index';
 
-export default function LessonSelector() {
-  const [currentLesson, setCurrentLesson] = useState(null);
+const LessonSelector = ({ gradeLevel = '6', onLessonSelect }) => {
+  // Normalize input to match curriculum keys
+  const getGradeKey = (level) => {
+    const n = parseInt(level);
+    if (n <= 2 || level === 'k') return 'k-2';
+    if (n <= 5) return '3-5';
+    if (n <= 8) return '6-8';
+    return '9-12';
+  };
 
-  const topics = [
-    { title: "Small Talk", gradeLevel: "6" },
-    { title: "Confidence", gradeLevel: "6" },
-    { title: "Joining Conversations", gradeLevel: "6" }
-  ];
-
-  async function handleStartLesson(topicObj) {
-    try {
-      const lesson = await startLesson(topicObj.title, topicObj.gradeLevel);
-      setCurrentLesson(lesson);
-    } catch (err) {
-      console.error("❌ Lesson failed:", err);
-    }
-  }
-
-  if (currentLesson) {
-    return <LessonWarmupScreen lesson={currentLesson} goBack={() => setCurrentLesson(null)} />;
-  }
+  const gradeKey = getGradeKey(gradeLevel);
+  const lessons = curriculumIndex[gradeKey] || [];
 
   return (
-    <div style={{ padding: 20, color: "white" }}>
-      <h1 style={{ fontSize: 26, fontWeight: "bold" }}>Choose a Lesson</h1>
-
-      {topics.map((t) => (
-        <button
-          key={t.title}
-          onClick={() => handleStartLesson(t)}
-          style={{
-            marginTop: 10,
-            padding: 14,
-            width: "100%",
-            background: "#1e1e1e",
-            borderRadius: 8,
-            color: "white",
-            border: "1px solid #333"
-          }}
-        >
-          {t.title}
-        </button>
-      ))}
+    <div className="lesson-selector">
+      <h3>Pick a lesson to practice</h3>
+      <ul>
+        {lessons.map((lesson, i) => (
+          <li key={i}>
+            <button onClick={() => onLessonSelect(lesson)}>
+              {lesson.title}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
-}
+};
+
+export default LessonSelector;
+
+
+
+
+
+

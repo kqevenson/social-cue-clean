@@ -10,7 +10,10 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
   const [enableVisual, setEnableVisual] = useState(true);
   const [enableHaptics, setEnableHaptics] = useState(true);
   const [enableHeartRate, setEnableHeartRate] = useState(false);
-  const [heartRateMode, setHeartRateMode] = useState('camera'); // 'camera' or 'bluetooth'
+  const [heartRateMode, setHeartRateMode] = useState('camera'); // 'camera', 'bluetooth', or 'applewatch'
+  const [appleWatchInfo, setAppleWatchInfo] = useState(null);
+  const [enableWatchCues, setEnableWatchCues] = useState(false);
+  const [watchSessionId, setWatchSessionId] = useState(null);
 
   // Video ref for camera-based HR detection
   const videoRef = useRef(null);
@@ -44,6 +47,15 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
     heartRateMode,
     videoElement: videoRef.current
   });
+
+  // Load saved watch session ID on mount
+  useEffect(() => {
+    const savedWatchSessionId = localStorage.getItem('watchSessionId');
+    if (savedWatchSessionId) {
+      setWatchSessionId(savedWatchSessionId);
+      setEnableWatchCues(true);
+    }
+  }, []);
 
   // Start camera for heart rate detection when enabled
   useEffect(() => {
@@ -533,24 +545,24 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
               <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wide flex items-center gap-2">
                 <span>📋</span> Session Timeline
               </h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-3 max-h-64 overflow-y-auto">
                 {sessionSummary.coachingLog.slice(-10).map((log, idx) => {
                   const relativeSeconds = Math.floor((log.relativeTime || 0) / 1000);
                   const mins = Math.floor(relativeSeconds / 60);
                   const secs = relativeSeconds % 60;
+                  const isGreen = log.type?.includes('good') || log.type?.includes('great') || log.type?.includes('confidence') || log.type?.includes('excited') || log.type?.includes('hrCalm');
+                  const isYellow = log.type?.includes('breathe') || log.type?.includes('slow') || log.type?.includes('filler') || log.type?.includes('nervous') || log.type?.includes('hrElevated') || log.type?.includes('hrHigh');
+                  const isBlue = log.type?.includes('turn') || log.type?.includes('listen') || log.type?.includes('quiet') || log.type?.includes('listening');
+                  const dotColor = isGreen ? 'bg-emerald-400' : isYellow ? 'bg-yellow-400' : isBlue ? 'bg-blue-400' : 'bg-purple-400';
+                  const textColor = isGreen ? 'text-emerald-300' : isYellow ? 'text-yellow-300' : isBlue ? 'text-blue-300' : 'text-purple-300';
+
                   return (
-                    <div key={idx} className="flex items-center gap-3 text-xs">
-                      <span className="text-gray-500 w-12">{mins}:{secs.toString().padStart(2, '0')}</span>
-                      <div className={`w-2 h-2 rounded-full ${
-                        log.type?.includes('good') || log.type?.includes('great') || log.type?.includes('confidence') || log.type?.includes('excited')
-                          ? 'bg-emerald-400'
-                          : log.type?.includes('breathe') || log.type?.includes('slow') || log.type?.includes('filler') || log.type?.includes('nervous')
-                          ? 'bg-yellow-400'
-                          : log.type?.includes('turn') || log.type?.includes('listen') || log.type?.includes('quiet')
-                          ? 'bg-blue-400'
-                          : 'bg-purple-400'
-                      }`} />
-                      <span className="text-gray-300">"{log.message}"</span>
+                    <div key={idx} className="flex gap-3 text-xs">
+                      <span className="text-gray-500 w-10 flex-shrink-0 pt-0.5">{mins}:{secs.toString().padStart(2, '0')}</span>
+                      <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${dotColor}`} />
+                      <p className={`${textColor} leading-relaxed`}>
+                        {log.detailedMessage || log.message}
+                      </p>
                     </div>
                   );
                 })}
@@ -677,7 +689,7 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
                           : 'bg-gray-800 text-gray-400 border border-gray-700'
                       }`}
                     >
-                      Camera (rPPG)
+                      Camera
                     </button>
                     <button
                       onClick={connectBluetoothHR}
@@ -687,13 +699,116 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
                           : 'bg-gray-800 text-gray-400 border border-gray-700'
                       }`}
                     >
-                      Bluetooth HR
+                      Bluetooth
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setHeartRateMode('applewatch');
+                        const result = await heartRateService.startAppleWatchMonitoring();
+                        if (result.success) {
+                          setAppleWatchInfo(heartRateService.getAppleWatchSessionInfo());
+                        }
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                        heartRateMode === 'applewatch'
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                          : 'bg-gray-800 text-gray-400 border border-gray-700'
+                      }`}
+                    >
+                      Apple Watch
                     </button>
                   </div>
                   <p className="text-[10px] text-gray-600 mt-1">
-                    {heartRateMode === 'camera'
-                      ? 'Uses webcam to detect pulse from face'
-                      : 'Connects to BLE heart rate monitors'}
+                    {heartRateMode === 'camera' && 'Uses webcam to detect pulse from face'}
+                    {heartRateMode === 'bluetooth' && 'Connects to BLE heart rate monitors'}
+                    {heartRateMode === 'applewatch' && 'Receives HR from Apple Watch via iOS Shortcut'}
+                  </p>
+
+                  {/* Apple Watch Setup Instructions */}
+                  {heartRateMode === 'applewatch' && appleWatchInfo && (
+                    <div className="mt-3 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                      <p className="text-xs text-green-300 font-medium mb-2">Setup Instructions:</p>
+                      <ol className="text-[10px] text-gray-400 space-y-1 list-decimal list-inside">
+                        <li>Download "Shortcuts" app if not installed</li>
+                        <li>Create a new Shortcut with:
+                          <ul className="ml-4 mt-1 space-y-0.5">
+                            <li>- "Find Health Samples" (Heart Rate)</li>
+                            <li>- "Get Contents of URL" (POST)</li>
+                          </ul>
+                        </li>
+                        <li>Set URL to send heart rate data</li>
+                        <li>Run shortcut during practice</li>
+                      </ol>
+                      <div className="mt-2 p-2 bg-black/30 rounded text-[10px] break-all text-green-400 font-mono">
+                        POST: {appleWatchInfo.postUrl}
+                        <br />
+                        Body: {`{"bpm": <heart_rate>}`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Apple Watch Cues Section */}
+            <div className="border-t border-gray-700 pt-4 mt-2">
+              <label className="flex items-center justify-between mb-3">
+                <div>
+                  <span className="text-gray-400">Apple Watch Cues</span>
+                  <p className="text-xs text-gray-600 mt-0.5">Visual & haptic coaching on watch</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const newValue = !enableWatchCues;
+                    setEnableWatchCues(newValue);
+                    if (newValue && !watchSessionId) {
+                      // Generate a new session ID when enabled
+                      const newSessionId = `watch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                      setWatchSessionId(newSessionId);
+                      localStorage.setItem('watchSessionId', newSessionId);
+                    } else if (!newValue) {
+                      // Remove session ID when disabled
+                      localStorage.removeItem('watchSessionId');
+                      setWatchSessionId(null);
+                    }
+                  }}
+                  className={`w-12 h-7 rounded-full transition-colors ${enableWatchCues ? 'bg-purple-500' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-5 h-5 bg-white rounded-full transition-transform ${enableWatchCues ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </label>
+
+              {enableWatchCues && watchSessionId && (
+                <div className="mt-3 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                  <p className="text-xs text-purple-300 font-medium mb-2">Watch Cue Setup:</p>
+                  <p className="text-[10px] text-gray-400 mb-3">
+                    Your Apple Watch can show colored cues and haptic taps during conversations.
+                    Create an iOS Shortcut that polls the URL below every 2-3 seconds.
+                  </p>
+
+                  <div className="space-y-2">
+                    <div className="p-2 bg-black/30 rounded text-[10px] text-purple-400 font-mono break-all">
+                      GET: http://localhost:3001/api/watch-cue/{watchSessionId}
+                    </div>
+
+                    <p className="text-[10px] text-gray-500">Response format:</p>
+                    <div className="p-2 bg-black/30 rounded text-[10px] text-gray-400 font-mono">
+                      {`{ "cue": "green|yellow|blue|purple", "message": "...", "haptic": "success|directionUp|click|notification" }`}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-2 bg-black/20 rounded">
+                    <p className="text-[10px] text-purple-300 font-medium mb-1">Haptic Mapping:</p>
+                    <div className="grid grid-cols-2 gap-1 text-[10px] text-gray-500">
+                      <span>🟢 Green → Success tap</span>
+                      <span>🟡 Yellow → Direction Up</span>
+                      <span>🔵 Blue → Click</span>
+                      <span>🟣 Purple → Notification</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-gray-600 mt-2">
+                    Session ID: {watchSessionId}
                   </p>
                 </div>
               )}
@@ -902,8 +1017,10 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
 
             {lastCoaching && (
               <div className="mb-6 p-4 bg-gray-900/50 rounded-xl border border-white/10">
-                <p className="text-gray-400 text-xs">Last coaching</p>
-                <p className="text-lg font-medium text-white">{lastCoaching.message}</p>
+                <p className="text-gray-400 text-xs mb-1">Last coaching</p>
+                <p className="text-base font-medium text-white leading-relaxed">
+                  {lastCoaching.detailedMessage || lastCoaching.message}
+                </p>
               </div>
             )}
 

@@ -1,22 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, UserCircle } from 'lucide-react';
-import { apiPath } from '../utils/apiBase';
+import React, { useState, useEffect } from 'react';
+import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, Sparkles } from 'lucide-react';
 import { getUserData, saveUserData } from './socialcue/utils/storage';
+import { lessonApiService } from '../services/lessonApi';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
 import HomeScreen from './socialcue/HomeScreen';
 import PracticeScreen from './socialcue/PracticeScreen';
-import PracticeSessionResults from './socialcue/PracticeSessionResults';
-import PracticeSummaryScreen from '../screens/PracticeSummaryScreen';
 import ProgressScreen from './socialcue/ProgressScreen';
 import SettingsScreen from './socialcue/SettingsScreen';
 import ParentDashboard from './socialcue/ParentDashboard';
 import ParentChildOverview from './socialcue/ParentChildOverview';
+import PracticeSession from './socialcue/PracticeSession';
 import AILessonSession from './socialcue/AILessonSession';
 import AIPracticeSession from './AIPracticeSession';
 import LessonsScreen from './socialcue/LessonsScreen';
 import LearningPreferencesScreen from './socialcue/LearningPreferencesScreen';
 import GoalsScreen from './socialcue/GoalsScreen';
 import BottomNav from './socialcue/BottomNav';
+import ChooseCoachScreen from '../pages/ChooseCoachScreen';
 import IncognitoModeScreen from '../screens/IncognitoModeScreen';
 
 function SocialCueApp({ onLogout }) {
@@ -28,7 +28,6 @@ function SocialCueApp({ onLogout }) {
   const [notifications, setNotifications] = useState(true);
   const [sessionId, setSessionId] = useState(1);
   const [selectedChildId, setSelectedChildId] = useState(null);
-  const [screenProps, setScreenProps] = useState(null);
   
   // Calculate new goals count (goals created in the last 5 minutes)
   const getNewGoalsCount = () => {
@@ -63,59 +62,12 @@ function SocialCueApp({ onLogout }) {
         { id: 'home', label: 'Home', icon: Home },
         { id: 'lessons', label: 'Lessons', icon: BookOpen },
         { id: 'practice', label: 'Practice', icon: Target },
-        { id: 'choose-coach', label: 'Coach', icon: UserCircle },
+        { id: 'coach', label: 'Cue', icon: Sparkles },
         { id: 'progress', label: 'Progress', icon: TrendingUp },
         { id: 'settings', label: 'Settings', icon: Settings }
       ];
     }
   };
-
-  // Define handleNavigate early using useCallback so it can be used in useEffect
-  const handleNavigate = useCallback((screen, propsOrSessionId) => {
-    console.log('🧭 Navigating to:', screen, propsOrSessionId ? JSON.stringify(propsOrSessionId).slice(0, 100) : '');
-    setCurrentScreen(screen);
-
-    // Handle props object (for screens like practice-summary)
-    if (propsOrSessionId && typeof propsOrSessionId === 'object') {
-      setScreenProps(propsOrSessionId);
-      // If it contains sessionId, also set that
-      if (propsOrSessionId.sessionId) {
-        setSessionId(propsOrSessionId.sessionId);
-      }
-      // Reload user data
-      const data = getUserData();
-      setUserData(data);
-      return;
-    }
-
-    // Handle simple sessionId (number)
-    const sid = propsOrSessionId;
-    if (sid) {
-      setSessionId(sid);
-      // Set topicName based on sessionId
-      const topicMap = {
-        1: 'Small Talk Basics',
-        2: 'Active Listening',
-        3: 'Reading Body Language',
-        4: 'Building Confidence',
-        5: 'Conflict Resolution',
-        6: 'Teamwork',
-        7: 'Empathy',
-        8: 'Assertiveness'
-      };
-      const topicName = topicMap[sid] || 'Social Skills';
-
-      // Update user data with topicName
-      const currentData = getUserData();
-      const updatedData = { ...currentData, topicName };
-      saveUserData(updatedData);
-      setUserData(updatedData);
-    } else {
-      // Reload user data when navigating (but preserve topicName if it exists)
-      const data = getUserData();
-      setUserData(data);
-    }
-  }, []);
 
   useEffect(() => {
     const data = getUserData();
@@ -147,29 +99,11 @@ function SocialCueApp({ onLogout }) {
     if (savedNotifications !== null) setNotifications(savedNotifications === 'true');
   }, []);
 
-  // Register navigation event listener *after* handleNavigate exists
-  useEffect(() => {
-    function onNav(e) {
-      const detail = e.detail || {};
-      const screen = detail.screen;
-
-      if (screen) {
-        // Pass all detail properties except 'screen' as props
-        const { screen: _, ...props } = detail;
-        const hasProps = Object.keys(props).length > 0;
-        handleNavigate(screen, hasProps ? props : undefined);
-      }
-    }
-
-    window.addEventListener("navigate", onNav);
-    return () => window.removeEventListener("navigate", onNav);
-  }, [handleNavigate]);
-
   const checkAndInitializeAdaptiveLearning = async (userId, userData) => {
     try {
       console.log('🔍 Checking if user needs adaptive learning initialization:', userId);
       
-      const response = await fetch(apiPath(`/api/adaptive/check-init/${userId}`));
+      const response = await fetch(`http://localhost:3001/api/adaptive/check-init/${userId}`);
       const result = await response.json();
       
       if (result.success && !result.isInitialized) {
@@ -198,7 +132,7 @@ function SocialCueApp({ onLogout }) {
     try {
       console.log('🚀 Running background initialization for user:', userId);
       
-      const response = await fetch(apiPath('/api/adaptive/init'), {
+      const response = await fetch('http://localhost:3001/api/adaptive/init', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -246,6 +180,36 @@ function SocialCueApp({ onLogout }) {
     localStorage.setItem('notifications', value.toString());
   };
 
+  const handleNavigate = (screen, sid) => {
+    console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
+    setCurrentScreen(screen);
+    if (sid) {
+      setSessionId(sid);
+      // Set topicName based on sessionId
+      const topicMap = {
+        1: 'Small Talk Basics',
+        2: 'Active Listening', 
+        3: 'Reading Body Language',
+        4: 'Building Confidence',
+        5: 'Conflict Resolution',
+        6: 'Teamwork',
+        7: 'Empathy',
+        8: 'Assertiveness'
+      };
+      const topicName = topicMap[sid] || 'Social Skills';
+      
+      // Update user data with topicName
+      const currentData = getUserData();
+      const updatedData = { ...currentData, topicName };
+      saveUserData(updatedData);
+      setUserData(updatedData);
+    } else {
+      // Reload user data when navigating (but preserve topicName if it exists)
+      const data = getUserData();
+      setUserData(data);
+    }
+  };
+
   const navItems = getNavigationItems(userData?.role);
 
   if (!userData) return null;
@@ -283,6 +247,31 @@ function SocialCueApp({ onLogout }) {
           </ErrorBoundary>
         )}
         
+        {/* Lesson Session (MCQ) - triggered from Lessons tab */}
+        {currentScreen === 'lessonSession' && sessionId && userData?.role !== 'parent' && (
+          <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
+            <PracticeSession
+              sessionId={sessionId}
+              onNavigate={handleNavigate}
+              onComplete={(data) => {
+                console.log('Session completed!', data);
+                handleNavigate('progress');
+                setSessionId(null);
+              }}
+              onExit={() => {
+                console.log('Session exited');
+                handleNavigate('lessons');
+                setSessionId(null);
+              }}
+              darkMode={darkMode}
+              gradeLevel={userData.grade || "5"}
+              soundEffects={soundEffects}
+              autoReadText={autoReadText}
+              topicName={userData.topicName}
+            />
+          </ErrorBoundary>
+        )}
+        
         {/* Practice Home - only for learners */}
         {currentScreen === 'practiceHome' && userData?.role !== 'parent' && (
           <PracticeScreen 
@@ -291,28 +280,11 @@ function SocialCueApp({ onLogout }) {
           />
         )}
         
-        {/* AI Lesson Session - only for learners */}
-        {currentScreen === 'lesson' && userData?.role !== 'parent' && (
-          <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
-            <AILessonSession 
-              sessionId={sessionId}
-              onNavigate={handleNavigate} 
-              darkMode={darkMode}
-              gradeLevel={userData.gradeLevel || "6-8"}
-              soundEffects={soundEffects}
-              autoReadText={autoReadText}
-            />
-          </ErrorBoundary>
-        )}
-        
         {currentScreen === 'ai-practice' && (
           <AIPracticeSession 
+            category="AI Practice" 
             gradeLevel={userData.gradeLevel || "6-8"} 
-            onBack={() => handleNavigate('home')}
-            onStartScenario={() => {
-              handleNavigate('practiceHome');
-              setSessionId(null);
-            }}
+            onComplete={() => handleNavigate('home')}
           />
         )}
         
@@ -337,15 +309,25 @@ function SocialCueApp({ onLogout }) {
         {currentScreen === 'goals' && (
           <ErrorBoundary darkMode={darkMode} onNavigate={handleNavigate}>
             <ToastProvider darkMode={darkMode}>
-              <GoalsScreen 
-                userData={userData} 
-                darkMode={darkMode} 
+              <GoalsScreen
+                userData={userData}
+                darkMode={darkMode}
                 onNavigate={handleNavigate}
               />
             </ToastProvider>
           </ErrorBoundary>
         )}
-        
+
+        {currentScreen === 'coach' && (
+          <IncognitoModeScreen
+            gradeLevel={userData?.gradeLevel || '6-8'}
+            onBack={() => handleNavigate('home')}
+            onSessionComplete={(summary) => {
+              console.log('Coach session completed:', summary);
+            }}
+          />
+        )}
+
         {currentScreen === 'settings' && (
           <SettingsScreen 
             userData={userData} 
@@ -376,46 +358,15 @@ function SocialCueApp({ onLogout }) {
             darkMode={darkMode}
           />
         )}
+      </div>
 
-        {currentScreen === 'practice-summary' && (
-          screenProps?.conversationId ? (
-            <PracticeSummaryScreen
-              conversationId={screenProps?.conversationId}
-              scenario={screenProps?.scenario}
-              messages={screenProps?.messages || []}
-              onNavigate={handleNavigate}
-              onClose={() => handleNavigate('home')}
-            />
-          ) : (
-            <PracticeSessionResults
-              progress={screenProps?.progress}
-              darkMode={darkMode}
-              onNavigate={handleNavigate}
-            />
-          )
-        )}
-
-        {currentScreen === 'choose-coach' && (
-          <IncognitoModeScreen
-            gradeLevel={userData?.gradeLevel || '6-8'}
-            onBack={() => handleNavigate('home')}
-            onSessionComplete={(summary) => {
-              console.log('Incognito session complete:', summary);
-            }}
-          />
-        )}
-
-              </div>
-
-      {currentScreen !== 'choose-coach' && (
-        <BottomNav
-          currentScreen={currentScreen}
-          onNavigate={handleNavigate}
-          darkMode={darkMode}
-          navItems={navItems}
-          newGoalsCount={newGoalsCount}
-        />
-      )}
+      <BottomNav 
+        currentScreen={currentScreen}
+        onNavigate={handleNavigate}
+        darkMode={darkMode}
+        navItems={navItems}
+        newGoalsCount={newGoalsCount}
+      />
 
         <style>{`
           .custom-scrollbar::-webkit-scrollbar { height: 8px; }
@@ -426,4 +377,5 @@ function SocialCueApp({ onLogout }) {
     </ToastProvider>
   );
 }
+
 export default SocialCueApp;

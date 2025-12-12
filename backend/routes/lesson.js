@@ -33,9 +33,9 @@ const client = new OpenAI({
  */
 router.post("/start", async (req, res) => {
   try {
-    const { topic, gradeLevel } = req.body;
+    const { topic, gradeLevel, learnerName } = req.body;
 
-    const lesson = await generateLesson(topic, gradeLevel);
+    const lesson = await generateLesson(topic, gradeLevel, learnerName);
 
     // Generate video from videoScenes using HeyGen (AI avatar)
     let videoUrl = null;

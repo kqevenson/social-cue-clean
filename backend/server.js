@@ -143,6 +143,143 @@ app.get('/api/hume/access-token', async (req, res) => {
   }
 });
 
+// ============================================
+// APPLE WATCH HEART RATE ENDPOINT
+// ============================================
+// Simple in-memory store for heart rate data from Apple Watch
+// Data expires after 60 seconds
+const heartRateStore = new Map();
+
+// ============================================
+// APPLE WATCH CUE/HAPTIC ENDPOINT
+// ============================================
+// Stores current cue state for Apple Watch to poll
+// This allows the watch to display visual cues and trigger haptics
+const watchCueStore = new Map();
+
+// POST: Send a cue to the Apple Watch
+app.post('/api/watch-cue/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const { cue, message, hapticType } = req.body;
+
+  // Map cue colors to Apple Watch haptic types
+  // WatchOS haptic types: notification, directionUp, directionDown, success, failure, retry, start, stop, click
+  const hapticMap = {
+    green: 'success',      // Positive - gentle success tap
+    yellow: 'directionUp', // Pacing - attention-getting
+    blue: 'click',         // Engagement - subtle click
+    purple: 'notification', // Suggestion - notification tap
+    neutral: null
+  };
+
+  const data = {
+    cue: cue || 'neutral',
+    message: message || '',
+    hapticType: hapticType || hapticMap[cue] || null,
+    timestamp: Date.now(),
+    sessionId,
+    read: false
+  };
+
+  watchCueStore.set(sessionId, data);
+  console.log(`⌚ Watch cue sent: ${data.cue} - "${data.message}" (haptic: ${data.hapticType})`);
+
+  res.json({ success: true, sent: data });
+});
+
+// GET: Apple Watch polls this to get current cue
+app.get('/api/watch-cue/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const data = watchCueStore.get(sessionId);
+
+  if (!data) {
+    return res.json({ cue: 'neutral', message: '', hapticType: null, hasNewCue: false });
+  }
+
+  // Check if cue is stale (older than 10 seconds)
+  const isStale = Date.now() - data.timestamp > 10000;
+
+  // Mark as read and return
+  const response = {
+    ...data,
+    hasNewCue: !data.read && !isStale
+  };
+
+  // Mark as read
+  data.read = true;
+  watchCueStore.set(sessionId, data);
+
+  res.json(response);
+});
+
+// GET: Get session info for watch setup
+app.get('/api/watch-session/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+
+  res.json({
+    sessionId,
+    pollUrl: `/api/watch-cue/${sessionId}`,
+    heartRatePostUrl: `/api/heartrate/${sessionId}`,
+    instructions: {
+      watchApp: 'Poll the cue endpoint every 1-2 seconds to receive visual cues and haptic commands',
+      hapticTypes: {
+        success: 'Green cue - positive feedback',
+        directionUp: 'Yellow cue - pacing reminder',
+        click: 'Blue cue - engagement prompt',
+        notification: 'Purple cue - suggestion'
+      }
+    }
+  });
+});
+
+// POST: Receive heart rate data from iOS Shortcut
+app.post('/api/heartrate/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const { bpm, heartRate } = req.body;
+
+  const heartRateValue = bpm || heartRate;
+
+  if (!heartRateValue || isNaN(heartRateValue)) {
+    return res.status(400).json({ error: 'Invalid heart rate value' });
+  }
+
+  const data = {
+    bpm: parseInt(heartRateValue),
+    timestamp: Date.now(),
+    sessionId
+  };
+
+  heartRateStore.set(sessionId, data);
+  console.log(`⌚ Received Apple Watch HR: ${data.bpm} BPM for session ${sessionId}`);
+
+  // Clean up old entries (older than 60 seconds)
+  const now = Date.now();
+  for (const [key, value] of heartRateStore.entries()) {
+    if (now - value.timestamp > 60000) {
+      heartRateStore.delete(key);
+    }
+  }
+
+  res.json({ success: true, received: data });
+});
+
+// GET: Retrieve latest heart rate data for a session
+app.get('/api/heartrate/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const data = heartRateStore.get(sessionId);
+
+  if (!data) {
+    return res.status(404).json({ error: 'No heart rate data found for this session' });
+  }
+
+  // Check if data is stale (older than 30 seconds)
+  if (Date.now() - data.timestamp > 30000) {
+    return res.status(404).json({ error: 'Heart rate data is stale', lastUpdate: data.timestamp });
+  }
+
+  res.json(data);
+});
+
 // Diagnostic endpoint to test API keys
 app.get('/api/test-keys', (req, res) => {
   const colossyanKey = process.env.COLOSSYAN_API_KEY;

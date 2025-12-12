@@ -26,7 +26,7 @@ const HEART_RATE_MEASUREMENT = 0x2A37;
 
 class HeartRateService {
   constructor() {
-    this.mode = null; // 'camera' or 'bluetooth'
+    this.mode = null; // 'camera', 'bluetooth', or 'applewatch'
     this.isActive = false;
     this.currentBPM = null;
     this.bpmHistory = [];
@@ -50,6 +50,10 @@ class HeartRateService {
     this.timestamps = [];
     this.bufferSize = 256; // ~8.5 seconds at 30fps
     this.lastZone = null;
+
+    // Apple Watch specific
+    this.appleWatchSessionId = null;
+    this.appleWatchPollInterval = null;
 
     // Session tracking for analytics
     this.sessionData = {
@@ -163,6 +167,91 @@ class HeartRateService {
   }
 
   /**
+   * Start heart rate monitoring via Apple Watch
+   * Uses a backend endpoint that receives HR data from iOS Shortcuts
+   * @param {string} sessionId - Unique session ID for this monitoring session
+   */
+  async startAppleWatchMonitoring(sessionId = null) {
+    try {
+      console.log('⌚ Starting Apple Watch heart rate monitoring...');
+      this.callbacks.onConnectionChange?.('connecting');
+
+      // Generate session ID if not provided
+      this.appleWatchSessionId = sessionId || `hr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      console.log('⌚ Apple Watch session ID:', this.appleWatchSessionId);
+      console.log('⌚ Share this link with your iOS device to send heart rate data');
+
+      // Start polling the backend for heart rate data
+      this.appleWatchPollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/heartrate/${this.appleWatchSessionId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.bpm && data.timestamp) {
+              // Only process if it's a new reading
+              const lastReading = this.bpmHistory[this.bpmHistory.length - 1];
+              if (!lastReading || lastReading.timestamp !== data.timestamp) {
+                console.log('⌚ Apple Watch BPM:', data.bpm);
+                this._processHeartRate(data.bpm);
+              }
+            }
+          }
+        } catch (err) {
+          // Silent fail on poll - don't spam errors
+          console.debug('⌚ Poll failed:', err.message);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      this.mode = 'applewatch';
+      this.isActive = true;
+      this._initSession();
+      this.callbacks.onConnectionChange?.('connected');
+
+      console.log('⌚ Apple Watch monitoring started');
+      return {
+        success: true,
+        sessionId: this.appleWatchSessionId,
+        shortcutUrl: this._getAppleWatchShortcutUrl()
+      };
+
+    } catch (error) {
+      console.error('⌚ Apple Watch error:', error);
+      this.callbacks.onError?.(error.message || 'Failed to start Apple Watch monitoring');
+      this.callbacks.onConnectionChange?.('error');
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get the URL for the iOS Shortcut to send HR data
+   */
+  _getAppleWatchShortcutUrl() {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/api/heartrate/${this.appleWatchSessionId}`;
+  }
+
+  /**
+   * Get Apple Watch session info for displaying QR code or link
+   */
+  getAppleWatchSessionInfo() {
+    if (!this.appleWatchSessionId) return null;
+    return {
+      sessionId: this.appleWatchSessionId,
+      postUrl: this._getAppleWatchShortcutUrl(),
+      instructions: [
+        '1. Open the Shortcuts app on your iPhone',
+        '2. Create a new shortcut with these actions:',
+        '   - "Find Health Samples" (Heart Rate, last 1 minute)',
+        '   - "Get Contents of URL" (POST to the URL below)',
+        '3. Run the shortcut every few seconds while practicing',
+        '',
+        'Or use an app like "Heart Rate to Web" from the App Store'
+      ]
+    };
+  }
+
+  /**
    * Start heart rate monitoring via camera (rPPG)
    * @param {HTMLVideoElement} videoElement - Video element with webcam stream
    */
@@ -234,6 +323,12 @@ class HeartRateService {
       this.canvasElement = null;
       this.canvasContext = null;
       this.videoElement = null;
+    }
+
+    if (this.mode === 'applewatch' && this.appleWatchPollInterval) {
+      clearInterval(this.appleWatchPollInterval);
+      this.appleWatchPollInterval = null;
+      this.appleWatchSessionId = null;
     }
 
     this.isActive = false;

@@ -6,8 +6,13 @@ function BottomNav({ currentScreen, onNavigate, darkMode, navItems, newGoalsCoun
     // Direct match
     if (currentScreen === itemId) return true;
 
-    // Practice screen variations
-    if (itemId === 'practice' && (currentScreen === 'practice' || currentScreen === 'practiceHome')) {
+    // Lessons tab should highlight during lesson sessions
+    if (itemId === 'lessons' && currentScreen === 'lessonSession') {
+      return true;
+    }
+
+    // Practice screen variations (voice practice only)
+    if (itemId === 'practice' && currentScreen === 'practiceHome') {
       return true;
     }
 

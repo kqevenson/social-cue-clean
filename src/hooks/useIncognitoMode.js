@@ -9,26 +9,131 @@ import heartRateService, { HR_ZONES } from '../services/heartRateService';
  */
 
 const COACHING_PROMPTS = {
-  breathe: { cue: 'yellow', whisper: 'Take a breath', cooldown: 8000 },
-  slowDown: { cue: 'yellow', whisper: 'Slow down', cooldown: 6000 },
-  yourTurn: { cue: 'blue', whisper: 'Your turn', cooldown: 4000 },
-  listen: { cue: 'blue', whisper: 'Listen', cooldown: 8000 },
-  askQuestion: { cue: 'purple', whisper: 'Ask a question', cooldown: 10000 },
-  goodJob: { cue: 'green', whisper: 'Nice!', cooldown: 8000 },
-  confidence: { cue: 'green', whisper: "You've got this", cooldown: 12000 },
-  fillerWords: { cue: 'yellow', whisper: 'Watch the ums', cooldown: 10000 },
-  tooQuiet: { cue: 'blue', whisper: 'Speak up', cooldown: 8000 },
-  greatPace: { cue: 'green', whisper: 'Great pace!', cooldown: 10000 },
-  listening: { cue: 'blue', whisper: 'I hear you', cooldown: 15000 },
+  // Pacing & Breathing (Yellow)
+  breathe: {
+    cue: 'yellow',
+    whisper: 'Pause and take a slow breath. It helps you think clearly.',
+    shortWhisper: 'Take a breath',
+    cooldown: 8000
+  },
+  slowDown: {
+    cue: 'yellow',
+    whisper: 'You\'re speaking quickly. Slow down so they can follow along.',
+    shortWhisper: 'Slow down',
+    cooldown: 6000
+  },
+  fillerWords: {
+    cue: 'yellow',
+    whisper: 'Try pausing instead of saying um. A quiet pause sounds confident.',
+    shortWhisper: 'Pause instead of um',
+    cooldown: 10000
+  },
+
+  // Engagement (Blue)
+  yourTurn: {
+    cue: 'blue',
+    whisper: 'It\'s your turn to respond. What would you like to say?',
+    shortWhisper: 'Your turn',
+    cooldown: 4000
+  },
+  listen: {
+    cue: 'blue',
+    whisper: 'Good listening! Let them finish their thought.',
+    shortWhisper: 'Listen',
+    cooldown: 8000
+  },
+  tooQuiet: {
+    cue: 'blue',
+    whisper: 'They might not hear you. Try speaking a bit louder and clearer.',
+    shortWhisper: 'Speak up',
+    cooldown: 8000
+  },
+  listening: {
+    cue: 'blue',
+    whisper: 'I can hear you clearly. Keep going, you\'re doing well!',
+    shortWhisper: 'I hear you',
+    cooldown: 15000
+  },
+
+  // Suggestions (Purple)
+  askQuestion: {
+    cue: 'purple',
+    whisper: 'Try asking them a question. It shows you\'re interested in what they think.',
+    shortWhisper: 'Ask a question',
+    cooldown: 10000
+  },
+
+  // Positive Reinforcement (Green)
+  goodJob: {
+    cue: 'green',
+    whisper: 'Nice work! That was a great response.',
+    shortWhisper: 'Nice!',
+    cooldown: 8000
+  },
+  confidence: {
+    cue: 'green',
+    whisper: 'You\'ve got this! Just be yourself and speak from the heart.',
+    shortWhisper: 'You\'ve got this',
+    cooldown: 12000
+  },
+  greatPace: {
+    cue: 'green',
+    whisper: 'Perfect pace! They can easily follow what you\'re saying.',
+    shortWhisper: 'Great pace!',
+    cooldown: 10000
+  },
+  goodQuestion: {
+    cue: 'green',
+    whisper: 'Great question! Asking questions keeps conversations going.',
+    shortWhisper: 'Great question!',
+    cooldown: 8000
+  },
+
   // Emotion-based coaching
-  nervous: { cue: 'yellow', whisper: 'Relax, you\'re doing great', cooldown: 15000 },
-  excited: { cue: 'green', whisper: 'Great energy!', cooldown: 15000 },
-  confused: { cue: 'purple', whisper: 'Take a moment', cooldown: 10000 },
+  nervous: {
+    cue: 'yellow',
+    whisper: 'I notice some nervousness. That\'s okay! Take a breath and remember you\'re doing great.',
+    shortWhisper: 'Relax, you\'re doing great',
+    cooldown: 15000
+  },
+  excited: {
+    cue: 'green',
+    whisper: 'Love the energy! Your enthusiasm makes the conversation engaging.',
+    shortWhisper: 'Great energy!',
+    cooldown: 15000
+  },
+  confused: {
+    cue: 'purple',
+    whisper: 'If something\'s unclear, it\'s okay to ask them to explain more.',
+    shortWhisper: 'Ask for clarity',
+    cooldown: 10000
+  },
+
   // Heart rate-based coaching
-  hrElevated: { cue: 'yellow', whisper: 'Take a slow breath', cooldown: 20000 },
-  hrHigh: { cue: 'yellow', whisper: 'Breathe in... and out', cooldown: 15000 },
-  hrCalming: { cue: 'green', whisper: 'Heart rate coming down, good!', cooldown: 25000 },
-  hrCalm: { cue: 'green', whisper: 'You\'re calm and focused', cooldown: 30000 }
+  hrElevated: {
+    cue: 'yellow',
+    whisper: 'Your heart rate is up a bit. Try a slow breath in through your nose, out through your mouth.',
+    shortWhisper: 'Slow breath',
+    cooldown: 20000
+  },
+  hrHigh: {
+    cue: 'yellow',
+    whisper: 'I can tell you\'re feeling stressed. Breathe slowly: in for 4, out for 4. You\'re safe here.',
+    shortWhisper: 'Breathe in... and out',
+    cooldown: 15000
+  },
+  hrCalming: {
+    cue: 'green',
+    whisper: 'Your heart rate is coming down. Great job calming yourself!',
+    shortWhisper: 'Heart rate calming',
+    cooldown: 25000
+  },
+  hrCalm: {
+    cue: 'green',
+    whisper: 'You\'re calm and focused. This is the perfect state for a good conversation.',
+    shortWhisper: 'Calm and focused',
+    cooldown: 30000
+  }
 };
 
 // Haptic vibration patterns for different coaching types (in milliseconds)
@@ -201,6 +306,24 @@ const useIncognitoMode = ({
     }
   }, [enableHaptics]);
 
+  // Send cue to Apple Watch via backend
+  const sendCueToWatch = useCallback(async (cue, message) => {
+    // Get session ID from heart rate service or generate one
+    const sessionId = localStorage.getItem('watchSessionId');
+    if (!sessionId) return;
+
+    try {
+      await fetch(`/api/watch-cue/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cue, message })
+      });
+      console.log('⌚ Cue sent to Apple Watch:', cue, message);
+    } catch (err) {
+      console.debug('⌚ Failed to send cue to watch:', err.message);
+    }
+  }, []);
+
   // Trigger coaching with cooldown check
   const triggerCoaching = useCallback((type) => {
     console.log('🎯 triggerCoaching called with:', type);
@@ -223,25 +346,41 @@ const useIncognitoMode = ({
     if (enableVisualCues) {
       console.log('🎨 Setting cue to:', coaching.cue);
       setCurrentCue(coaching.cue);
+      // Keep visual cue longer for detailed messages
       setTimeout(() => {
         console.log('🎨 Resetting cue to neutral');
         setCurrentCue('neutral');
-      }, 3000);
+      }, 4000);
     }
 
-    // Deliver haptic feedback based on cue type
+    // Deliver haptic feedback based on cue type (phone)
     deliverHaptic(coaching.cue);
 
+    // Send cue to Apple Watch (if connected)
+    sendCueToWatch(coaching.cue, coaching.shortWhisper || coaching.whisper);
+
+    // Speak the detailed whisper message
     deliverWhisper(coaching.whisper);
 
-    const logEntry = { type, message: coaching.whisper, timestamp: now };
+    // Log the detailed message but show short version in UI for "last coaching"
+    const logEntry = {
+      type,
+      message: coaching.shortWhisper || coaching.whisper, // Short version for UI display
+      detailedMessage: coaching.whisper, // Full detailed message for logs/summary
+      timestamp: now
+    };
     setCoachingLog(prev => [...prev, logEntry]);
     setLastCoaching(logEntry);
 
     if (onSessionUpdate) {
-      onSessionUpdate({ type: 'coaching', prompt: type, message: coaching.whisper });
+      onSessionUpdate({
+        type: 'coaching',
+        prompt: type,
+        message: coaching.whisper,
+        shortMessage: coaching.shortWhisper
+      });
     }
-  }, [enableVisualCues, deliverWhisper, deliverHaptic, onSessionUpdate]);
+  }, [enableVisualCues, deliverWhisper, deliverHaptic, sendCueToWatch, onSessionUpdate]);
 
   // Analyze speech patterns - MORE RESPONSIVE
   const analyzeSpeechPatterns = useCallback((transcript) => {
@@ -284,7 +423,7 @@ const useIncognitoMode = ({
     if (transcript.includes('?')) {
       questionsAskedRef.current++;
       console.log('❓ Question detected! Positive feedback');
-      triggerCoaching('goodJob');
+      triggerCoaching('goodQuestion');
       return;
     }
 
