@@ -712,9 +712,6 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
           </p>
         </div>
 
-        {/* Active Challenges Section */}
-        <ActiveChallengesSection darkMode={darkMode} />
-        
         {/* Original Conditional Section (commented out for debugging) */}
         {/* {activeChallenges.length > 0 && (
           <section className="mb-8">
@@ -837,103 +834,6 @@ function LessonsScreen({ userData, onNavigate, darkMode }) {
                   </button>
                 )}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Progress Stats */}
-        {!progressError && (
-          <div className="mb-8">
-            <div className="text-center py-8">
-              <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                {firebaseLessonProgress.length} of {firebaseLessonProgress.length} Lessons
-              </p>
-            </div>
-
-            {/* In Progress Section */}
-            <div className="mb-6">
-              <div className={`flex items-center gap-2 mb-3 ${
-                darkMode ? 'text-blue-400' : 'text-blue-600'
-              }`}>
-                <div className="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-                <h3 className="font-bold">In Progress</h3>
-              </div>
-              {firebaseLessonProgress.filter(l => l.status === 'in_progress').length > 0 ? (
-                <div className="space-y-3">
-                  {firebaseLessonProgress.filter(l => l.status === 'in_progress').map((lesson) => (
-                    <div 
-                      key={lesson.lessonId}
-                      className={`p-4 rounded-xl border ${
-                        darkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {lesson.topicName}
-                        </span>
-                        <span className={`text-sm font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                          {Math.round(lesson.progress)}%
-                        </span>
-                      </div>
-                      <div className={`w-full h-2 rounded-full overflow-hidden ${
-                        darkMode ? 'bg-white/10' : 'bg-gray-200'
-                      }`}>
-                        <div 
-                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all"
-                          style={{ width: `${lesson.progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={`text-center py-8 rounded-xl ${
-                  darkMode ? 'bg-white/5' : 'bg-gray-50'
-                }`}>
-                  <p className={`${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                    0 Active lessons
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Completed Section */}
-            <div>
-              <div className={`flex items-center gap-2 mb-3 ${
-                darkMode ? 'text-emerald-400' : 'text-emerald-600'
-              }`}>
-                <CheckCircle className="w-4 h-4" />
-                <h3 className="font-bold">Completed</h3>
-              </div>
-              {firebaseLessonProgress.filter(l => l.status === 'completed').length > 0 ? (
-                <div className="space-y-3">
-                  {firebaseLessonProgress.filter(l => l.status === 'completed').map((lesson) => (
-                    <div 
-                      key={lesson.lessonId}
-                      className={`p-4 rounded-xl border ${
-                        darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {lesson.topicName}
-                        </span>
-                        <CheckCircle className={`w-5 h-5 ${
-                          darkMode ? 'text-emerald-400' : 'text-emerald-600'
-                        }`} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={`text-center py-8 rounded-xl ${
-                  darkMode ? 'bg-white/5' : 'bg-gray-50'
-                }`}>
-                  <p className={`${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                    0 Completed lessons
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}

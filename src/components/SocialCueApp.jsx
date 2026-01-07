@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, Sparkles } from 'lucide-react';
+import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, Sparkles, MessageSquare } from 'lucide-react';
 import { getUserData, saveUserData } from './socialcue/utils/storage';
 import { lessonApiService } from '../services/lessonApi';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
@@ -18,6 +18,7 @@ import GoalsScreen from './socialcue/GoalsScreen';
 import BottomNav from './socialcue/BottomNav';
 import ChooseCoachScreen from '../pages/ChooseCoachScreen';
 import IncognitoModeScreen from '../screens/IncognitoModeScreen';
+import SocialSandboxScreen from '../screens/SocialSandboxScreen';
 
 function SocialCueApp({ onLogout }) {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -63,6 +64,7 @@ function SocialCueApp({ onLogout }) {
         { id: 'lessons', label: 'Lessons', icon: BookOpen },
         { id: 'practice', label: 'Practice', icon: Target },
         { id: 'coach', label: 'Cue', icon: Sparkles },
+        { id: 'sandbox', label: 'Sandbox', icon: MessageSquare },
         { id: 'progress', label: 'Progress', icon: TrendingUp },
         { id: 'settings', label: 'Settings', icon: Settings }
       ];
@@ -325,6 +327,16 @@ function SocialCueApp({ onLogout }) {
             onSessionComplete={(summary) => {
               console.log('Coach session completed:', summary);
             }}
+          />
+        )}
+
+        {currentScreen === 'sandbox' && (
+          <SocialSandboxScreen
+            gradeLevel={userData?.gradeLevel || '6-8'}
+            userData={userData}
+            darkMode={darkMode}
+            onBack={() => handleNavigate('home')}
+            onNavigate={handleNavigate}
           />
         )}
 

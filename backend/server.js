@@ -4,6 +4,7 @@ dotenv.config();
 // ✅ ADD THIS IMPORT
 import lessonRouter from "./routes/lesson.js";
 import tavusRouter from "./routes/tavus.js";
+import sandboxRouter from "./routes/sandbox.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -73,6 +74,9 @@ app.use("/api/lessons", lessonRouter);
 
 // ✅ REGISTER TAVUS ROUTER for conversational video avatars
 app.use("/api/tavus", tavusRouter);
+
+// ✅ REGISTER SANDBOX ROUTER for Social Sandbox feature
+app.use("/api/sandbox", sandboxRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
