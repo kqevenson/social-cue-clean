@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, Sparkles, MessageSquare } from 'lucide-react';
 import { getUserData, saveUserData } from './socialcue/utils/storage';
+import { getApiBase } from '../utils/apiBase';
 import { lessonApiService } from '../services/lessonApi';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
 import HomeScreen from './socialcue/HomeScreen';
@@ -105,7 +106,7 @@ function SocialCueApp({ onLogout }) {
     try {
       console.log('🔍 Checking if user needs adaptive learning initialization:', userId);
       
-      const response = await fetch(`http://localhost:3001/api/adaptive/check-init/${userId}`);
+      const response = await fetch(`${getApiBase()}/api/adaptive/check-init/${userId}`);
       const result = await response.json();
       
       if (result.success && !result.isInitialized) {
@@ -134,7 +135,7 @@ function SocialCueApp({ onLogout }) {
     try {
       console.log('🚀 Running background initialization for user:', userId);
       
-      const response = await fetch('http://localhost:3001/api/adaptive/init', {
+      const response = await fetch(`${getApiBase()}/api/adaptive/init`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

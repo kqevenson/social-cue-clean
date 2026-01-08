@@ -8,12 +8,13 @@ import LoadingSpinner from './animations/LoadingSpinner';
 import SessionResults from './SessionResults';
 import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animations';
 import { getFirestore, doc, updateDoc, collection, addDoc, getDoc, setDoc } from 'firebase/firestore';
+import { getApiBase } from '../../utils/apiBase';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
   const USE_AI_EVALUATION = false; // Set to true when backend is deployed
   const USE_API = false; // Set to true when backend is ready
-  const API_BASE_URL = 'http://localhost:3001';
+  const API_BASE_URL = getApiBase();
   
   const [currentSituation, setCurrentSituation] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -123,7 +124,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         console.log('📡 Calling API: /api/lessons/start with topic:', topicName);
 
         // Call the NEW /api/lessons/start endpoint
-        const response = await fetch('http://localhost:3001/api/lessons/start', {
+        const response = await fetch(`${API_BASE_URL}/api/lessons/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
