@@ -7,7 +7,7 @@ import {
   getScenariosForTopic,
   getGradeBandFromGrade,
 } from "../../data/voicePracticeScenarios";
-import { AI_BEHAVIOR_CONFIG } from "../../content/training/AIBehaviorConfig";
+import { AI_BEHAVIOR_CONFIG } from "../../content/training/aibehaviorconfig";
 import { ArrowRight } from "lucide-react";
 import { savePracticeHistory } from "../../services/savePracticeHistory";
 import { generateSceneBackground } from "../../services/dalleImageService";
