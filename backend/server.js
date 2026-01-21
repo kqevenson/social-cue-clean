@@ -3029,7 +3029,8 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 
   // Handle React routing - serve index.html for all non-API routes
-  app.get("*", (req, res, next) => {
+  // Express 5 requires named parameter for wildcards
+  app.get("/{*splat}", (req, res, next) => {
     // Skip API routes
     if (req.path.startsWith("/api")) {
       return next();
