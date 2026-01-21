@@ -3,8 +3,17 @@
 //--------------------------------------------------------------
 
 export function getApiBase() {
-  // Use VITE_API_URL from environment, fallback to localhost for development
-  return import.meta.env.VITE_API_URL || "http://localhost:3001";
+  // In production (same origin), use empty string for relative URLs
+  // In development, use localhost:3001
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // If running on localhost (dev), use the backend port
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return "http://localhost:3001";
+  }
+  // In production, use relative URLs (same origin)
+  return "";
 }
 
 //--------------------------------------------------------------
