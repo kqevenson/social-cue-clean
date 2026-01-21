@@ -24,7 +24,13 @@ import OpenAI from "openai";
 // PATCH 2 — Hume Video Emotion Analysis
 import FormData from "form-data";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { exec } from "child_process";
+
+// For ES modules __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
@@ -55,6 +61,9 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (origin.startsWith("http://localhost:")) return callback(null, true);
+      // Allow Railway and other production domains
+      if (origin.includes("railway.app")) return callback(null, true);
+      if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -3014,6 +3023,24 @@ app.post("/api/hume/analyze-video", async (req, res) => {
 // DISABLED:   }
 // DISABLED: });
 // DISABLED: 
+// Serve static files from the React build folder
+const distPath = path.join(__dirname, "../dist");
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  // Handle React routing - serve index.html for all non-API routes
+  app.get("*", (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+  console.log("📁 Serving static files from:", distPath);
+} else {
+  console.log("⚠️  No dist folder found - run 'npm run build' to create it");
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
