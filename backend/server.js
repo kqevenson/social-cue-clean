@@ -97,9 +97,9 @@ const anthropic = new Anthropic({
 const HUME_API_KEY = process.env.HUME_API_KEY;
 
 // Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_KEY || process.env.OPENAI_API_KEY
-});
+const OPENAI_API_KEY = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
+console.log("🔑 OpenAI API Key configured:", OPENAI_API_KEY ? "Yes" : "No");
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 // Test endpoint
 app.get('/api/health', (req, res) => {
