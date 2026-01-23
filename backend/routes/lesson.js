@@ -75,6 +75,63 @@ router.post("/start", async (req, res) => {
 });
 
 /**
+ * POST /api/lessons/preview
+ * Generates a quick practice scenario preview (title, context, tips)
+ */
+router.post("/preview", async (req, res) => {
+  try {
+    const { topicName, gradeLevel } = req.body;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are Cue, a K-12 social skills coach. Generate a practice scenario based on topicName and gradeLevel.
+
+Use friendly, age-appropriate language. Keep the preview short.
+
+Produce:
+- scenarioTitle (string): A catchy, friendly title for this practice scenario
+- shortPreview (1-2 sentences): A brief, engaging description that gets the learner excited
+- fullContext (3-4 sentences): A detailed scenario description that sets the scene
+- whatYouWillLearn: three short bullet points describing the key skills they'll practice
+- tips: 2-3 grade-appropriate coaching tips to help them succeed
+- estimatedTime: a short string like '5-8 minutes' or '10-12 minutes'
+
+Return your response as a JSON object with these exact keys: scenarioTitle, shortPreview, fullContext, whatYouWillLearn (array), tips (array), estimatedTime.`
+        },
+        {
+          role: "user",
+          content: `Generate a practice scenario for:\nTopic: "${topicName}"\nGrade Level: "${gradeLevel}"\n\nMake it engaging, age-appropriate, and focused on real-world social skills practice.`
+        }
+      ],
+      temperature: 0.8,
+      max_tokens: 500,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content?.trim();
+    const parsed = JSON.parse(content);
+
+    return res.json({
+      success: true,
+      scenario: {
+        scenarioTitle: parsed.scenarioTitle || `${topicName} Practice`,
+        shortPreview: parsed.shortPreview || `Let's practice ${topicName} together!`,
+        fullContext: parsed.fullContext || `You'll practice ${topicName} in a safe, supportive environment.`,
+        whatYouWillLearn: Array.isArray(parsed.whatYouWillLearn) ? parsed.whatYouWillLearn : [],
+        tips: Array.isArray(parsed.tips) ? parsed.tips : [],
+        estimatedTime: parsed.estimatedTime || "5-8 minutes"
+      }
+    });
+  } catch (err) {
+    console.error("Preview generation error:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * POST /api/lessons/video
  * Generates an AI avatar video using HeyGen
  */

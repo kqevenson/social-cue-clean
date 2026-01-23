@@ -27,13 +27,7 @@ import OpenAI from "openai";
 // PATCH 2 — Hume Video Emotion Analysis
 import FormData from "form-data";
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { exec } from "child_process";
-
-// For ES modules __dirname equivalent
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
