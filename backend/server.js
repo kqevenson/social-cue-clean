@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, ".env") });
 // ✅ ADD THIS IMPORT
 import lessonRouter from "./routes/lesson.js";
 import tavusRouter from "./routes/tavus.js";
+import sandboxRouter from "./routes/sandbox.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -26,7 +27,13 @@ import OpenAI from "openai";
 // PATCH 2 — Hume Video Emotion Analysis
 import FormData from "form-data";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { exec } from "child_process";
+
+// For ES modules __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
@@ -58,7 +65,8 @@ app.use(
       if (!origin) return callback(null, true);
       if (origin.startsWith("http://localhost:")) return callback(null, true);
       if (origin.endsWith(".vercel.app")) return callback(null, true);
-      // Allow custom domain set via ALLOWED_ORIGIN env var
+      if (origin.includes("railway.app")) return callback(null, true);
+      if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
       if (process.env.ALLOWED_ORIGIN && origin === process.env.ALLOWED_ORIGIN) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
@@ -80,6 +88,9 @@ app.use("/api/lessons", lessonRouter);
 // ✅ REGISTER TAVUS ROUTER for conversational video avatars
 app.use("/api/tavus", tavusRouter);
 
+// ✅ REGISTER SANDBOX ROUTER for Social Sandbox feature
+app.use("/api/sandbox", sandboxRouter);
+
 // Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -90,9 +101,9 @@ const anthropic = new Anthropic({
 const HUME_API_KEY = process.env.HUME_API_KEY;
 
 // Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_KEY
-});
+const OPENAI_API_KEY = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
+console.log("🔑 OpenAI API Key configured:", OPENAI_API_KEY ? "Yes" : "No");
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 // Test endpoint
 app.get('/api/health', (req, res) => {
@@ -3016,6 +3027,25 @@ app.post("/api/hume/analyze-video", async (req, res) => {
 // DISABLED:   }
 // DISABLED: });
 // DISABLED: 
+// Serve static files from the React build folder
+const distPath = path.join(__dirname, "../dist");
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  // Handle React routing - serve index.html for all non-API routes
+  // Express 5 requires named parameter for wildcards
+  app.get("/{*splat}", (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+  console.log("📁 Serving static files from:", distPath);
+} else {
+  console.log("⚠️  No dist folder found - run 'npm run build' to create it");
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);

@@ -9,7 +9,7 @@
 // • Be grade-aware but NOT repetitive or restrictive
 // ---------------------------------------------------------------------------
 
-import { MICRO_TIPS } from "../content/training/AIBehaviorConfig";
+import { MICRO_TIPS } from "../content/training/aibehaviorconfig";
 import { personaEngine } from "./personaEngine";
 
 // -------------------------------------------------------------

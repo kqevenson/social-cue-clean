@@ -125,7 +125,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         console.log('📡 Calling API: /api/lessons/start with topic:', topicName);
 
         // Call the NEW /api/lessons/start endpoint
-        const response = await fetch(`${getApiBase()}/api/lessons/start`, {
+        const response = await fetch(`${API_BASE_URL}/api/lessons/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

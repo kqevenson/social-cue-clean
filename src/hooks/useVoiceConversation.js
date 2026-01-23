@@ -17,7 +17,7 @@ import {
   stopRecognition
 } from "../services/speechRecognitionService";
 
-import { PHASES } from "../content/training/AIBehaviorConfig";
+import { PHASES } from "../content/training/aibehaviorconfig";
 import { generateConversationResponse } from "../services/generateConversationResponse";
 import { convertBlobToBase64 } from "../services/audioHelpers";
 import { sendVoiceToAI } from "../services/voiceConversationApi";

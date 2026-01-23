@@ -1,0 +1,272 @@
+{
+  "session": {
+    "startTime": "2025-10-21T20:17:12.139Z",
+    "totalTests": 3,
+    "completedTests": 3,
+    "failedTests": 0,
+    "endTime": "2025-10-21T20:18:20.861Z"
+  },
+  "results": [
+    {
+      "topic": "small-talk-basics",
+      "gradeLevel": "K",
+      "skillLevel": 1,
+      "timestamp": "2025-10-21T20:17:32.993Z",
+      "results": {
+        "contentQuality": {
+          "objectivesClear": true,
+          "scenariosAppropriate": true,
+          "vocabularyMatch": true,
+          "examplesRelatable": false,
+          "optionsVary": true,
+          "feedbackConstructive": false
+        },
+        "technicalQuality": {
+          "allFieldsPresent": true,
+          "jsonValid": true,
+          "scenarioCount": 5,
+          "optionsPerScenario": [
+            4,
+            4,
+            4,
+            4,
+            4
+          ],
+          "challengePresent": true
+        },
+        "ageAppropriateness": {
+          "noWorkplaceTerms": true,
+          "appropriateTopics": true,
+          "correctSettings": true,
+          "appropriateRelationships": true
+        },
+        "consistency": {
+          "difficultyMatches": true,
+          "alignsWithTopic": true,
+          "toneConsistent": true,
+          "addressesKeySkills": false
+        }
+      },
+      "flags": [
+        "Examples not relatable to student life",
+        "Feedback not constructive or encouraging",
+        "Missing key skills: Asking open-ended questions, Active listening and responding, Keeping conversation flowing, Reading social cues"
+      ],
+      "overallScore": 80,
+      "recommendation": "REVIEW",
+      "lesson": {
+        "id": "lesson-small-talk-basics-K-1",
+        "topic": "small-talk-basics",
+        "gradeLevel": "K",
+        "skillLevel": 1,
+        "introduction": {
+          "title": "Making New Friends",
+          "objective": "In this lesson, you'll learn how to start and keep conversations going with your classmates, so you can make new friends.",
+          "whyItMatters": "Being able to talk to others and make new friends is an important skill for kindergarteners. It helps you feel more comfortable at school and have more fun during recess and other activities.",
+          "estimatedTime": "5-6 minutes"
+        },
+        "explanation": {
+          "mainConcept": "Small talk is the easy, friendly conversation you have with people you know or just met. It's a great way to get to know someone new and become friends.",
+          "keyPoints": [
+            "Ask questions to learn about the other person and what they like.",
+            "Listen closely to their answers and ask follow-up questions.",
+            "Talk about things you both enjoy, like your favorite toys or games."
+          ],
+          "commonMistakes": [
+            "Only talking about yourself and not asking the other person questions.",
+            "Asking only yes/no questions that don't keep the conversation going.",
+            "Changing the topic too quickly before the other person can respond."
+          ]
+        },
+        "practiceScenarios": [
+          {
+            "id": 1,
+            "situation": "You see a new student in your class and want to talk to them.",
+            "question": "What should you say to start a conversation?",
+            "options": [
+              {
+                "text": "Hi, my name is Alex. What's your name? Do you like to play on the swings at recess?",
+                "quality": "excellent",
+                "feedback": "Great job! You introduced yourself, asked the other person's name, and then asked an open-ended question about something you both might enjoy. This is a friendly way to start a conversation and get to know someone new.",
+                "tip": "Keep asking follow-up questions about the things they like to do. This shows you're really listening and interested in learning more about them."
+              },
+              {
+                "text": "I'm Emma. Do you want to be my friend?",
+                "quality": "good",
+                "feedback": "That's a good start! Introducing yourself and asking to be friends is a nice way to begin. You could make it even better by asking the other person some questions to learn more about them.",
+                "tip": "Try adding a question like 'What's your favorite thing to do at recess?' to keep the conversation going."
+              },
+              {
+                "text": "Hey, I'm new here. Can I play with you?",
+                "quality": "good",
+                "feedback": "That's a polite way to introduce yourself and ask to join in. You could make it even better by asking the other person some questions to get to know them better.",
+                "tip": "Try saying something like 'What's your name? What do you like to play?' to start a conversation."
+              },
+              {
+                "text": "You look different. Are you new here?",
+                "quality": "poor",
+                "feedback": "I wouldn't recommend saying that. It might make the other person feel uncomfortable. It's better to introduce yourself in a friendly way and ask questions to get to know them.",
+                "tip": "Focus on finding things you have in common, like favorite toys or games, to talk about."
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "situation": "You're eating lunch at your school's cafeteria and notice a student at another table you haven't met before.",
+            "question": "What could you say to start a conversation with them?",
+            "options": [
+              {
+                "text": "Hi, I'm Liam. What's your favorite part of lunch? I really like the mac and cheese they serve today.",
+                "quality": "excellent",
+                "feedback": "That's a great way to start a conversation! You introduced yourself, asked an open-ended question about their favorite part of lunch, and then shared your own opinion. This shows you're interested in getting to know them.",
+                "tip": "You can also ask what other foods they like or what their favorite subject in school is to keep the conversation going."
+              },
+              {
+                "text": "I'm Sarah. Do you like the lunch here?",
+                "quality": "good",
+                "feedback": "Introducing yourself and asking a question is a good start. You could make it even better by asking a follow-up question to learn more about the other person.",
+                "tip": "Try saying something like 'What's your favorite food they serve?' to get them talking more."
+              },
+              {
+                "text": "Hey, can I have some of your food?",
+                "quality": "poor",
+                "feedback": "I wouldn't recommend asking for the other person's food. That could make them feel uncomfortable. It's better to introduce yourself and ask questions to start a friendly conversation.",
+                "tip": "Focus on finding things you have in common, like favorite foods or lunch items, to talk about."
+              },
+              {
+                "text": "You're sitting alone. Do you not have any friends?",
+                "quality": "poor",
+                "feedback": "That question could come across as rude or make the other person feel bad. It's best to introduce yourself in a kind way and ask about their interests to start a positive conversation.",
+                "tip": "Remember to be respectful and friendly when talking to someone new."
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "situation": "You're playing on the swings at recess and notice another student watching from the sidelines.",
+            "question": "How could you invite them to join you?",
+            "options": [
+              {
+                "text": "Hi, I'm Sophia. Would you like to take turns with me on the swings? They're really fun!",
+                "quality": "excellent",
+                "feedback": "That's a great way to invite the other student to join you. You introduced yourself, asked if they'd like to take turns, and explained why the swings are fun. This is a friendly, inclusive way to start a conversation and play together.",
+                "tip": "You can also ask them what their favorite part of recess is to keep the conversation going."
+              },
+              {
+                "text": "Come on, get on the swings with me!",
+                "quality": "good",
+                "feedback": "Inviting the other student to join you is a good start, but it could be even better if you introduced yourself first and asked if they'd like to play.",
+                "tip": "Try saying something like 'Hi, I'm Ethan. Would you like to take turns on the swings with me?' to make it more of a friendly conversation."
+              },
+              {
+                "text": "Why aren't you playing? You should be on the swings too.",
+                "quality": "poor",
+                "feedback": "That question could come across as rude or make the other person feel bad. It's better to invite them to join you in a kind, friendly way.",
+                "tip": "Focus on finding common interests, like favorite games or activities, to bond over."
+              },
+              {
+                "text": "I'm the best at swinging. You can watch me if you want.",
+                "quality": "poor",
+                "feedback": "Saying you're the best could make the other person feel left out. It's important to be inclusive and invite them to play with you in a friendly way.",
+                "tip": "Remember that the goal is to make a new friend, not show off. Keep the conversation focused on them and what they enjoy."
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "situation": "You're at your friend's birthday party and notice another classmate who you don't know very well.",
+            "question": "What could you say to start a conversation with them?",
+            "options": [
+              {
+                "text": "Hi, I'm Riley. I really like your shirt, it has cool dinosaurs on it. Do you like dinosaurs too?",
+                "quality": "excellent",
+                "feedback": "That's a great way to start a conversation! You introduced yourself, gave a sincere compliment, and then asked an open-ended question to learn more about the other person's interests. This shows you're friendly and interested in getting to know them better.",
+                "tip": "You can also ask what their favorite dinosaur is or what other animals they like to keep the conversation going."
+              },
+              {
+                "text": "I'm Jayden. Do you come to this school?",
+                "quality": "good",
+                "feedback": "Introducing yourself and asking a question is a good start. You could make it even better by asking a follow-up question to learn more about the other person.",
+                "tip": "Try saying something like 'What's your favorite part about our school?' to get them talking more."
+              },
+              {
+                "text": "Your present is dumb. I got the best one here.",
+                "quality": "poor",
+                "feedback": "That wouldn't be a very nice way to start a conversation. It's important to be kind and complimentary when talking to someone new.",
+                "tip": "Focus on finding common interests or things you both enjoy, like the party activities or decorations, to talk about."
+              },
+              {
+                "text": "Why are you standing over there by yourself?",
+                "quality": "poor",
+                "feedback": "Asking why they're standing alone could come across as rude or make the other person feel singled out. It's better to introduce yourself in a friendly way and ask questions to get to know them better.",
+                "tip": "Remember to be respectful and make the other person feel included, even if you don't know them well yet."
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "situation": "You're waiting for your parent to pick you up after school and notice a classmate you haven't talked to much before.",
+            "question": "What could you say to start a conversation with them?",
+            "options": [
+              {
+                "text": "Hi, I'm Emma. I noticed we're both waiting for our parents. Do you ride the bus or get picked up? I take the bus, but sometimes my mom picks me up too.",
+                "quality": "excellent",
+                "feedback": "That's an excellent way to start a conversation! You introduced yourself, noticed you had something in common (waiting for your parents), and then asked an open-ended question about how they get home from school. This shows you're friendly and interested in learning more about them.",
+                "tip": "You can also ask what their favorite subjects or activities are at school to keep the conversation going."
+              },
+              {
+                "text": "I'm Jack. Do your parents always pick you up late?",
+                "quality": "good",
+                "feedback": "Introducing yourself and asking a question is a good start, but the question about their parents could come across as a bit rude. It's better to focus on finding common interests to talk about.",
+                "tip": "Try asking something like 'What's your favorite thing to do after school?' instead."
+              },
+              {
+                "text": "Hey, can I borrow your pencil? I forgot mine at home.",
+                "quality": "poor",
+                "feedback": "Asking to borrow something without first introducing yourself and starting a friendly conversation isn't the best approach. It's important to build a connection first before asking for favors.",
+                "tip": "Start by saying hi and asking how their day was, then you can ask if they have an extra pencil you could use."
+              },
+              {
+                "text": "You're in my class, right? I see you here every day.",
+                "quality": "poor",
+                "feedback": "While that's an observation that's true, it doesn't really start a conversation in a friendly way. It's better to introduce yourself and ask questions to get to know the other person better.",
+                "tip": "Focus on finding common interests or activities you both enjoy to talk about."
+              }
+            ]
+          }
+        ],
+        "summary": {
+          "whatYouLearned": "In this lesson, you learned how to start and keep casual conversations going with your classmates. The key things to remember are: ask open-ended questions, listen closely to their answers, and talk about things you both enjoy.",
+          "keyTakeaway": "Small talk is a great way to make new friends and feel more comfortable at school.",
+          "realWorldChallenge": "This week, try starting a conversation with a classmate you don't know very well. Ask them questions about their interests or favorite things to do, and see if you can find something you have in common to talk about.",
+          "nextTopic": "Building Friendship Skills"
+        }
+      }
+    },
+    {
+      "topic": "active-listening",
+      "gradeLevel": "K",
+      "skillLevel": 1,
+      "timestamp": "2025-10-21T20:17:57.353Z",
+      "error": "HTTP 500: Internal Server Error",
+      "overallScore": 0,
+      "recommendation": "FAILED"
+    },
+    {
+      "topic": "starting-conversations",
+      "gradeLevel": "K",
+      "skillLevel": 1,
+      "timestamp": "2025-10-21T20:18:18.860Z",
+      "error": "HTTP 500: Internal Server Error",
+      "overallScore": 0,
+      "recommendation": "FAILED"
+    }
+  ],
+  "report": "\n========================================\nAI QUALITY TEST REPORT\nGenerated: 10/21/2025\n========================================\n\nOVERALL RESULTS:\n✅ 0 tests passed (0%)\n⚠️  1 tests flagged for review (33%)\n❌ 2 tests failed critically (67%)\n\nBY TOPIC:\n⚠️ small-talk-basics: 80% (1 tests)\n❌ active-listening: 0% (1 tests)\n❌ starting-conversations: 0% (1 tests)\n\nBY GRADE LEVEL:\n❌ Grade K: 27% (3 tests)\n\nCOMMON ISSUES:\n1. Examples not relatable to student life (1 occurrences)\n2. Feedback not constructive or encouraging (1 occurrences)\n3. Missing key skills: Asking open-ended questions, Active listening and responding, Keeping conversation flowing, Reading social cues (1 occurrences)\n\nRECOMMENDATIONS:\n📝 Review and adjust prompt templates for topics with low scores\n📝 Address common issues in prompt instructions\n📝 Consider grade-specific vocabulary guidelines\n\n========================================\n",
+  "suggestions": [
+    "🚨 CRITICAL: Multiple tests failing - review prompt templates immediately",
+    "⚠️ REVIEW: Several tests flagged - consider prompt adjustments",
+    "📝 Ensure all key skills are addressed in prompt instructions"
+  ],
+  "generatedAt": "2025-10-21T20:18:20.888Z"
+}

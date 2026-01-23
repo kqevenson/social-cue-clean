@@ -1,39 +1,17 @@
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import Anthropic from '@anthropic-ai/sdk';
+import { getTemplate, getDisplayName } from './promptTemplates.js';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
+import adaptiveLearningRoutes from './adaptive-learning-routes.js';
+
 dotenv.config();
 
-// ✅ ADD THIS IMPORT
-import lessonRouter from "./routes/lesson.js";
-import tavusRouter from "./routes/tavus.js";
-
-
-process.env.NODE_ENV = process.env.NODE_ENV || "development";
-// import { HumeClient } from "hume"; // Package doesn't exist - using axios for Hume API calls instead
-import express from "express";
-import cors from "cors";
-import bodyParser from "body-parser";
-import axios from "axios";
-import Anthropic from "@anthropic-ai/sdk";
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp, writeBatch, deleteDoc } from "firebase/firestore";
-import OpenAI from "openai";
-// Removed old routers that no longer exist
-// (chat.js and hume.js were deleted)
-// import chatRouter from './server/routes/chat.js';
-// import humeRouter from './server/routes/hume.js';
-// PATCH 2 — Hume Video Emotion Analysis
-import FormData from "form-data";
-import fs from "fs";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
-
 const app = express();
-const PORT = process.env.PORT || 3001;
-
-// Dynamic backend base URL
-const BASE = process.env.SERVER_URL || `http://localhost:${PORT}`;
-console.log("🔥 BACKEND BASE URL:", BASE);
+const PORT = 3001;
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -48,170 +26,18 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Middleware - CORS must be first
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (origin.startsWith("http://localhost:")) return callback(null, true);
-      callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
-
+// Middleware
+app.use(cors());
 app.use(bodyParser.json());
-
-// Removed old routers that no longer exist
-// (chat.js and hume.js were deleted)
-// app.use('/api/chat', chatRouter);
-// app.use('/api/hume', humeRouter);
-
-// ✅ REGISTER THE LESSON ROUTER
-// This creates the real route: POST /api/lessons/start
-app.use("/api/lessons", lessonRouter);
-
-// ✅ REGISTER TAVUS ROUTER for conversational video avatars
-app.use("/api/tavus", tavusRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Initialize Hume client - using axios for API calls since SDK package doesn't exist
-// const hume = new HumeClient({ apiKey: process.env.HUME_API_KEY });
-const HUME_API_KEY = process.env.HUME_API_KEY;
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_KEY
-});
-
 // Test endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: "Server is running!" });
-});
-
-// Diagnostic endpoint to test API keys
-app.get('/api/test-keys', (req, res) => {
-  const colossyanKey = process.env.COLOSSYAN_API_KEY;
-  const humeKey = process.env.HUME_API_KEY;
-  const humeSecret = process.env.HUME_CLIENT_SECRET;
-
-  console.log("🔑 Testing API Keys...");
-  console.log("   COLOSSYAN_API_KEY:", colossyanKey ? `${colossyanKey.substring(0, 10)}...` : "NOT SET");
-  console.log("   HUME_API_KEY:", humeKey ? `${humeKey.substring(0, 10)}...` : "NOT SET");
-  console.log("   HUME_CLIENT_SECRET:", humeSecret ? `${humeSecret.substring(0, 10)}...` : "NOT SET");
-
-  res.json({
-    colossyan: {
-      loaded: !!colossyanKey,
-      prefix: colossyanKey ? colossyanKey.substring(0, 10) + "..." : null
-    },
-    hume: {
-      apiKeyLoaded: !!humeKey,
-      secretLoaded: !!humeSecret,
-      apiKeyPrefix: humeKey ? humeKey.substring(0, 10) + "..." : null
-    }
-  });
-});
-
-// Test Colossyan API connection
-app.get('/api/test-colossyan', async (req, res) => {
-  const colossyanKey = process.env.COLOSSYAN_API_KEY;
-
-  if (!colossyanKey) {
-    return res.status(500).json({ success: false, error: "COLOSSYAN_API_KEY not configured" });
-  }
-
-  const keyInfo = {
-    prefix: colossyanKey.substring(0, 10) + "...",
-    length: colossyanKey.length
-  };
-
-  try {
-    // Test by listing generated videos (correct endpoint)
-    const response = await axios.get(
-      "https://app.colossyan.com/api/v1/generated-videos?limit=1",
-      {
-        headers: {
-          "Authorization": `Bearer ${colossyanKey}`
-        }
-      }
-    );
-
-    console.log("✅ Colossyan API connection successful");
-    res.json({
-      success: true,
-      message: "Colossyan API connected",
-      keyInfo,
-      note: "Ready to generate AI avatar educational videos"
-    });
-  } catch (err) {
-    console.error("❌ Colossyan API test failed:", err.response?.data || err.message);
-    res.json({
-      success: false,
-      error: err.response?.data?.error || err.response?.data?.message || err.message,
-      status: err.response?.status,
-      keyInfo,
-      hint: "Check your API key at colossyan.com"
-    });
-  }
-});
-
-// Test Hume API connection
-app.get('/api/test-hume', async (req, res) => {
-  const humeKey = process.env.HUME_API_KEY;
-  const humeSecret = process.env.HUME_CLIENT_SECRET;
-
-  if (!humeKey) {
-    return res.status(500).json({ success: false, error: "HUME_API_KEY not configured" });
-  }
-
-  const keyInfo = {
-    apiKeyLength: humeKey.length,
-    apiKeyPrefix: humeKey.substring(0, 10),
-    secretConfigured: !!humeSecret
-  };
-
-  try {
-    // Test by listing jobs (doesn't create anything)
-    const response = await axios.get(
-      "https://api.hume.ai/v0/batch/jobs",
-      {
-        headers: {
-          "X-Hume-Api-Key": humeKey
-        }
-      }
-    );
-
-    console.log("✅ Hume API connection successful");
-    res.json({
-      success: true,
-      message: "Hume API connected",
-      jobsFound: response.data?.length || 0,
-      keyInfo
-    });
-  } catch (err) {
-    console.error("❌ Hume API test failed:", err.response?.data || err.message);
-
-    // Check for specific error types
-    const errorData = err.response?.data;
-    const isInvalidKey = errorData?.fault?.faultstring === "Invalid ApiKey" ||
-                         errorData?.fault?.detail?.errorcode === "oauth.v2.InvalidApiKey";
-
-    res.json({
-      success: false,
-      error: isInvalidKey ? "Invalid API Key" : (errorData?.fault?.faultstring || err.message),
-      status: err.response?.status,
-      keyInfo,
-      hint: isInvalidKey
-        ? "Your Hume API key is invalid or expired. Get a new one from https://platform.hume.ai/settings/keys"
-        : "Check your API key at https://platform.hume.ai/settings/keys",
-      emotionDetectionStatus: "disabled - will skip emotion detection gracefully"
-    });
-  }
+  res.json({ status: 'Server is running!', timestamp: new Date() });
 });
 
 // Firebase connection test endpoint
@@ -299,22 +125,8 @@ const cacheLesson = async (cacheKey, lessonData, usage, costEstimate) => {
 
 // Generate complete AI lesson endpoint
 app.post('/api/generate-lesson', async (req, res) => {
-  // Ensure CORS headers are set before any response
-  const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5175';
-  res.header('Access-Control-Allow-Origin', origin);
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
   try {
     const { topicName, gradeLevel, currentSkillLevel, learnerStrengths, learnerWeaknesses } = req.body;
-    
-    // Validate required fields
-    if (!topicName || !gradeLevel) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: topicName and gradeLevel are required'
-      });
-    }
     
     console.log(`📚 Generating AI lesson for: ${topicName}, Grade: ${gradeLevel}, Skill Level: ${currentSkillLevel}`);
     console.log(`🎯 Strengths: ${learnerStrengths?.join(', ') || 'None specified'}`);
@@ -418,8 +230,33 @@ app.post('/api/generate-lesson', async (req, res) => {
     
     const skillAdaptation = skillLevelAdaptations[currentSkillLevel] || skillLevelAdaptations[3];
     
-    // Build enhanced prompt using generic template
-    const templateInfo = `
+    // Get template for this topic
+    const topicKey = (topicName || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const template = getTemplate(topicKey);
+    
+    if (!template) {
+      console.log(`⚠️ No template found for topic: ${topicName}, using generic template`);
+    }
+    
+    // Build enhanced prompt using template
+    const templateInfo = template ? `
+LEARNING OBJECTIVES FOR ${gradeLevel}:
+${template.learningObjectives[gradeLevel] || template.learningObjectives['3-5']}
+
+KEY SKILLS TO TEACH:
+${template.keySkills?.join(', ') || 'General social skills'}
+
+COMMON MISTAKES TO ADDRESS:
+${template.commonMistakes?.join(', ') || 'General social mistakes'}
+
+SCENARIO CONTEXTS (use these settings):
+${template.scenarioContexts?.[gradeLevel]?.join(', ') || 'school, classroom, playground'}
+
+REAL-WORLD CHALLENGE:
+${template.realWorldChallenges?.[gradeLevel] || 'Practice this skill in your daily life'}
+
+TOPIC-SPECIFIC INSTRUCTIONS:
+${template.promptInstructions || 'Focus on building social skills appropriate for this age group'}` : `
 LEARNING OBJECTIVES FOR ${gradeLevel}:
 Learn important social skills for ${gradeLevel}
 
@@ -706,11 +543,6 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
     
   } catch (error) {
     console.error('❌ Error generating lesson:', error);
-    // Ensure CORS headers are included in error response
-    const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5175';
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.status(500).json({ 
       success: false, 
       error: error.message 
@@ -718,9 +550,509 @@ CRITICAL: Do not use ANY workplace, business, or professional language anywhere 
   }
 });
 
-// REMOVED: /api/generate-lesson-simple endpoint (replaced by /api/lessons/start)
+// NEW: Simplified AI lesson generation endpoint
+app.post('/api/generate-lesson-simple', async (req, res) => {
+  try {
+    const { topic, gradeLevel, numScenarios, timestamp, requestId } = req.body;
+    
+    console.log(`📚 Generating AI lesson for: ${topic}, Grade: ${gradeLevel}, Scenarios: ${numScenarios || 5}`);
+    console.log(`🔄 Request ID: ${requestId}, Timestamp: ${timestamp}`);
 
-// REMOVED: /api/generate-scenario endpoint (replaced by /api/lessons/start)
+    // Topic-specific examples for better scenarios
+    const topicExamples = {
+      'starting-conversations': 'introducing yourself, asking questions, finding common interests',
+      'reading-body-language': 'noticing facial expressions, understanding personal space, reading tone',
+      'small-talk': 'talking about weekend plans, commenting on the weather, casual classroom chat',
+      'making-friends': 'joining activities, showing interest, being a good listener',
+      'small-talk-basics': 'casual conversations, asking about interests, sharing simple stories',
+      'active-listening': 'paying attention, asking follow-up questions, showing you care',
+      'body-language': 'reading facial expressions, understanding personal space, noticing gestures',
+      'confidence-building': 'speaking up, trying new things, believing in yourself'
+    };
+
+    const topicContext = topicExamples[String(topic)?.toLowerCase()] || 'general social situations';
+    const age = parseInt(gradeLevel) + 5; // Approximate age
+
+    const prompt = `Generate 5 DIFFERENT social skills scenarios for grade ${gradeLevel} students.
+
+RANDOM SEED: ${topic}-${timestamp}-${Math.random()}
+
+Topic: ${topic} (age ${age})
+Focus: ${topicContext}
+
+Create 5 unique school situations. Use names: Alex, Sam, Jordan, Casey, Taylor, Morgan.
+Settings: cafeteria, playground, classroom, hallway, library, gym, art room, bus stop.
+
+IMPORTANT: You MUST respond with ONLY valid JSON. No explanations, no markdown, no code blocks.
+
+{
+  "title": "${topic}",
+  "scenarios": [
+    {
+      "scenario": "situation description",
+      "options": [
+        {
+          "text": "response option",
+          "isGood": true,
+          "points": 10,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option", 
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false, 
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        }
+      ]
+    },
+    {
+      "scenario": "another situation",
+      "options": [
+        {
+          "text": "response option",
+          "isGood": true,
+          "points": 10,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option", 
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false, 
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        }
+      ]
+    },
+    {
+      "scenario": "third situation",
+      "options": [
+        {
+          "text": "response option",
+          "isGood": true,
+          "points": 10,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option", 
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false, 
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        }
+      ]
+    },
+    {
+      "scenario": "fourth situation",
+      "options": [
+        {
+          "text": "response option",
+          "isGood": true,
+          "points": 10,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option", 
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false, 
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        }
+      ]
+    },
+    {
+      "scenario": "fifth situation",
+      "options": [
+        {
+          "text": "response option",
+          "isGood": true,
+          "points": 10,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option", 
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false, 
+          "points": 0,
+          "feedback": "feedback"
+        },
+        {
+          "text": "response option",
+          "isGood": false,
+          "points": 0,
+          "feedback": "feedback"
+        }
+      ]
+    }
+  ]
+}`;
+
+    console.log(`📝 Making API call to Claude for lesson generation...`);
+    const startTime = Date.now();
+    
+    const message = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 2000, // Increased to handle full 5 scenarios
+      temperature: 0.7, // Reduced from 0.9 for faster generation
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+    });
+    
+    const apiTime = Date.now() - startTime;
+    console.log(`⚡ Claude API call completed in ${apiTime}ms`);
+    
+    let responseText = message.content[0].text;
+    console.log(`📊 API response received, validating for age-appropriateness...`);
+    
+    // Simple validation for banned words
+    const bannedWords = ['coworker', 'colleague', 'workplace', 'office', 'professional', 'business', 'corporate', 'employee', 'supervisor', 'HR', 'networking', 'resume', 'interview', 'client', 'customer', 'boss', 'manager'];
+    const lowerText = responseText.toLowerCase();
+    
+    for (const word of bannedWords) {
+      if (lowerText.includes(word)) {
+        console.log(`🚫 Response rejected due to banned word: "${word}"`);
+        throw new Error(`Unable to generate age-appropriate scenarios. Banned word detected: ${word}`);
+      }
+    }
+    
+    console.log(`✅ Response validated successfully - no banned words detected`);
+    console.log(`📊 Parsing JSON from validated response...`);
+    
+    // Parse JSON from response
+    let lessonData;
+    try {
+      // Extract JSON from markdown code blocks if present
+      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/) || 
+                       responseText.match(/\{[\s\S]*\}/);
+      
+      if (!jsonMatch) {
+        console.error('❌ No JSON found in response');
+        console.error('Raw response:', responseText.substring(0, 500));
+        throw new Error('No JSON found in response');
+      }
+      
+      lessonData = JSON.parse(jsonMatch[0]);
+      console.log(`✅ Successfully parsed lesson: "${lessonData.title || 'Unknown'}"`);
+      console.log(`📊 Lesson contains ${lessonData.scenarios?.length || 0} practice scenarios`);
+      
+      // Detailed scenario logging
+      if (lessonData.scenarios && lessonData.scenarios.length > 0) {
+        console.log(`🔵 Scenarios generated: ${lessonData.scenarios.length}`);
+        console.log(`🔵 First scenario: ${lessonData.scenarios[0]?.scenario?.substring(0, 50)}...`);
+        console.log(`🔵 Last scenario: ${lessonData.scenarios[lessonData.scenarios.length - 1]?.scenario?.substring(0, 50)}...`);
+        console.log(`🔵 All scenario previews:`, lessonData.scenarios.map((s, i) => `${i + 1}. ${s.scenario?.substring(0, 30)}...`));
+      }
+      
+      console.log(`📊 Generated scenarios details:`, lessonData.scenarios?.map(s => ({
+        scenario: s.scenario?.substring(0, 50) + '...',
+        optionsCount: s.options?.length || 0
+      })));
+      
+    } catch (parseError) {
+      console.error(`❌ Failed to parse lesson JSON:`, parseError);
+      console.log(`Raw response:`, responseText.substring(0, 500) + '...');
+      throw new Error('Failed to parse lesson response from AI');
+    }
+    
+    // Calculate token usage and cost
+    const inputTokens = prompt.length / 4; // Rough estimate
+    const outputTokens = responseText.length / 4; // Rough estimate
+    const totalTokens = inputTokens + outputTokens;
+    const cost = totalTokens * 0.00000025; // Rough cost estimate
+    
+    console.log(`💰 Token usage: ${Math.round(totalTokens)} tokens (~$${cost.toFixed(4)})`);
+    
+    res.json(lessonData);
+    
+  } catch (error) {
+    console.error('❌ Error generating lesson:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generate dynamic scenario endpoint
+app.post('/api/generate-scenario', async (req, res) => {
+  try {
+    const { category, gradeLevel, topic } = req.body;
+    
+    console.log(`🎯 Generating 5 scenarios for: ${category}, Grade: ${gradeLevel}, Topic: ${topic}`);
+    
+    // Age-appropriate guidelines
+    const ageGuidelines = {
+      'K-2': {
+        language: 'Very simple words, short sentences (3-8 words per sentence)',
+        topics: 'sharing toys, taking turns, saying sorry, making friends, asking to play',
+        settings: 'playground, lunch table, classroom, recess',
+        avoid: 'dating, complex emotions, abstract concepts, adult situations',
+        example: 'You are playing with blocks and another kid wants to play too. What do you do?'
+      },
+      '3-5': {
+        language: 'Clear, concrete language (5-12 words per sentence)',
+        topics: 'group work, handling disagreements, including others, following rules',
+        settings: 'school projects, recess, clubs, art class',
+        avoid: 'romantic relationships, mature themes, complex social dynamics',
+        example: 'Your group is working on a project but one person keeps interrupting. What do you do?'
+      },
+      '6-8': {
+        language: 'Age-appropriate teen language (8-15 words per sentence)',
+        topics: 'peer pressure, social media etiquette, conflict resolution, teamwork',
+        settings: 'middle school, group chats, lunch tables, sports teams',
+        avoid: 'adult relationships, workplace scenarios, inappropriate content',
+        example: 'Someone posts something mean about your friend in the group chat. What do you do?'
+      },
+      '9-12': {
+        language: 'Mature but appropriate vocabulary (10-20 words per sentence)',
+        topics: 'networking, leadership, conflict resolution, college prep, part-time jobs',
+        settings: 'extracurriculars, part-time jobs, college prep, clubs',
+        avoid: 'inappropriate content for high schoolers, adult-only situations',
+        example: 'You disagree with your team leader about how to approach a project. What do you do?'
+      }
+    };
+    
+    const guidelines = ageGuidelines[gradeLevel] || ageGuidelines['6-8'];
+    
+    const prompt = `You are creating practice scenarios for a CHILD in grade ${gradeLevel}.
+
+ABSOLUTE RESTRICTIONS - YOU MUST FOLLOW THESE:
+❌ NEVER use these words: coworkers, colleagues, workplace, office, professional, networking, business, corporate, supervisor, employee, HR, management, career, resume, interview, meeting, client, customer, boss, manager, colleague, peer pressure (use "friends pressuring you" instead)
+❌ NEVER include: job interviews, work meetings, workplace conflicts, career advice, business situations, professional relationships
+❌ ONLY use these settings: school, classroom, playground, lunch table, recess, sports practice, after-school clubs, birthday parties, sleepovers, family events, neighborhood park, school bus, library, cafeteria, gym class, art class, music class
+❌ ONLY use these relationships: classmates, friends, siblings, parents, teachers, coaches, teammates, neighbors, cousins
+
+For K-2: Use words a 5-7 year old would know. Example: 'friend' not 'peer', 'play' not 'socialize'
+For 3-5: Use words an 8-10 year old would know. School and home are their world.
+For 6-8: Use words a 11-13 year old middle schooler would know. School social dynamics only.
+For 9-12: High school appropriate only. NO workplace or adult situations.
+
+EVERY scenario must pass this test: 'Would this happen at school or with friends?'
+If NO, do not generate it.
+
+SPECIFIC EXAMPLES FOR ${gradeLevel}:
+${gradeLevel === 'K-2' ? 'Example: "You want to play with a toy that another kid is using. What do you do?"' : ''}
+${gradeLevel === '3-5' ? 'Example: "Your friend is upset because they lost their game. What do you say?"' : ''}
+${gradeLevel === '6-8' ? 'Example: "Someone in your group project isn\'t doing their part. How do you handle it?"' : ''}
+${gradeLevel === '9-12' ? 'Example: "A friend posts something embarrassing about themselves on social media. Do you say something?"' : ''}
+
+AGE GUIDELINES FOR ${gradeLevel}:
+- Language: ${guidelines.language}
+- Topics: ${guidelines.topics}
+- Settings: ${guidelines.settings}
+- AVOID: ${guidelines.avoid}
+
+REQUIREMENTS:
+1. Create exactly 5 different scenarios
+2. Each scenario should have:
+   - A realistic context/situation for ${gradeLevel} students
+   - 3 response options (1 good choice, 2 that need improvement)
+   - Brief, encouraging feedback for each option (1-2 sentences)
+   - A helpful pro tip
+
+3. Make scenarios diverse - different settings, different social skills
+4. Use age-appropriate language and situations
+5. Keep feedback positive and educational
+
+VALIDATION STEP:
+Before returning your response, check each scenario:
+- Does it use age-appropriate vocabulary?
+- Would this actually happen to a kid this age?
+- Are all relationships school/family/friend-based?
+- Are there NO adult workplace words?
+
+If any scenario fails these checks, regenerate it.
+
+Return as JSON array:
+[
+  {
+    "context": "scenario description",
+    "options": [
+      {
+        "text": "response option",
+        "feedback": "encouraging explanation",
+        "proTip": "helpful tip",
+        "isGood": true/false,
+        "points": 10 or 0
+      }
+    ]
+  }
+]`;
+
+    // Response validation function
+    const validateScenarioForAge = (responseText, gradeLevel) => {
+      const bannedWords = [
+        'coworker', 'colleague', 'workplace', 'office', 'professional', 'business', 
+        'corporate', 'employee', 'supervisor', 'HR', 'networking', 'career', 
+        'resume', 'interview', 'meeting', 'client', 'customer', 'boss', 'manager',
+        'colleagues', 'workplace', 'professional', 'business', 'corporate',
+        'employee', 'supervisor', 'HR', 'management', 'career', 'resume',
+        'interview', 'meeting', 'client', 'customer', 'boss', 'manager'
+      ];
+      
+      const lowerResponse = (responseText || '').toLowerCase();
+      
+      for (const word of bannedWords) {
+        if (lowerResponse.includes((word || '').toLowerCase())) {
+          console.log(`❌ BANNED WORD DETECTED: "${word}" in response for ${gradeLevel}`);
+          return { isValid: false, bannedWord: word };
+        }
+      }
+      
+      return { isValid: true };
+    };
+
+    console.log(`📝 Making API call to Claude for ${gradeLevel} scenarios...`);
+    
+    const message = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+    });
+    
+    let responseText = message.content[0].text;
+    console.log(`📊 API response received, validating for age-appropriateness...`);
+    
+    // Validate response for banned words
+    const validation = validateScenarioForAge(responseText, gradeLevel);
+    if (!validation.isValid) {
+      console.log(`🚫 Response rejected due to banned word: "${validation.bannedWord}"`);
+      console.log(`🔄 Making retry API call with stricter prompt...`);
+      
+      // Retry with even stricter prompt
+      const retryPrompt = `Your previous response contained inappropriate workplace language ("${validation.bannedWord}"). Remember: this is for a CHILD in SCHOOL, not an adult at work.
+
+${prompt}
+
+CRITICAL: Do not use ANY workplace, business, or professional language. This is for a child in grade ${gradeLevel}.`;
+
+      const retryMessage = await anthropic.messages.create({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 4000,
+        messages: [
+          {
+            role: 'user',
+            content: retryPrompt
+          }
+        ],
+      });
+      
+      const retryResponseText = retryMessage.content[0].text;
+      console.log(`📊 Retry response received, validating again...`);
+      
+      const retryValidation = validateScenarioForAge(retryResponseText, gradeLevel);
+      if (!retryValidation.isValid) {
+        console.error(`❌ Retry also failed with banned word: "${retryValidation.bannedWord}"`);
+        throw new Error(`Unable to generate age-appropriate scenarios. Banned word detected: ${retryValidation.bannedWord}`);
+      }
+      
+      console.log(`✅ Retry response validated successfully`);
+      responseText = retryResponseText;
+    } else {
+      console.log(`✅ Response validated successfully - no banned words detected`);
+    }
+    
+    console.log(`📊 Parsing JSON from validated response...`);
+    
+    // Try to parse JSON from response
+    let scenarios;
+    try {
+      // Extract JSON if it's wrapped in markdown code blocks
+      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/) || 
+                       responseText.match(/```\n?([\s\S]*?)\n?```/) ||
+                       [null, responseText];
+      
+      const jsonText = jsonMatch[1] || responseText;
+      
+      // Try to find JSON array in the text
+      const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
+      if (arrayMatch) {
+        scenarios = JSON.parse(arrayMatch[0]);
+      } else {
+        scenarios = JSON.parse(jsonText);
+      }
+      
+      console.log(`✅ Successfully parsed ${scenarios.length} scenarios`);
+      if (scenarios.length > 0) {
+        console.log(`📋 First scenario context: "${scenarios[0].context?.substring(0, 100)}..."`);
+      }
+      
+    } catch (parseError) {
+      console.error('❌ Failed to parse JSON:', parseError);
+      console.error('Raw response:', responseText.substring(0, 200) + '...');
+      scenarios = [{ raw: responseText }]; // Return raw if parsing fails
+    }
+    
+    res.json({ 
+      success: true, 
+      scenarios,
+      usage: message.usage 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error generating scenarios:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Get personalized feedback endpoint
 app.post('/api/get-feedback', async (req, res) => {
   try {
@@ -2280,812 +2612,12 @@ app.delete('/api/goals/:goalId', async (req, res) => {
   }
 });
 
-// Adaptive learning routes removed — frontend-only functionality
+// Mount adaptive learning routes
+app.use('/api/adaptive', adaptiveLearningRoutes);
 
-// =========================
-// FIXED: Classroom Video Route
-// =========================
-
-app.post("/api/classroom/video", async (req, res) => {
-  try {
-    const { prompt } = req.body;
-
-    if (!openai) {
-      return res.status(500).json({
-        success: false,
-        message: "OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.",
-      });
-    }
-
-    // TEMPORARY VALID IMPLEMENTATION
-    // Replace with real video generation once the correct API exists
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: `Generate a structured classroom-video script based on: ${prompt}`,
-        },
-      ],
-    });
-
-    return res.json({
-      success: true,
-      type: "text-fallback",
-      message:
-        "Note: Video generation API was deprecated. Returning script instead.",
-      script: response.choices[0].message.content,
-    });
-  } catch (error) {
-    console.error("❌ OpenAI classroom video error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error generating classroom content",
-    });
-  }
-});
-
-// ============================
-// COLOSSYAN AI AVATAR VIDEO GENERATION
-// ============================
-const COLOSSYAN_API_BASE = "https://app.colossyan.com/api/v1";
-
-app.post("/api/video/generate-realworld", async (req, res) => {
-  try {
-    const { gradeLevel, topicId, script } = req.body;
-
-    if (!process.env.COLOSSYAN_API_KEY) {
-      return res.json({
-        success: false,
-        error: "Colossyan API key not configured",
-        videoUrl: null
-      });
-    }
-
-    // Generate a script if not provided
-    const videoScript = script || `Hello! Let's practice a social skill today. We're going to learn about ${topicId || 'social interaction'}. Watch carefully and think about how the people in this scenario are feeling and communicating.`;
-
-    console.log("🎬 Creating Colossyan avatar video...");
-
-    // Avatar selection based on grade level
-    const avatarConfig = ["K-2", "3-5"].includes(gradeLevel)
-      ? { name: "nina1", voice: "Mnp10f391U8qfaHTmj81" }  // Friendly female for younger
-      : { name: "lisa1", voice: "English_witty_female_1" }; // Professional for older
-
-    // Build the video creative payload per Colossyan API docs
-    const payload = {
-      videoCreative: {
-        settings: {
-          name: `Social Skills: ${topicId || 'Lesson'}`,
-          videoSize: {
-            width: 1920,
-            height: 1080
-          },
-          alphaChannel: false
-        },
-        scenes: [
-          {
-            name: "main",
-            duration: Math.max(10, Math.ceil(videoScript.length / 15)),
-            tracks: [
-              {
-                type: "actor",
-                variant: "full_body",
-                view: "front",
-                actor: avatarConfig.name,
-                text: videoScript,
-                speakerId: avatarConfig.voice,
-                position: { x: 420, y: 0 },
-                size: { width: 1080, height: 1080 },
-                rotation: 0
-              }
-            ]
-          }
-        ]
-      }
-    };
-
-    const response = await axios.post(
-      `${COLOSSYAN_API_BASE}/video-generation-jobs`,
-      payload,
-      {
-        headers: {
-          "Authorization": `Bearer ${process.env.COLOSSYAN_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    const jobId = response.data?.id;
-    const videoId = response.data?.videoId;
-
-    if (!jobId && !videoId) {
-      console.log("Colossyan response:", response.data);
-      return res.status(500).json({ success: false, error: "Failed to start video generation" });
-    }
-
-    console.log("🎬 Colossyan job created:", jobId, "videoId:", videoId);
-
-    // Poll for video completion
-    const videoUrl = await pollColossyanVideo(jobId || videoId, videoId);
-    if (!videoUrl) {
-      return res.status(500).json({ success: false, error: "Video generation timed out or failed" });
-    }
-
-    res.json({ success: true, videoUrl, provider: "colossyan" });
-
-  } catch (err) {
-    console.error("❌ Colossyan video error:", err.response?.data || err);
-    res.status(500).json({ success: false, error: err.response?.data?.error || err.message });
-  }
-});
-
-// Helper function to poll Colossyan video status
-async function pollColossyanVideo(jobId, videoId) {
-  const maxAttempts = 60; // Max 5 minutes
-  const pollInterval = 5000; // 5 seconds between polls
-
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-    try {
-      // Check job status
-      const jobResponse = await axios.get(
-        `${COLOSSYAN_API_BASE}/video-generation-jobs/${jobId}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${process.env.COLOSSYAN_API_KEY}`
-          }
-        }
-      );
-
-      const status = jobResponse.data?.status;
-      console.log(`🎬 Colossyan job ${jobId} status: ${status}`);
-
-      if (status === "finished" || status === "completed" || status === "ready") {
-        // Get the actual video URL
-        const vid = jobResponse.data?.videoId || videoId;
-        if (vid) {
-          const videoResponse = await axios.get(
-            `${COLOSSYAN_API_BASE}/generated-videos/${vid}`,
-            {
-              headers: {
-                "Authorization": `Bearer ${process.env.COLOSSYAN_API_KEY}`
-              }
-            }
-          );
-          const videoUrl = videoResponse.data?.publicUrl || videoResponse.data?.url;
-          console.log("✅ Colossyan video ready:", videoUrl);
-          return videoUrl;
-        }
-      }
-
-      if (status === "failed" || status === "error") {
-        console.error("❌ Colossyan video failed:", jobResponse.data?.error);
-        return null;
-      }
-    } catch (err) {
-      if (err.response?.status !== 404) {
-        console.error("❌ Error polling Colossyan:", err.response?.data || err.message);
-      }
-    }
-  }
-
-  console.warn("⚠️ Colossyan video timed out after 5 minutes");
-  return null;
-}
-
-
-// =======================================================
-// HUME EMOTION DETECTION ENDPOINTS
-// =======================================================
-
-// -------------------------
-// REAL-TIME IMAGE EMOTION DETECTION (for webcam frames)
-// -------------------------
-app.post("/api/hume/emotion", async (req, res) => {
-  try {
-    const { imageBase64 } = req.body;
-
-    if (!imageBase64) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing imageBase64"
-      });
-    }
-
-    // Return neutral emotions gracefully if API key not configured
-    if (!HUME_API_KEY) {
-      return res.json({
-        success: true,
-        emotions: [{ emotions: { neutral: 0.5 } }],
-        note: "Hume API not configured - returning default"
-      });
-    }
-
-    // Use Hume's batch API with base64 image data
-    const response = await axios.post(
-      "https://api.hume.ai/v0/batch/jobs",
-      {
-        models: {
-          face: {}
-        },
-        files: [
-          {
-            content_type: "image/jpeg",
-            data: imageBase64
-          }
-        ]
-      },
-      {
-        headers: {
-          "X-Hume-Api-Key": HUME_API_KEY,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    // Batch jobs are async - get job ID and poll for results
-    const jobId = response.data?.job_id;
-    if (!jobId) {
-      // Try to get immediate results if available
-      return res.json({
-        success: true,
-        emotions: response.data?.predictions || []
-      });
-    }
-
-    // Poll for job completion (with timeout)
-    const maxAttempts = 10;
-    const pollInterval = 500;
-
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-      const statusResponse = await axios.get(
-        `https://api.hume.ai/v0/batch/jobs/${jobId}/predictions`,
-        {
-          headers: {
-            "X-Hume-Api-Key": HUME_API_KEY
-          }
-        }
-      );
-
-      if (statusResponse.data && statusResponse.data.length > 0) {
-        // Extract emotions from face predictions
-        const predictions = statusResponse.data[0]?.results?.predictions?.[0]?.models?.face?.grouped_predictions?.[0]?.predictions || [];
-
-        const emotions = predictions.map(pred => ({
-          emotions: pred.emotions?.reduce((acc, e) => {
-            acc[e.name] = e.score;
-            return acc;
-          }, {}) || {}
-        }));
-
-        return res.json({
-          success: true,
-          emotions: emotions.length > 0 ? emotions : [{ emotions: { neutral: 0.5 } }]
-        });
-      }
-    }
-
-    // Timeout - return neutral
-    return res.json({
-      success: true,
-      emotions: [{ emotions: { neutral: 0.5 } }]
-    });
-
-  } catch (err) {
-    console.error("❌ Hume emotion detection error:", err.response?.data || err.message);
-    // Return neutral emotions on error to not break the UI
-    return res.json({
-      success: true,
-      emotions: [{ emotions: { neutral: 0.5 } }]
-    });
-  }
-});
-
-// -------------------------
-// REAL-TIME AUDIO EMOTION DETECTION (WebSocket streaming)
-// -------------------------
-// For real-time audio analysis during practice sessions
-app.post("/api/hume/analyze-audio", async (req, res) => {
-  try {
-    const { audioBase64 } = req.body;
-
-    if (!audioBase64) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing audioBase64"
-      });
-    }
-
-    if (!HUME_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        error: "Hume API key not configured"
-      });
-    }
-
-    // Use Hume's batch API for prosody analysis
-    const response = await axios.post(
-      "https://api.hume.ai/v0/batch/jobs",
-      {
-        models: {
-          prosody: {}
-        },
-        files: [
-          {
-            content_type: "audio/wav",
-            data: audioBase64
-          }
-        ]
-      },
-      {
-        headers: {
-          "X-Hume-Api-Key": HUME_API_KEY,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    const jobId = response.data?.job_id;
-    if (!jobId) {
-      return res.json({
-        success: true,
-        emotions: null
-      });
-    }
-
-    // Poll for completion
-    const maxAttempts = 15;
-    const pollInterval = 500;
-
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-      const statusResponse = await axios.get(
-        `https://api.hume.ai/v0/batch/jobs/${jobId}/predictions`,
-        {
-          headers: {
-            "X-Hume-Api-Key": HUME_API_KEY
-          }
-        }
-      );
-
-      if (statusResponse.data && statusResponse.data.length > 0) {
-        const prosodyResults = statusResponse.data[0]?.results?.predictions?.[0]?.models?.prosody?.grouped_predictions?.[0]?.predictions || [];
-
-        if (prosodyResults.length > 0) {
-          const emotions = prosodyResults[0].emotions || [];
-          const sorted = emotions.sort((a, b) => b.score - a.score);
-          const topEmotion = sorted[0];
-
-          return res.json({
-            success: true,
-            emotions: {
-              dominant: topEmotion?.name || "neutral",
-              intensity: topEmotion?.score || 0.5,
-              all: emotions
-            }
-          });
-        }
-      }
-    }
-
-    return res.json({
-      success: true,
-      emotions: null
-    });
-
-  } catch (err) {
-    console.error("❌ Hume audio analysis error:", err.response?.data || err.message);
-    return res.json({
-      success: true,
-      emotions: null
-    });
-  }
-});
-
-// =======================================================
-// PATCH 2 — Hume Video Emotion Analysis
-// =======================================================
-
-// Extract still frames from video using ffmpeg
-function extractFrames(videoPath) {
-  return new Promise((resolve, reject) => {
-    const outDir = `/tmp/frames_${Date.now()}`;
-    fs.mkdirSync(outDir, { recursive: true });
-
-    const cmd = `ffmpeg -i ${videoPath} -vf fps=1 ${outDir}/frame_%03d.jpg`;
-
-    exec(cmd, (err) => {
-      if (err) return reject(err);
-      resolve(outDir);
-    });
-  });
-}
-
-// -------------------------
-// HUME VIDEO ANALYSIS ROUTE (SDK-BASED)
-// -------------------------
-// Note: This endpoint uses Hume SDK for cleaner video analysis without frame extraction
-// Install SDK: npm install @humeai/sdk
-
-app.post("/api/hume/analyze-video", async (req, res) => {
-  try {
-    const { videoUrl } = req.body;
-
-    if (!videoUrl) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing videoUrl"
-      });
-    }
-
-    console.log("🔍 Analyzing video with Hume:", videoUrl);
-
-    // Send URL to Hume's multimodal model using axios (SDK package doesn't exist)
-    if (!HUME_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        error: "Hume API key not configured. Please set HUME_API_KEY in your .env file."
-      });
-    }
-
-    const response = await axios.post(
-      "https://api.hume.ai/v0/batch/jobs",
-      {
-        models: {
-          face: {},
-          prosody: {}
-        },
-        urls: [videoUrl]
-      },
-      {
-        headers: {
-          "X-Hume-Api-Key": HUME_API_KEY,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    console.log("🧠 Hume analysis complete");
-
-    return res.json({
-      success: true,
-      analysis: response,   // full emotion data
-    });
-
-  } catch (err) {
-    console.error("❌ Hume analysis error:", err);
-
-    return res.status(500).json({
-      success: false,
-      error: err.message || "Hume video analysis failed",
-    });
-  }
-});
-
-// -------------------------
-// VIDEO GENERATION ROUTE (FINAL IMPLEMENTATION)
-// -------------------------
-// NOTE: This is the ONLY valid /api/video/generate-scene route.
-// REMOVED: /api/video/generate-scene endpoint (replaced by /api/lessons/start)
-// REMOVED: /api/lesson/load endpoint (replaced by /api/lessons/start)
-
-// -------------------------------
-// ADD NEW UNIFIED LESSON ENDPOINT
-// -------------------------------
-// DISABLED: app.post('/api/lessons/start', async (req, res) => {
-// DISABLED:   try {
-// DISABLED:     console.log("🔥 /api/lessons/start called");
-// DISABLED: 
-// DISABLED:     const { title, lessonId, gradeLevel } = req.body;
-// DISABLED: 
-// DISABLED:     // Validate input
-// DISABLED:     if (!title || !gradeLevel) {
-// DISABLED:       return res.status(400).json({
-// DISABLED:         success: false,
-// DISABLED:         error: "Missing required fields: title, gradeLevel"
-// DISABLED:       });
-// DISABLED:     }
-// DISABLED: 
-// DISABLED:     // -------------------------------------
-// DISABLED:     // 1. CALL EXISTING LESSON GENERATOR API
-// DISABLED:     // -------------------------------------
-// DISABLED:     // ✅ CALL THE NEW OPENAI LESSON GENERATOR
-// DISABLED:     const lessonResponse = await axios.post(
-// DISABLED:       `${BASE}/api/lessons/start`,
-// DISABLED:       {
-// DISABLED:         topic: title,
-// DISABLED:         gradeLevel
-// DISABLED:       }
-// DISABLED:     );
-// DISABLED: 
-// DISABLED:     const lesson = lessonResponse.data.lesson;
-// DISABLED: 
-// DISABLED:     // -------------------------------------
-// DISABLED:     // 2. RETURN LESSON + OPTIONAL VIDEO URL
-// DISABLED:     // -------------------------------------
-// DISABLED:     return res.json({
-// DISABLED:       success: true,
-// DISABLED:       lesson,
-// DISABLED:       videoUrl: null // placeholder for future video integration
-// DISABLED:     });
-// DISABLED: 
-// DISABLED:   } catch (error) {
-// DISABLED:     console.error("❌ Error in /api/lessons/start:", error);
-// DISABLED:     res.status(500).json({
-// DISABLED:       success: false,
-// DISABLED:       error: error.message
-// DISABLED:     });
-// DISABLED:   }
-// DISABLED: });
-// DISABLED: 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🧠 Adaptive Learning API: http://localhost:${PORT}/api/adaptive`);
-});
-
-// Hume Emotion API (Option C integration)
-async function analyzeEmotionWithHume(audioBase64) {
-  try {
-    const response = await axios.post(
-      "https://api.hume.ai/v0/batch/jobs",
-      {
-        models: { prosody: {} },
-        raw_text: null,
-        files: [{ type: "audio", data: audioBase64 }]
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Hume-Api-Key": process.env.HUME_API_KEY
-        }
-      }
-    );
-
-    const emotions =
-      response.data?.results?.[0]?.models?.prosody?.predictions?.[0]
-        ?.emotions || [];
-
-    if (!emotions.length) return null;
-
-    const topEmotion = emotions.sort(
-      (a, b) => b.score - a.score
-    )[0];
-
-    return {
-      emotion: topEmotion.name,
-      intensity: topEmotion.score,
-      full: emotions
-    };
-  } catch (err) {
-    console.error("❌ Hume Emotion API error:", err.message);
-    return null;
-  }
-}
-
-function getAgeAppropriateContext(gradeLevel) {
-  const grade = parseInt(gradeLevel, 10);
-
-  if (Number.isNaN(grade)) {
-    return 'You are coaching a student. Keep language age-appropriate and encouraging.';
-  }
-
-  if (grade <= 2) {
-    return 'You are talking to a K-2 student (ages 5-8). Use simple, encouraging language with short sentences.';
-  }
-  if (grade <= 5) {
-    return 'You are talking to a grades 3-5 student (ages 8-11). Use clear, friendly language.';
-  }
-  if (grade <= 8) {
-    return 'You are talking to a middle school student (ages 11-14). Use conversational, supportive language.';
-  }
-  return 'You are talking to a high school student (ages 14-18). Use mature, thoughtful language.';
-}
-
-app.post('/api/voice/conversation', async (req, res) => {
-  if (!openai) {
-    return res.status(500).json({ error: 'OpenAI API key not configured on server.' });
-  }
-
-  const {
-    conversationHistory = [],
-    scenario = {},
-    gradeLevel = "6",
-    phase = "intro",
-    curriculumScript = null,
-    audioBase64 = null,
-    userId = null
-  } = req.body || {};
-
-  // NEW — run emotion analysis
-  let humeEmotion = null;
-  if (audioBase64) {
-    humeEmotion = await analyzeEmotionWithHume(audioBase64);
-    console.log("🎧 Emotion:", humeEmotion);
-  }
-
-  // Save emotion to Firestore per turn
-  if (userId && humeEmotion) {
-    try {
-      const emotionRef = doc(
-        db,
-        "session_history",
-        userId,
-        "emotion_turns",
-        `${Date.now()}`
-      );
-
-      await setDoc(emotionRef, {
-        userId,
-        scenarioTitle: scenario?.title || null,
-        emotion: humeEmotion.emotion,
-        intensity: humeEmotion.intensity,
-        full: humeEmotion.full,
-        timestamp: new Date().toISOString()
-      });
-
-      console.log("💾 Saved emotion turn to Firestore");
-    } catch (error) {
-      console.error("❌ Error saving emotion to Firestore:", error);
-      // Don't fail the request if emotion save fails
-    }
-  }
-
-  try {
-    const emotionInstruction = humeEmotion
-      ? `
-
-The learner sounds **${humeEmotion.emotion}** with intensity **${humeEmotion.intensity.toFixed(
-        2
-      )}**.
-
-
-
-Adjust your coaching:
-
-- If they sound frustrated → slow down, simplify, reassure.
-
-- If they sound confused → give clearer explanations and examples.
-
-- If they sound bored → increase energy and engagement.
-
-- If they sound excited → encourage them to elaborate and continue.
-
-- If they sound sad → use a softer tone and check in.
-
-- ALWAYS remain supportive.
-
-`
-      : "";
-
-    const systemPrompt = `You are Cue, a social skills coach for students in grade ${gradeLevel}.
-
-${getAgeAppropriateContext(gradeLevel)}
-
-${emotionInstruction}
-
-Current scenario: ${scenario?.title || 'conversation practice'}
-Current phase: ${phase}
-
-CRITICAL INSTRUCTION: When you receive a message that says "RESPOND WITH EXACTLY:", you MUST repeat that exact text word-for-word. Do not paraphrase, add to it, or change it in any way. Just say those exact words.`;
-
-    const messages = (conversationHistory || [])
-      .map((msg) => {
-        const content = String(msg?.text || msg?.content || '').trim();
-        if (!content) return null;
-        return {
-          role: msg?.role === 'user' ? 'user' : 'assistant',
-          content
-        };
-      })
-      .filter(Boolean);
-
-    if (curriculumScript) {
-      messages.push({
-        role: 'user',
-        content: `RESPOND WITH EXACTLY: "${curriculumScript}"`
-      });
-      console.log('💪 FORCING AI to say:', curriculumScript);
-    } else if (phase === 'intro' && conversationHistory.length === 2) {
-      // getVoiceIntro removed — frontend utility, not available in backend
-      // Using generic intro instead
-      try {
-        const topicDescriptor =
-          scenario?.topicId || scenario?.topic || scenario?.topicTitle || scenario?.title || 'this skill';
-        const script = `Hi! I'm Coach Cue. Ready to practice ${topicDescriptor}?`;
-        messages.push({
-          role: 'user',
-          content: `RESPOND WITH EXACTLY: "${script}"`
-        });
-        console.log('💪 FORCING AI to say (generic intro):', script);
-      } catch (err) {
-        console.warn('⚠️ Unable to create generic intro:', err.message);
-      }
-    }
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
-      temperature: 0.3,
-      max_tokens: 200
-    });
-
-    const aiResponse = completion.choices[0]?.message?.content?.trim() || '';
-    console.log('🤖 AI responded:', aiResponse);
-
-    return res.json({
-      aiResponse,
-      shouldContinue: phase !== 'complete',
-      phase,
-      emotion: humeEmotion // Return emotion data for frontend use
-    });
-  } catch (error) {
-    console.error('❌ Voice conversation error:', error);
-    return res.status(500).json({ error: error.message || 'Voice conversation failed' });
-  }
-});
-
-// ============================================
-// AI Conversation Analysis for Incognito Mode
-// ============================================
-app.post('/api/ai/analyze-conversation', async (req, res) => {
-  if (!openai) {
-    return res.status(500).json({ error: 'OpenAI API key not configured' });
-  }
-
-  const { transcript, gradeLevel = '6', sessionDuration = 0 } = req.body || {};
-
-  if (!transcript || transcript.length < 10) {
-    return res.json({ suggestion: null, reason: 'Transcript too short' });
-  }
-
-  try {
-    const systemPrompt = `You are an AI coach analyzing a student's conversation in real-time.
-Your job is to provide ONE brief coaching suggestion based on their speech patterns.
-
-Grade level: ${gradeLevel}
-Session duration: ${sessionDuration} seconds
-
-Analyze the transcript and return ONLY ONE of these suggestion codes (or null if no suggestion needed):
-- "ask_question" - if they should ask the other person a question
-- "slow_down" - if they seem to be speaking too fast or rambling
-- "take_breath" - if they seem nervous or overwhelmed
-- "your_turn" - if there's been a long pause and they should speak
-- "good_job" - if they're doing well and deserve encouragement
-- "be_confident" - if they seem unsure of themselves
-- "listen_more" - if they're dominating the conversation
-
-Return JSON format: { "suggestion": "code_here" or null, "confidence": 0.0-1.0 }
-
-Only suggest if confidence > 0.6. Don't over-coach.`;
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Analyze this transcript:\n\n"${transcript}"` }
-      ],
-      max_tokens: 100,
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
-    });
-
-    const result = JSON.parse(response.choices[0].message.content);
-
-    // Only return suggestion if confidence is high enough
-    if (result.confidence && result.confidence < 0.6) {
-      return res.json({ suggestion: null, reason: 'Low confidence' });
-    }
-
-    return res.json({ suggestion: result.suggestion || null });
-  } catch (error) {
-    console.error('❌ AI conversation analysis error:', error);
-    return res.status(500).json({ error: error.message });
-  }
 });

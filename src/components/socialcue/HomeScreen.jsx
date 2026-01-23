@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader } from 'lucide-react';
+import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader, MessageSquare } from 'lucide-react';
 import { getSessionProgress } from './utils/storage';
 import { getLearnerProfile, getSessionStats, getAllTopicMastery, getLessonProgressStats } from '../../firebaseHelpers';
 import { DifficultyBadge } from './utils/difficultyLevels.jsx';
@@ -151,6 +151,42 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Social Sandbox Quick Access */}
+        <section className="mb-8">
+          <button
+            onClick={() => onNavigate('sandbox')}
+            className={`w-full backdrop-blur-xl border rounded-2xl p-5 text-left transition-all group hover:scale-[1.01] ${
+              darkMode
+                ? 'bg-gradient-to-r from-orange-500/10 to-purple-500/10 border-orange-500/20 hover:border-orange-500/40'
+                : 'bg-gradient-to-r from-orange-50 to-purple-50 border-orange-200 hover:border-orange-300'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                <MessageSquare className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Need to blow off steam?
+                  </h3>
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-500/20 text-orange-400">
+                    NEW
+                  </span>
+                </div>
+                <p className={`text-sm ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>
+                  Your safe space to vent, process, and learn - no judgment, no grades
+                </p>
+              </div>
+              <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </button>
         </section>
 
         {/* Parent Dashboard Access */}
