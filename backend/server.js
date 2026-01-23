@@ -1,5 +1,8 @@
 import dotenv from "dotenv";
-dotenv.config();
+import { fileURLToPath } from "url";
+import path from "path";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 // ✅ ADD THIS IMPORT
 import lessonRouter from "./routes/lesson.js";
@@ -54,6 +57,9 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (origin.startsWith("http://localhost:")) return callback(null, true);
+      if (origin.endsWith(".vercel.app")) return callback(null, true);
+      // Allow custom domain set via ALLOWED_ORIGIN env var
+      if (process.env.ALLOWED_ORIGIN && origin === process.env.ALLOWED_ORIGIN) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,

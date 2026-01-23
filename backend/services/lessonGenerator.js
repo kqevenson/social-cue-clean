@@ -1,7 +1,10 @@
 // backend/services/lessonGenerator.js
 import OpenAI from "openai";
 import dotenv from "dotenv";
-dotenv.config();
+import { fileURLToPath } from "url";
+import path from "path";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_KEY });
 

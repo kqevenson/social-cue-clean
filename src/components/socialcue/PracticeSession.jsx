@@ -8,12 +8,14 @@ import LoadingSpinner from './animations/LoadingSpinner';
 import SessionResults from './SessionResults';
 import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animations';
 import { getFirestore, doc, updateDoc, collection, addDoc, getDoc, setDoc } from 'firebase/firestore';
+import { getApiBase } from '../../utils/apiBase';
+import SmileFace from '../SmileFace';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
   const USE_AI_EVALUATION = false; // Set to true when backend is deployed
   const USE_API = false; // Set to true when backend is ready
-  const API_BASE_URL = 'http://localhost:3001';
+  const API_BASE_URL = getApiBase();
   
   const [currentSituation, setCurrentSituation] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -123,7 +125,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         console.log('📡 Calling API: /api/lessons/start with topic:', topicName);
 
         // Call the NEW /api/lessons/start endpoint
-        const response = await fetch('http://localhost:3001/api/lessons/start', {
+        const response = await fetch(`${getApiBase()}/api/lessons/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -981,55 +983,114 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
   // Loading state while AI generates scenarios
   if (lessonState === 'loading') {
+    const funMessages = [
+      'Thinking up fun challenges...',
+      'Painting your scenarios...',
+      'Almost ready for launch...',
+      'Setting the stage...',
+      'Making it just right for you...',
+    ];
+
     return (
-      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="fixed inset-0 opacity-20" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}></div>
-        
+      <div className="min-h-screen relative overflow-hidden" style={{
+        background: darkMode
+          ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+          : 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)'
+      }}>
+        {/* Floating SmileFace decorations - positioned in corners away from center */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[5%] left-[5%] opacity-15 animate-pulse" style={{ animationDuration: '3s' }}>
+            <SmileFace scale={1.2} animated blink eyeColor="#a78bfa" mouthColor="#c084fc" />
+          </div>
+          <div className="absolute top-[8%] right-[8%] opacity-10 animate-pulse" style={{ animationDuration: '4.5s' }}>
+            <SmileFace scale={1} animated blink eyeColor="#f0abfc" mouthColor="#e879f9" />
+          </div>
+          <div className="absolute bottom-[8%] right-[10%] opacity-15 animate-pulse" style={{ animationDuration: '4s' }}>
+            <SmileFace scale={1.3} animated blink eyeColor="#60a5fa" mouthColor="#38bdf8" />
+          </div>
+          <div className="absolute bottom-[10%] left-[8%] opacity-12 animate-pulse" style={{ animationDuration: '3.5s' }}>
+            <SmileFace scale={1} animated blink eyeColor="#34d399" mouthColor="#6ee7b7" />
+          </div>
+        </div>
+
         <div className="relative z-10 flex items-center justify-center min-h-screen p-6 pb-24">
-          <div className="max-w-2xl w-full">
-            <div className={`backdrop-blur-xl border rounded-3xl p-8 text-center ${
-              darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              <div className="mb-6">
-                <div className="text-7xl mb-4">🤖</div>
-                <h1 className={`text-4xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Generating AI Scenarios...
-                </h1>
-                <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Creating personalized practice scenarios for you
-                </p>
-              </div>
-              
-              <div className="flex justify-center mb-6">
-                <LoadingSpinner 
-                  size="large" 
-                  variant="icon" 
-                  text="Creating your practice session..." 
-                  darkMode={darkMode}
+          <div className="max-w-md w-full text-center">
+            {/* Main animated SmileFace */}
+            <div className="mb-8 flex items-center justify-center">
+              <SmileFace scale={3} animated blink eyeColor="#4A90E2" mouthColor="#34D399" />
+            </div>
+
+            {/* Title */}
+            <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">
+              Building Your Practice!
+            </h1>
+            <p className="text-white/70 text-lg mb-8">
+              Crafting scenarios just for you
+            </p>
+
+            {/* Animated progress bar */}
+            <div className="mx-auto max-w-xs mb-8">
+              <div className="h-3 rounded-full overflow-hidden" style={{
+                background: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.3)'
+              }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: 'linear-gradient(90deg, #43e97b, #38f9d7, #4facfe, #667eea, #f093fb)',
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 2s linear infinite, grow 10s ease-out forwards',
+                    width: '0%',
+                  }}
                 />
               </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                </div>
-                <p className={`text-lg font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>
-                  Creating 5 unique scenarios...
+            </div>
+
+            {/* Rotating fun messages */}
+            <div className="h-8 relative overflow-hidden mb-6">
+              {funMessages.map((msg, i) => (
+                <p
+                  key={i}
+                  className="absolute inset-0 text-white/80 font-medium text-lg flex items-center justify-center"
+                  style={{
+                    animation: `fadeInOut ${funMessages.length * 2.5}s infinite`,
+                    animationDelay: `${i * 2.5}s`,
+                    opacity: 0,
+                  }}
+                >
+                  {msg}
                 </p>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  This usually takes 8-12 seconds
-                </p>
-                <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'} mt-2`}>
-                  ✨ Each scenario is tailored to your learning level
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
+
+        {/* Keyframe styles */}
+        <style>{`
+          @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translateY(10px); }
+            8%, 30% { opacity: 1; transform: translateY(0); }
+            38% { opacity: 0; transform: translateY(-10px); }
+          }
+          @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+          @keyframes grow {
+            0% { width: 5%; }
+            50% { width: 60%; }
+            80% { width: 85%; }
+            100% { width: 92%; }
+          }
+          @keyframes smileBounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+          }
+          @keyframes smileBlink {
+            0%, 90%, 100% { transform: scaleY(1); }
+            92%, 96% { transform: scaleY(0.1); }
+            94% { transform: scaleY(0); }
+          }
+        `}</style>
       </div>
     );
   }

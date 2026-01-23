@@ -1,10 +1,9 @@
 //--------------------------------------------------------------
-// Backend URL — FORCE port 3001 (fixes ERR_CONNECTION_REFUSED)
+// Backend URL — uses VITE_API_URL env var for production
 //--------------------------------------------------------------
 
 export function getApiBase() {
-  // Hard-code backend during development
-  return "http://localhost:3001";
+  return import.meta.env.VITE_API_URL || "http://localhost:3001";
 }
 
 //--------------------------------------------------------------
