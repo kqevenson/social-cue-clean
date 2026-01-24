@@ -3,7 +3,6 @@ import { Home, Target, TrendingUp, Settings, BookOpen, User, BarChart3, Star, Sp
 import { getUserData, saveUserData } from './socialcue/utils/storage';
 import { getApiBase } from '../utils/apiBase';
 import { lessonApiService } from '../services/lessonApi';
-import { getApiBase } from '../utils/apiBase';
 import { ToastProvider, ErrorBoundary } from './socialcue/animations';
 import HomeScreen from './socialcue/HomeScreen';
 import PracticeScreen from './socialcue/PracticeScreen';
