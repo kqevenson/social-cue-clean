@@ -92,7 +92,7 @@ ${nameInstruction}
 IMPORTANT - Make this lesson DYNAMIC and UNIQUE:
 - Use these specific settings for the 3 practice scenarios: ${selectedScenarios.join(", ")}
 - Each scenario should feel like a mini-story with vivid details
-- Include specific character names for other people in the scenarios (like "Maya", "Jordan", "Coach Taylor")
+- Give other characters in scenarios unique, varied names - use different names each time (avoid repeating the same names across scenarios)
 - Add sensory details to make scenarios immersive (sounds, feelings, atmosphere)
 - Make the situations feel real and relatable, not generic
 
