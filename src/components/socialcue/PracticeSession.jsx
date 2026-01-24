@@ -10,6 +10,7 @@ import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animation
 import { getFirestore, doc, updateDoc, collection, addDoc, getDoc, setDoc } from 'firebase/firestore';
 import { getApiBase } from '../../utils/apiBase';
 import SmileFace from '../SmileFace';
+import SmileFaceRunner from '../SmileFaceRunner';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
@@ -1015,21 +1016,21 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
         <div className="relative z-10 flex items-center justify-center min-h-screen p-6 pb-24">
           <div className="max-w-md w-full text-center">
-            {/* Main animated SmileFace */}
-            <div className="mb-8 flex items-center justify-center">
-              <SmileFace scale={3} animated blink eyeColor="#4A90E2" mouthColor="#34D399" />
-            </div>
-
             {/* Title */}
             <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">
               Building Your Practice!
             </h1>
-            <p className="text-white/70 text-lg mb-8">
-              Crafting scenarios just for you
+            <p className="text-white/70 text-lg mb-6">
+              Play while you wait
             </p>
 
+            {/* Runner Game */}
+            <div className="mb-6">
+              <SmileFaceRunner darkMode={darkMode} />
+            </div>
+
             {/* Animated progress bar */}
-            <div className="mx-auto max-w-xs mb-8">
+            <div className="mx-auto max-w-xs mb-4">
               <div className="h-3 rounded-full overflow-hidden" style={{
                 background: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.3)'
               }}>
@@ -1046,11 +1047,11 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
             </div>
 
             {/* Rotating fun messages */}
-            <div className="h-8 relative overflow-hidden mb-6">
+            <div className="h-6 relative overflow-hidden">
               {funMessages.map((msg, i) => (
                 <p
                   key={i}
-                  className="absolute inset-0 text-white/80 font-medium text-lg flex items-center justify-center"
+                  className="absolute inset-0 text-white/60 font-medium text-sm flex items-center justify-center"
                   style={{
                     animation: `fadeInOut ${funMessages.length * 2.5}s infinite`,
                     animationDelay: `${i * 2.5}s`,
