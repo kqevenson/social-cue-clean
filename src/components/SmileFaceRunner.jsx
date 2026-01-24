@@ -197,9 +197,10 @@ const SmileFaceRunner = ({ darkMode = true }) => {
         game.speed = GAME_SPEED_INITIAL;
       }
 
-      // Score
+      // Score - mark obstacle as scored when it passes the player
       game.obstacles.forEach((obs) => {
-        if (Math.abs(obs.x - 30) < game.speed && obs.x < 30) {
+        if (!obs.scored && obs.x + OBSTACLE_WIDTH < 30) {
+          obs.scored = true;
           game.score++;
           game.speed = Math.min(GAME_SPEED_MAX, GAME_SPEED_INITIAL + game.score * 0.3);
         }
@@ -210,7 +211,7 @@ const SmileFaceRunner = ({ darkMode = true }) => {
 
       // Draw player (SmileFace)
       const squash = game.isJumping ? 0.85 : 1;
-      drawSmileFace(30 + PLAYER_SIZE / 2, game.playerY + PLAYER_SIZE / 2 * squash, 1.8, game.isBlinking);
+      drawSmileFace(30 + PLAYER_SIZE / 2, game.playerY + PLAYER_SIZE / 2 * squash, 1.2, game.isBlinking);
 
       // Score display
       ctx.fillStyle = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
