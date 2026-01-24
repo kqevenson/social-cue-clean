@@ -1,14 +1,4 @@
-import { OpenAI } from 'openai';
-
-const processEnvApiKey =
-  typeof globalThis !== 'undefined' &&
-  typeof globalThis.process !== 'undefined' &&
-  globalThis.process?.env?.OPENAI_API_KEY;
-
-const OPENAI_API_KEY =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY) ||
-  processEnvApiKey ||
-  '';
+import { getApiBase } from '../utils/apiBase';
 
 const DEFAULT_MODEL = 'tts-1';
 const DEFAULT_VOICE = 'shimmer';
@@ -19,7 +9,6 @@ export const globalTTSLock = { isSpeaking: false };
 
 let activeAudio = null;
 let activeAudioUrl = null;
-let openAIClient = null;
 let audioUnlocked = false;
 let pendingUnlockPromise = null;
 let audioCtx = null;
@@ -36,20 +25,6 @@ export async function getAudioContext() {
     }
   }
   return audioCtx;
-}
-
-function getOpenAIClient() {
-  if (openAIClient) return openAIClient;
-  if (!OPENAI_API_KEY) {
-    throw new Error('Missing OpenAI API key');
-  }
-
-  openAIClient = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true
-  });
-
-  return openAIClient;
 }
 
 function stopOpenAITTSPlayback() {
@@ -135,7 +110,6 @@ export async function playVoiceResponseWithOpenAI(text, options = {}) {
   const trimmed = (text ?? '').toString().trim();
   if (!trimmed) throw new Error('Cannot synthesize empty text');
 
-  const client = getOpenAIClient();
   const voice = options.voice || DEFAULT_VOICE;
   const model = options.model || DEFAULT_MODEL;
 
@@ -143,20 +117,23 @@ export async function playVoiceResponseWithOpenAI(text, options = {}) {
   const ctx = await getAudioContext();
   await ctx.resume();
 
-  // Fetch TTS audio as arrayBuffer
-  let speech;
+  // Fetch TTS audio from backend
+  let audioArrayBuffer;
   try {
-    speech = await client.audio.speech.create({
-      model,
-      voice,
-      input: trimmed,
-      format: "mp3"
+    const response = await fetch(`${getApiBase()}/api/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: trimmed, voice, model })
     });
-  } catch (error) {
-    throw new Error(`OpenAI TTS failed: ${error?.message || 'Unknown error'}`);
-  }
 
-  const audioArrayBuffer = await speech.arrayBuffer();
+    if (!response.ok) {
+      throw new Error(`TTS API error: ${response.status}`);
+    }
+
+    audioArrayBuffer = await response.arrayBuffer();
+  } catch (error) {
+    throw new Error(`OpenAI TTS failed: ${error?.message || 'Connection error'}`);
+  }
   if (!audioArrayBuffer || audioArrayBuffer.byteLength === 0) {
     throw new Error('OpenAI TTS returned empty audio buffer');
   }

@@ -105,6 +105,41 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
+// TTS (Text-to-Speech) ENDPOINT
+// ============================================
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, voice = 'shimmer', model = 'tts-1' } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const openaiKey = process.env.OPENAI_KEY;
+    if (!openaiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/audio/speech',
+      { model, voice, input: text.trim() },
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'arraybuffer'
+      }
+    );
+
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(Buffer.from(response.data));
+  } catch (err) {
+    console.error('TTS error:', err?.response?.data ? Buffer.from(err.response.data).toString() : err.message);
+    res.status(500).json({ error: 'TTS generation failed' });
+  }
+});
+
+// ============================================
 // HUME EVI ACCESS TOKEN ENDPOINT
 // ============================================
 // Generates a short-lived access token for Hume EVI WebSocket connection
