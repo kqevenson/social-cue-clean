@@ -14,7 +14,7 @@ import React, {
 } from "react";
 
 import localforage from "localforage";
-import { OpenAI } from "openai";
+import { getApiBase } from "../utils/apiBase";
 import useVoiceConversation from "../hooks/useVoiceConversation";
 import { stopOpenAITTSPlayback, globalTTSLock, playVoiceResponseWithOpenAI } from "../services/openAITTSService";
 import {
@@ -926,7 +926,13 @@ const VoiceCoachOrbScreen = ({
           coachLoadedRef.current = true;
           console.log("🎭 Loaded legacy RPM avatar");
         } else {
-          console.log("🎭 No saved avatar found");
+          // Default to Cue coach when no avatar is saved
+          console.log("🎭 No saved avatar found, defaulting to Cue coach");
+          const defaultCoach = getDefaultCoach();
+          if (defaultCoach) {
+            setTavusCoach(defaultCoach);
+            coachLoadedRef.current = true;
+          }
         }
       } catch (err) {
         console.error("🎭 Error loading coach:", err);
@@ -1338,20 +1344,22 @@ const VoiceCoachOrbScreen = ({
   useEffect(() => {
     const runWrapUp = async () => {
       try {
-        const apiKey = import.meta?.env?.VITE_OPENAI_API_KEY;
-        if (!apiKey) return null;
-
-        const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: `You are Coach Cue. Return STRICT JSON with: { "whatWentWell": "short sentence", "tipForNextTime": "short sentence" }` },
-            { role: "user", content: `Learner finished scenario: ${scenario?.title}. Give a JSON reflection.` }
-          ],
-          temperature: 0.7,
-          max_tokens: 60
+        const res = await fetch(`${getApiBase()}/api/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: `You are Coach Cue. Return STRICT JSON with: { "whatWentWell": "short sentence", "tipForNextTime": "short sentence" }` },
+              { role: "user", content: `Learner finished scenario: ${scenario?.title}. Give a JSON reflection.` }
+            ],
+            temperature: 0.7,
+            max_tokens: 60
+          })
         });
+        if (!res.ok) return null;
+        const response = await res.json();
 
         const raw = response.choices[0]?.message?.content?.trim();
         try {

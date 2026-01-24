@@ -140,6 +140,42 @@ app.post('/api/tts', async (req, res) => {
 });
 
 // ============================================
+// CHAT COMPLETIONS PROXY ENDPOINT
+// ============================================
+app.post('/api/chat/completions', async (req, res) => {
+  try {
+    const { messages, model = 'gpt-4o-mini', temperature = 0.95, max_tokens = 220, response_format } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    const openaiKey = process.env.OPENAI_KEY;
+    if (!openaiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const payload = { model, temperature, max_tokens, messages };
+    if (response_format) payload.response_format = response_format;
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    res.json(response.data);
+  } catch (err) {
+    console.error('Chat completions error:', err?.response?.data || err.message);
+    res.status(500).json({ error: 'Chat completion failed' });
+  }
+});
+
+// ============================================
 // HUME EVI ACCESS TOKEN ENDPOINT
 // ============================================
 // Generates a short-lived access token for Hume EVI WebSocket connection

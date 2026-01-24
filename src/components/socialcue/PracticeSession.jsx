@@ -1068,9 +1068,11 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         {/* Keyframe styles */}
         <style>{`
           @keyframes fadeInOut {
-            0%, 100% { opacity: 0; transform: translateY(10px); }
-            8%, 30% { opacity: 1; transform: translateY(0); }
-            38% { opacity: 0; transform: translateY(-10px); }
+            0% { opacity: 0; transform: translateY(8px); }
+            5% { opacity: 1; transform: translateY(0); }
+            15% { opacity: 1; transform: translateY(0); }
+            20% { opacity: 0; transform: translateY(-8px); }
+            100% { opacity: 0; transform: translateY(-8px); }
           }
           @keyframes shimmer {
             0% { background-position: 200% 0; }
