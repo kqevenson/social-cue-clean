@@ -1519,33 +1519,35 @@ const VoiceCoachOrbScreen = ({
 
       <div className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(139,92,246,0.15),_transparent_50%)]`} />
 
-      {/* End Conversation Button */}
-      <button
-        onClick={handleEndConversation}
-        disabled={isEndingConversation}
-        className={`absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${
-          isEndingConversation
-            ? 'bg-gray-600/60 border-gray-500/50 text-gray-400 cursor-not-allowed'
-            : 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30 hover:border-red-400/60'
-        }`}
-      >
-        {isEndingConversation ? (
-          <>
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm font-medium">Ending...</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            <span className="text-sm font-medium">End Session</span>
-          </>
-        )}
-      </button>
+      {/* Top Bar — wraps on mobile */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex flex-wrap items-center justify-between gap-2 px-4 py-3 pt-[calc(env(safe-area-inset-top)+12px)]">
+        {/* End Conversation Button */}
+        <button
+          onClick={handleEndConversation}
+          disabled={isEndingConversation}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-sm shrink-0 ${
+            isEndingConversation
+              ? 'bg-gray-600/60 border-gray-500/50 text-gray-400 cursor-not-allowed'
+              : 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30 hover:border-red-400/60'
+          }`}
+        >
+          {isEndingConversation ? (
+            <>
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              <span className="font-medium">Ending...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="font-medium">End Session</span>
+            </>
+          )}
+        </button>
 
-      {/* Status Indicators */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex gap-3">
+        {/* Status Indicators */}
+        <div className="flex gap-2 shrink-0">
         <div className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
           isListening && !isSpeaking
             ? 'bg-purple-500/30 border border-purple-400/50 text-purple-100 scale-105'
@@ -1586,8 +1588,8 @@ const VoiceCoachOrbScreen = ({
         )}
       </div>
 
-      {/* Coach Panel - Top Right */}
-      <div className="absolute top-6 right-6 z-50">
+      {/* Coach Panel */}
+      <div className="shrink-0">
         {isLoadingCoach ? (
           <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10">
             <div className="w-12 h-12 rounded-full bg-purple-500/20 animate-pulse" />
@@ -1639,6 +1641,7 @@ const VoiceCoachOrbScreen = ({
           </button>
         )}
       </div>
+      </div>{/* end top bar */}
 
       {/* Avatar or Orb */}
       <div className="relative z-10 flex flex-col items-center">

@@ -9,6 +9,7 @@ import lessonRouter from "./routes/lesson.js";
 import tavusRouter from "./routes/tavus.js";
 import sandboxRouter from "./routes/sandbox.js";
 import spotTheCueRouter from "./routes/spotTheCue.js";
+import youtubeRouter from "./routes/youtube.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -89,6 +90,7 @@ app.use("/api/sandbox", sandboxRouter);
 
 // ✅ REGISTER SPOT THE CUE ROUTER for visual cue identification game
 app.use("/api/spot-the-cue", spotTheCueRouter);
+app.use("/api/youtube", youtubeRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({

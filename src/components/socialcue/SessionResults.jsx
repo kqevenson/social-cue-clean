@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Home, RotateCcw, Info, Share2, TrendingUp, Target, Award, Lightbulb } from 'lucide-react';
+import { Home, RotateCcw, Info, Share2, TrendingUp, Target, Award, Lightbulb, Play } from 'lucide-react';
+import { getApiBase } from '../../utils/apiBase';
 
-const SessionResults = ({ 
-  sessionResults, 
-  scenarioTitle, 
-  finalScore, 
-  darkMode, 
-  onNavigate, 
-  onRestart 
+const SessionResults = ({
+  sessionResults,
+  scenarioTitle,
+  finalScore,
+  darkMode,
+  onNavigate,
+  onRestart,
+  gradeLevel
 }) => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [animationPhase, setAnimationPhase] = useState(0);
+  const [videos, setVideos] = useState([]);
 
   useEffect(() => {
     // Staggered animation phases
@@ -19,6 +22,16 @@ const SessionResults = ({
       setTimeout(() => setAnimationPhase(phase), index * 200);
     });
   }, []);
+
+  // Fetch related YouTube videos
+  useEffect(() => {
+    if (!scenarioTitle) return;
+    const params = new URLSearchParams({ topic: scenarioTitle, gradeLevel: gradeLevel || '6-8' });
+    fetch(`${getApiBase()}/api/youtube/search?${params}`)
+      .then(r => r.json())
+      .then(data => { if (data.videos?.length) setVideos(data.videos); })
+      .catch(() => {});
+  }, [scenarioTitle, gradeLevel]);
 
   const getPerformanceMessage = (score) => {
     if (score >= 90) return "Outstanding! You're mastering this topic! 🌟";
@@ -232,6 +245,45 @@ const SessionResults = ({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Helpful Videos */}
+            {videos.length > 0 && (
+              <div className={`backdrop-blur-xl border rounded-3xl p-8 mb-10 transform transition-all duration-1000 ${
+                animationPhase >= 3 ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+              } ${darkMode ? 'bg-gradient-to-br from-red-500/15 to-red-600/5 border-red-500/30' : 'bg-gradient-to-br from-red-50 to-red-100 border-red-200'}`}>
+                <h3 className={`text-2xl font-bold mb-6 flex items-center gap-3 ${darkMode ? 'text-red-300' : 'text-red-800'}`}>
+                  <Play className="w-6 h-6" />
+                  Helpful Videos
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {videos.map((video) => (
+                    <a
+                      key={video.videoId}
+                      href={`https://www.youtube.com/watch?v=${video.videoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`rounded-2xl overflow-hidden border transition-all duration-300 hover:scale-105 block ${
+                        darkMode ? 'bg-white/5 border-white/10 hover:border-red-500/50' : 'bg-white border-gray-200 hover:border-red-300 shadow-sm'
+                      }`}
+                    >
+                      <img
+                        src={video.thumbnail}
+                        alt={video.title}
+                        className="w-full aspect-video object-cover"
+                      />
+                      <div className="p-3">
+                        <p className={`text-sm font-medium line-clamp-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {video.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {video.channelTitle}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
 

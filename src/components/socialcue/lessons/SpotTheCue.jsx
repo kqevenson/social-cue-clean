@@ -2,6 +2,16 @@ import React, { useState, useEffect } from "react";
 import { Eye, CheckCircle, XCircle, ArrowRight, Sparkles, Star } from "lucide-react";
 import { apiPath } from "../../../utils/apiBase";
 import SmileFaceRunner from "../../SmileFaceRunner";
+import SmileFaceWormGame from "../../SmileFaceWormGame";
+
+function CyclingMiniGame({ darkMode }) {
+  const [game, setGame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setGame(g => (g + 1) % 2), 30000);
+    return () => clearInterval(id);
+  }, []);
+  return game === 0 ? <SmileFaceRunner darkMode={darkMode} /> : <SmileFaceWormGame darkMode={darkMode} />;
+}
 
 function SpotTheCue({ lesson, gradeLevel, darkMode, onComplete, preloadedCards }) {
   const [cards, setCards] = useState(preloadedCards || []);
@@ -76,7 +86,7 @@ function SpotTheCue({ lesson, gradeLevel, darkMode, onComplete, preloadedCards }
           <p className="text-gray-400 text-lg">
             Generating social scenes for you to analyze...
           </p>
-          <SmileFaceRunner darkMode />
+          <CyclingMiniGame darkMode />
           <div className="mx-auto max-w-xs">
             <div className="h-2 rounded-full overflow-hidden bg-white/10">
               <div

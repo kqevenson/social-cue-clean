@@ -14,6 +14,16 @@ import SmileFaceRunner from '../SmileFaceRunner';
 import SmileFaceWormGame from '../SmileFaceWormGame';
 import SpotTheCue from './lessons/SpotTheCue';
 
+// Cycles between runner and worm game every 30 seconds
+function CyclingMiniGame({ darkMode }) {
+  const [game, setGame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setGame(g => (g + 1) % 2), 30000);
+    return () => clearInterval(id);
+  }, []);
+  return game === 0 ? <SmileFaceRunner darkMode={darkMode} /> : <SmileFaceWormGame darkMode={darkMode} />;
+}
+
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
   const USE_AI_EVALUATION = false; // Set to true when backend is deployed
@@ -433,18 +443,36 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       const correctOnes = sessionResponses.filter(r => r.isCorrect);
       const incorrectOnes = sessionResponses.filter(r => !r.isCorrect);
 
-      // What they got right — specific cues they identified
-      const conceptsUnderstood = correctOnes.map(r => {
-        const cue = r.correctAnswer || r.userAnswer;
-        return `Correctly identified: "${cue}" — ${r.scenarioContext?.split('.')[0] || 'social scenario'}`;
+      // What they got right — use the scenario question to describe the skill
+      const conceptsUnderstood = correctOnes.map((r, i) => {
+        const q = r.scenarioQuestion || '';
+        // Try to pull the skill from the question, e.g. "What does Leo's body language tell you..."
+        if (q) return `Correctly read the social cue in Scenario ${i + 1}`;
+        return `Identified the correct cue in Scenario ${i + 1}`;
       });
       if (conceptsUnderstood.length === 0) {
         conceptsUnderstood.push('Keep practicing — recognizing social cues takes time!');
       }
 
-      // What they missed — specific cues they need to work on
-      const areasToReview = incorrectOnes.map(r => {
-        return `Missed cue: The correct answer was "${r.correctAnswer}" — you chose "${r.userAnswer}". ${r.scenarioQuestion || ''}`;
+      // What they missed — use the scenario context to describe the gap
+      const areasToReview = incorrectOnes.map((r, i) => {
+        const q = r.scenarioQuestion || '';
+        const context = r.scenarioContext || '';
+        // Extract character name from context if present
+        const nameMatch = context.match(/\b([A-Z][a-z]+)\b/);
+        const name = nameMatch ? nameMatch[1] : 'the character';
+        // Build a plain-language summary of what they missed
+        if (q.toLowerCase().includes('body language')) {
+          return `Needs practice reading body language — missed how ${name} was really feeling`;
+        } else if (q.toLowerCase().includes('listening')) {
+          return `Needs practice spotting listening cues — missed signs of distraction or engagement`;
+        } else if (q.toLowerCase().includes('conflict') || q.toLowerCase().includes('disagree')) {
+          return `Needs practice reading tension — missed signals that ${name} was upset or uncomfortable`;
+        } else if (q.toLowerCase().includes('confidence') || q.toLowerCase().includes('nervous')) {
+          return `Needs practice spotting confidence cues — missed signs of nervousness or insecurity`;
+        } else {
+          return `Needs practice reading ${name}'s emotions — missed the social cue in that scenario`;
+        }
       });
       if (areasToReview.length === 0) {
         areasToReview.push('Perfect score! No areas to review right now.');
@@ -455,18 +483,28 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       let encouragement = '';
       let recommendations = [];
 
+      // Build missed-cue tips from what they got wrong
+      const missedCueTips = incorrectOnes.map(r => {
+        const q = r.scenarioQuestion || '';
+        if (q.toLowerCase().includes('body language')) return 'Practice watching people\'s posture and gestures';
+        if (q.toLowerCase().includes('listening')) return 'Practice noticing if someone is really paying attention';
+        if (q.toLowerCase().includes('conflict')) return 'Practice spotting when someone is upset but hiding it';
+        if (q.toLowerCase().includes('confidence')) return 'Practice telling the difference between confident and nervous body language';
+        return 'Practice reading facial expressions and body language in conversations';
+      });
+
       if (accuracy === 100) {
-        overallPerformance = `Amazing work! You correctly identified all ${scenariosCompleted} social cues. You're showing strong ability to read body language and emotions in others.`;
-        encouragement = `You clearly understand how to read social situations. Try practicing with harder topics or real-life observation to keep building this skill.`;
-        recommendations = ['Try a more advanced topic to challenge yourself', 'Practice spotting these cues with real people this week', 'Help a friend learn about social cues too'];
+        overallPerformance = `You got all ${scenariosCompleted} correct. You can read these social cues well.`;
+        encouragement = `Try a harder topic or watch for these cues in real conversations this week.`;
+        recommendations = ['Try a more challenging topic', 'Watch for these cues in real life this week', 'See if you can spot cues that others miss'];
       } else if (accuracy >= 67) {
-        overallPerformance = `Good job! You got ${correctResponses} out of ${scenariosCompleted} correct (${Math.round(accuracy)}%). You're building solid social awareness.`;
-        encouragement = `You're getting better at reading social cues! The ones you missed are common — focus on the specific body language details mentioned in the feedback.`;
-        recommendations = ['Review the cues you missed above and look for them this week', 'Try this topic again to improve your accuracy', 'Pay extra attention to facial expressions and posture in conversations'];
+        overallPerformance = `You got ${correctResponses} out of ${scenariosCompleted} correct (${Math.round(accuracy)}%).`;
+        encouragement = `You're reading most cues well. Focus on the ones listed below that you missed.`;
+        recommendations = [...missedCueTips, 'Try this topic again to improve your accuracy'];
       } else {
-        overallPerformance = `You completed ${scenariosCompleted} scenarios and got ${correctResponses} correct (${Math.round(accuracy)}%). Reading social cues is a skill that improves with practice!`;
-        encouragement = `Don't worry — social cues can be tricky! Each time you practice, your brain gets better at noticing these signals. Review the feedback for each question to learn what to look for.`;
-        recommendations = ['Re-read the feedback for each question you missed', 'Try this same topic again with fresh scenarios', 'Start by focusing on one cue type at a time (like facial expressions)', 'Practice observing people in real life — what do their faces and bodies tell you?'];
+        overallPerformance = `You got ${correctResponses} out of ${scenariosCompleted} correct (${Math.round(accuracy)}%). These cues get easier with practice.`;
+        encouragement = `Focus on the cues listed below — look for them in real conversations this week.`;
+        recommendations = [...missedCueTips, 'Try this same topic again with fresh scenarios', 'Focus on one cue type at a time (like facial expressions or posture)'];
       }
 
       const results = {
@@ -1069,9 +1107,9 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
               Play while you wait
             </p>
 
-            {/* Runner Game */}
+            {/* Mini Game — cycles between runner and worm */}
             <div className="mb-6">
-              <SmileFaceRunner darkMode={darkMode} />
+              <CyclingMiniGame darkMode={darkMode} />
             </div>
 
             {/* Animated progress bar */}
@@ -1266,6 +1304,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         darkMode={darkMode}
         onNavigate={onNavigate}
         onRestart={handleRestart}
+        gradeLevel={gradeLevel}
       />
     );
   }
