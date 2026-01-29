@@ -14,6 +14,16 @@ import SmileFaceRunner from '../SmileFaceRunner';
 import SmileFaceWormGame from '../SmileFaceWormGame';
 import SpotTheCue from './lessons/SpotTheCue';
 
+// Cycles between runner and worm game every 30 seconds
+function CyclingMiniGame({ darkMode }) {
+  const [game, setGame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setGame(g => (g + 1) % 2), 30000);
+    return () => clearInterval(id);
+  }, []);
+  return game === 0 ? <SmileFaceRunner darkMode={darkMode} /> : <SmileFaceWormGame darkMode={darkMode} />;
+}
+
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
   const USE_AI_EVALUATION = false; // Set to true when backend is deployed
@@ -1097,9 +1107,9 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
               Play while you wait
             </p>
 
-            {/* Runner Game */}
+            {/* Mini Game — cycles between runner and worm */}
             <div className="mb-6">
-              <SmileFaceRunner darkMode={darkMode} />
+              <CyclingMiniGame darkMode={darkMode} />
             </div>
 
             {/* Animated progress bar */}

@@ -3,7 +3,18 @@ import { unlockAudio } from '../../services/openAITTSService';
 import { initRecognition, startRecognition, stopRecognition } from '../../services/speechRecognitionService';
 import { Sparkles, Clock, Lightbulb, Target, ArrowRight } from 'lucide-react';
 import SmileFaceWormGame from '../SmileFaceWormGame';
+import SmileFaceRunner from '../SmileFaceRunner';
 import { getApiBase } from '../../utils/apiBase';
+
+// Cycles between runner and worm game every 30 seconds
+function CyclingMiniGame({ darkMode }) {
+  const [game, setGame] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setGame(g => (g + 1) % 2), 30000);
+    return () => clearInterval(id);
+  }, []);
+  return game === 0 ? <SmileFaceRunner darkMode={darkMode} /> : <SmileFaceWormGame darkMode={darkMode} />;
+}
 
 // ---------- AI SCENARIO GENERATOR ----------
 
@@ -148,7 +159,7 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
           <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Play while you wait
           </p>
-          <SmileFaceWormGame darkMode={darkMode} />
+          <CyclingMiniGame darkMode={darkMode} />
           <div className="mx-auto max-w-xs">
             <div className="h-2 rounded-full overflow-hidden bg-white/10">
               <div className="h-full rounded-full" style={{
