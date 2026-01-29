@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { unlockAudio } from '../../services/openAITTSService';
 import { initRecognition, startRecognition, stopRecognition } from '../../services/speechRecognitionService';
 import { Sparkles, Clock, Lightbulb, Target, ArrowRight } from 'lucide-react';
+import SmileFaceRunner from '../SmileFaceRunner';
 import { getApiBase } from '../../utils/apiBase';
 
 // ---------- AI SCENARIO GENERATOR ----------
@@ -139,18 +140,29 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
 
   if (isLoading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="text-center space-y-4 max-w-md mx-auto px-6">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full" />
-            <div className="absolute inset-0 border-4 border-transparent border-t-blue-500 rounded-full animate-spin" />
-            <Sparkles className="w-8 h-8 text-blue-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-          </div>
-          <h2 className="text-2xl font-bold">Creating your practice scenario...</h2>
+      <div className={`min-h-screen flex flex-col items-center justify-center ${darkMode ? 'bg-[#020412] text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="text-center space-y-6 max-w-md mx-auto px-6">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+            Building Your Practice!
+          </h2>
           <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            AI is crafting a personalized practice session just for you!
+            Play while you wait
           </p>
+          <SmileFaceRunner darkMode={darkMode} />
+          <div className="mx-auto max-w-xs">
+            <div className="h-2 rounded-full overflow-hidden bg-white/10">
+              <div className="h-full rounded-full" style={{
+                background: 'linear-gradient(90deg, #43e97b, #38f9d7, #4facfe, #667eea, #f093fb)',
+                animation: 'shimmer 2s linear infinite, grow 12s ease-out forwards',
+                backgroundSize: '200% 100%',
+              }} />
+            </div>
+          </div>
         </div>
+        <style>{`
+          @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+          @keyframes grow { from { width: 5%; } to { width: 95%; } }
+        `}</style>
       </div>
     );
   }

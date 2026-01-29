@@ -8,6 +8,7 @@ dotenv.config({ path: path.resolve(__dirname, ".env") });
 import lessonRouter from "./routes/lesson.js";
 import tavusRouter from "./routes/tavus.js";
 import sandboxRouter from "./routes/sandbox.js";
+import spotTheCueRouter from "./routes/spotTheCue.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -84,6 +85,9 @@ app.use("/api/tavus", tavusRouter);
 
 // ✅ REGISTER SANDBOX ROUTER for Social Sandbox feature
 app.use("/api/sandbox", sandboxRouter);
+
+// ✅ REGISTER SPOT THE CUE ROUTER for visual cue identification game
+app.use("/api/spot-the-cue", spotTheCueRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({

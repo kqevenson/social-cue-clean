@@ -7,6 +7,7 @@ import LessonIntroduction from './lessons/LessonIntroduction';
 import LessonExplanation from './lessons/LessonExplanation';
 import LessonSummary from './lessons/LessonSummary';
 import LessonVideoScene from '../lessons/LessonVideoScene';
+import SpotTheCue from './lessons/SpotTheCue';
 import AIPracticeSession from "../AIPracticeSession";
 import { ErrorBoundaryFallback } from './animations/ErrorBoundaryFallback';
 import { generateEmotionAwareMCQs } from "../../utils/generateEmotionAwareMCQs";
@@ -137,6 +138,11 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   };
 
   const handleStartPractice = () => {
+    setLessonState('spot_the_cue');
+  };
+
+  const handleSpotTheCueComplete = (points) => {
+    setPointsEarned((p) => p + (points || 0));
     setLessonState('scene_video');
   };
 
@@ -251,6 +257,18 @@ function AILessonSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       <LessonExplanation 
         lesson={lesson} 
         onStartPractice={handleStartPractice}
+      />
+    );
+  }
+
+  // Show Spot the Cue game
+  if (lessonState === 'spot_the_cue') {
+    return (
+      <SpotTheCue
+        lesson={lesson}
+        gradeLevel={gradeLevel}
+        darkMode={darkMode}
+        onComplete={handleSpotTheCueComplete}
       />
     );
   }

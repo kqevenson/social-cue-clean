@@ -318,10 +318,12 @@ export default function useVoiceConversation({
         }
 
         // Build context
-        const history = messagesRef.current.map((m) => ({
-          role: m.role === "ai" ? "assistant" : "user",
-          content: m.text
-        }));
+        const history = messagesRef.current
+          .filter((m) => m.role === "ai" || m.role === "user")
+          .map((m) => ({
+            role: m.role === "ai" ? "assistant" : "user",
+            content: m.text || ""
+          }));
 
         // Pull last 3 practice summaries for personalized guidance from Firestore
         let practiceHistory = [];
