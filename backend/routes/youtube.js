@@ -34,16 +34,17 @@ router.get("/search", async (req, res) => {
     }
 
     const ageLabel = gradeToAgeLabel[gradeLevel] || "kids";
-    const query = `"${topic}" social skills ${ageLabel} educational`;
+    const query = `${topic} social skills ${ageLabel} body language emotions`;
 
     const url = new URL("https://www.googleapis.com/youtube/v3/search");
     url.searchParams.set("part", "snippet");
     url.searchParams.set("q", query);
     url.searchParams.set("type", "video");
-    url.searchParams.set("maxResults", "3");
+    url.searchParams.set("maxResults", "6");
     url.searchParams.set("videoEmbeddable", "true");
     url.searchParams.set("safeSearch", "strict");
     url.searchParams.set("relevanceLanguage", "en");
+    url.searchParams.set("videoCategoryId", "27"); // Education category
     url.searchParams.set("key", apiKey);
 
     const response = await fetch(url.toString());
@@ -55,12 +56,23 @@ router.get("/search", async (req, res) => {
 
     const data = await response.json();
 
-    const videos = (data.items || []).map((item) => ({
+    // Filter to only include videos whose title or description mentions social-skill-related words
+    const relevantKeywords = ['social', 'skill', 'cue', 'body language', 'emotion', 'feeling', 'listen', 'communicat', 'conflict', 'confidence', 'empathy', 'conversation', 'friend', 'bully', 'anxiety', 'nervous', topic.toLowerCase()];
+    const allVideos = (data.items || []).map((item) => ({
       title: item.snippet.title,
       videoId: item.id.videoId,
       thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
       channelTitle: item.snippet.channelTitle,
+      description: item.snippet.description,
     }));
+
+    const filtered = allVideos.filter((v) => {
+      const text = `${v.title} ${v.description}`.toLowerCase();
+      return relevantKeywords.some((kw) => text.includes(kw));
+    });
+
+    // Use filtered results, fall back to all if filtering removed everything
+    const videos = (filtered.length > 0 ? filtered : allVideos).slice(0, 3).map(({ description, ...rest }) => rest);
 
     return res.json({ success: true, videos });
   } catch (err) {
