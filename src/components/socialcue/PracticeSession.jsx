@@ -433,24 +433,36 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       const correctOnes = sessionResponses.filter(r => r.isCorrect);
       const incorrectOnes = sessionResponses.filter(r => !r.isCorrect);
 
-      // What they got right — plain language
-      const conceptsUnderstood = correctOnes.map(r => {
-        // Extract the core cue from the correct answer text
-        const answer = r.correctAnswer || r.userAnswer || '';
-        const after = answer.split('—').pop()?.trim() || answer.split('-').pop()?.trim() || answer;
-        const short = after.length > 80 ? after.slice(0, 77) + '...' : after;
-        return `Can recognize when someone is ${short.toLowerCase()}`;
+      // What they got right — use the scenario question to describe the skill
+      const conceptsUnderstood = correctOnes.map((r, i) => {
+        const q = r.scenarioQuestion || '';
+        // Try to pull the skill from the question, e.g. "What does Leo's body language tell you..."
+        if (q) return `Correctly read the social cue in Scenario ${i + 1}`;
+        return `Identified the correct cue in Scenario ${i + 1}`;
       });
       if (conceptsUnderstood.length === 0) {
         conceptsUnderstood.push('Keep practicing — recognizing social cues takes time!');
       }
 
-      // What they missed — straightforward "needs to work on" language
-      const areasToReview = incorrectOnes.map(r => {
-        const correct = r.correctAnswer || '';
-        const cue = correct.split('—').pop()?.trim() || correct.split('-').pop()?.trim() || correct;
-        const short = cue.length > 80 ? cue.slice(0, 77) + '...' : cue;
-        return `Needs to work on understanding when someone is ${short.toLowerCase()}`;
+      // What they missed — use the scenario context to describe the gap
+      const areasToReview = incorrectOnes.map((r, i) => {
+        const q = r.scenarioQuestion || '';
+        const context = r.scenarioContext || '';
+        // Extract character name from context if present
+        const nameMatch = context.match(/\b([A-Z][a-z]+)\b/);
+        const name = nameMatch ? nameMatch[1] : 'the character';
+        // Build a plain-language summary of what they missed
+        if (q.toLowerCase().includes('body language')) {
+          return `Needs practice reading body language — missed how ${name} was really feeling`;
+        } else if (q.toLowerCase().includes('listening')) {
+          return `Needs practice spotting listening cues — missed signs of distraction or engagement`;
+        } else if (q.toLowerCase().includes('conflict') || q.toLowerCase().includes('disagree')) {
+          return `Needs practice reading tension — missed signals that ${name} was upset or uncomfortable`;
+        } else if (q.toLowerCase().includes('confidence') || q.toLowerCase().includes('nervous')) {
+          return `Needs practice spotting confidence cues — missed signs of nervousness or insecurity`;
+        } else {
+          return `Needs practice reading ${name}'s emotions — missed the social cue in that scenario`;
+        }
       });
       if (areasToReview.length === 0) {
         areasToReview.push('Perfect score! No areas to review right now.');
@@ -463,10 +475,12 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
       // Build missed-cue tips from what they got wrong
       const missedCueTips = incorrectOnes.map(r => {
-        const correct = r.correctAnswer || '';
-        const cue = correct.split('—').pop()?.trim() || correct.split('-').pop()?.trim() || correct;
-        const short = cue.length > 60 ? cue.slice(0, 57) + '...' : cue;
-        return `Practice noticing when someone is ${short.toLowerCase()}`;
+        const q = r.scenarioQuestion || '';
+        if (q.toLowerCase().includes('body language')) return 'Practice watching people\'s posture and gestures';
+        if (q.toLowerCase().includes('listening')) return 'Practice noticing if someone is really paying attention';
+        if (q.toLowerCase().includes('conflict')) return 'Practice spotting when someone is upset but hiding it';
+        if (q.toLowerCase().includes('confidence')) return 'Practice telling the difference between confident and nervous body language';
+        return 'Practice reading facial expressions and body language in conversations';
       });
 
       if (accuracy === 100) {
