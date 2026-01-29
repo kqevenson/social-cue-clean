@@ -1294,6 +1294,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         darkMode={darkMode}
         onNavigate={onNavigate}
         onRestart={handleRestart}
+        gradeLevel={gradeLevel}
       />
     );
   }
