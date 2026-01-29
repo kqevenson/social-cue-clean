@@ -61,6 +61,7 @@ app.use(
       if (origin.startsWith("http://localhost:")) return callback(null, true);
       if (origin.endsWith(".vercel.app")) return callback(null, true);
       if (origin.includes("railway.app")) return callback(null, true);
+      if (origin.endsWith("socialcueai.com")) return callback(null, true);
       if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
       if (process.env.ALLOWED_ORIGIN && origin === process.env.ALLOWED_ORIGIN) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
