@@ -433,18 +433,24 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       const correctOnes = sessionResponses.filter(r => r.isCorrect);
       const incorrectOnes = sessionResponses.filter(r => !r.isCorrect);
 
-      // What they got right — specific cues they identified
+      // What they got right — plain language
       const conceptsUnderstood = correctOnes.map(r => {
-        const cue = r.correctAnswer || r.userAnswer;
-        return `Correctly identified: "${cue}" — ${r.scenarioContext?.split('.')[0] || 'social scenario'}`;
+        // Extract the core cue from the correct answer text
+        const answer = r.correctAnswer || r.userAnswer || '';
+        const after = answer.split('—').pop()?.trim() || answer.split('-').pop()?.trim() || answer;
+        const short = after.length > 80 ? after.slice(0, 77) + '...' : after;
+        return `Can recognize when someone is ${short.toLowerCase()}`;
       });
       if (conceptsUnderstood.length === 0) {
         conceptsUnderstood.push('Keep practicing — recognizing social cues takes time!');
       }
 
-      // What they missed — specific cues they need to work on
+      // What they missed — straightforward "needs to work on" language
       const areasToReview = incorrectOnes.map(r => {
-        return `Missed cue: The correct answer was "${r.correctAnswer}" — you chose "${r.userAnswer}". ${r.scenarioQuestion || ''}`;
+        const correct = r.correctAnswer || '';
+        const cue = correct.split('—').pop()?.trim() || correct.split('-').pop()?.trim() || correct;
+        const short = cue.length > 80 ? cue.slice(0, 77) + '...' : cue;
+        return `Needs to work on understanding when someone is ${short.toLowerCase()}`;
       });
       if (areasToReview.length === 0) {
         areasToReview.push('Perfect score! No areas to review right now.');
@@ -455,18 +461,26 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       let encouragement = '';
       let recommendations = [];
 
+      // Build missed-cue tips from what they got wrong
+      const missedCueTips = incorrectOnes.map(r => {
+        const correct = r.correctAnswer || '';
+        const cue = correct.split('—').pop()?.trim() || correct.split('-').pop()?.trim() || correct;
+        const short = cue.length > 60 ? cue.slice(0, 57) + '...' : cue;
+        return `Practice noticing when someone is ${short.toLowerCase()}`;
+      });
+
       if (accuracy === 100) {
-        overallPerformance = `Amazing work! You correctly identified all ${scenariosCompleted} social cues. You're showing strong ability to read body language and emotions in others.`;
-        encouragement = `You clearly understand how to read social situations. Try practicing with harder topics or real-life observation to keep building this skill.`;
-        recommendations = ['Try a more advanced topic to challenge yourself', 'Practice spotting these cues with real people this week', 'Help a friend learn about social cues too'];
+        overallPerformance = `You got all ${scenariosCompleted} correct. You can read these social cues well.`;
+        encouragement = `Try a harder topic or watch for these cues in real conversations this week.`;
+        recommendations = ['Try a more challenging topic', 'Watch for these cues in real life this week', 'See if you can spot cues that others miss'];
       } else if (accuracy >= 67) {
-        overallPerformance = `Good job! You got ${correctResponses} out of ${scenariosCompleted} correct (${Math.round(accuracy)}%). You're building solid social awareness.`;
-        encouragement = `You're getting better at reading social cues! The ones you missed are common — focus on the specific body language details mentioned in the feedback.`;
-        recommendations = ['Review the cues you missed above and look for them this week', 'Try this topic again to improve your accuracy', 'Pay extra attention to facial expressions and posture in conversations'];
+        overallPerformance = `You got ${correctResponses} out of ${scenariosCompleted} correct (${Math.round(accuracy)}%).`;
+        encouragement = `You're reading most cues well. Focus on the ones listed below that you missed.`;
+        recommendations = [...missedCueTips, 'Try this topic again to improve your accuracy'];
       } else {
-        overallPerformance = `You completed ${scenariosCompleted} scenarios and got ${correctResponses} correct (${Math.round(accuracy)}%). Reading social cues is a skill that improves with practice!`;
-        encouragement = `Don't worry — social cues can be tricky! Each time you practice, your brain gets better at noticing these signals. Review the feedback for each question to learn what to look for.`;
-        recommendations = ['Re-read the feedback for each question you missed', 'Try this same topic again with fresh scenarios', 'Start by focusing on one cue type at a time (like facial expressions)', 'Practice observing people in real life — what do their faces and bodies tell you?'];
+        overallPerformance = `You got ${correctResponses} out of ${scenariosCompleted} correct (${Math.round(accuracy)}%). These cues get easier with practice.`;
+        encouragement = `Focus on the cues listed below — look for them in real conversations this week.`;
+        recommendations = [...missedCueTips, 'Try this same topic again with fresh scenarios', 'Focus on one cue type at a time (like facial expressions or posture)'];
       }
 
       const results = {
