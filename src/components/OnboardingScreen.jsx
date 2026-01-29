@@ -112,10 +112,15 @@ function OnboardingScreen({ onComplete }) {
       label: 'Parent/Guardian', 
       description: 'I\'m here to support my learner'
     },
-    { 
-      id: 'teacher', 
-      label: 'Teacher', 
+    {
+      id: 'teacher',
+      label: 'Teacher',
       description: 'I want to help my learners'
+    },
+    {
+      id: 'guest',
+      label: 'Guest',
+      description: 'Just browsing — jump right in'
     }
   ];
 
@@ -135,10 +140,26 @@ function OnboardingScreen({ onComplete }) {
     { id: '12', label: '12th Grade' }
   ];
 
-  const handleRoleSelect = (roleId) => {
+  const handleRoleSelect = async (roleId) => {
     setUserData({ ...userData, role: roleId });
     setErrors({}); // Clear any previous errors
-    
+
+    if (roleId === 'guest') {
+      // Skip all onboarding — default to 6th grader named Stanford
+      const userId = `guest_${Date.now()}`;
+      const finalData = {
+        name: 'Stanford',
+        role: 'learner',
+        gradeLevel: '6',
+        accountType: 'guest',
+        userId: userId
+      };
+      // Skip adaptive learning init — go straight to app
+      try { initializeAdaptiveLearning(userId, finalData, onboardingAnswers); } catch (e) {}
+      onComplete(finalData);
+      return;
+    }
+
     if (roleId === 'learner') {
       setStep(2);
     } else {

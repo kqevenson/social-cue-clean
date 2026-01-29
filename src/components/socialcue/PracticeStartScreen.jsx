@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { unlockAudio } from '../../services/openAITTSService';
 import { initRecognition, startRecognition, stopRecognition } from '../../services/speechRecognitionService';
 import { Sparkles, Clock, Lightbulb, Target, ArrowRight } from 'lucide-react';
-import SmileFaceRunner from '../SmileFaceRunner';
+import SmileFaceWormGame from '../SmileFaceWormGame';
 import { getApiBase } from '../../utils/apiBase';
 
 // ---------- AI SCENARIO GENERATOR ----------
@@ -148,7 +148,7 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
           <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Play while you wait
           </p>
-          <SmileFaceRunner darkMode={darkMode} />
+          <SmileFaceWormGame darkMode={darkMode} />
           <div className="mx-auto max-w-xs">
             <div className="h-2 rounded-full overflow-hidden bg-white/10">
               <div className="h-full rounded-full" style={{
