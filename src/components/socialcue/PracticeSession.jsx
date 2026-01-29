@@ -1264,29 +1264,6 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
           isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
         } ${darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'}`}>
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-24 h-24 rounded-xl flex-shrink-0 shadow-lg bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center">
-                  {scenario.icon && React.createElement(scenario.icon, { className: "w-12 h-12 text-white" })}
-                </div>
-                <div className={`text-sm font-bold ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                  {gradeRange === 'k2' ? 'STORY' : 'SCENARIO'}
-                </div>
-              </div>
-              <button onClick={() => {
-                const optionsText = situation.options.map((opt, idx) => {
-                  const text = getContent(opt.text);
-                  return `Option ${String.fromCharCode(65 + idx)}: ${text}`;
-                }).join('. ');
-                const fullText = `${situationContext}. ${situationPrompt}. Here are your options. ${optionsText}`;
-                toggleSpeech(fullText);
-              }} className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all ${
-                isSpeaking ? 'bg-emerald-500 text-white' : darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-              }`}>
-                {isSpeaking ? <><VolumeX className="w-5 h-5" /><span className="text-sm">Stop</span></> : 
-                  <><Volume2 className="w-5 h-5" /><span className="text-sm">Read Aloud</span></>}
-              </button>
-            </div>
 
             {situation?.imageUrl && (
               <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 shadow-lg">
@@ -1449,6 +1426,19 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         <div className={`text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
           <div className="flex items-center justify-center gap-4 mb-2">
             <div className="text-sm font-semibold">Score</div>
+            <button onClick={() => {
+              const optionsText = situation.options.map((opt, idx) => {
+                const text = getContent(opt.text);
+                return `Option ${String.fromCharCode(65 + idx)}: ${text}`;
+              }).join('. ');
+              const fullText = `${situationContext}. ${situationPrompt}. Here are your options. ${optionsText}`;
+              toggleSpeech(fullText);
+            }} className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              isSpeaking ? 'bg-emerald-500 text-white' : darkMode ? 'bg-white/5 text-gray-400 border border-white/10' : 'bg-gray-100 text-gray-600 border border-gray-200'
+            }`}>
+              {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+              {isSpeaking ? 'Stop' : 'Read Aloud'}
+            </button>
             <button onClick={() => setAutoRead(!autoRead)} className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
               autoRead ? (darkMode ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border border-emerald-300') :
               (darkMode ? 'bg-white/5 text-gray-400 border border-white/10' : 'bg-gray-100 text-gray-600 border border-gray-200')
