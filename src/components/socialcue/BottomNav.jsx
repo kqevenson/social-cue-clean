@@ -31,11 +31,11 @@ function BottomNav({ currentScreen, onNavigate, darkMode, navItems, newGoalsCoun
   };
 
   return (
-    <nav className={`fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t z-50 ${
+    <nav className={`fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t z-50 pb-[env(safe-area-inset-bottom)] ${
       darkMode ? 'bg-black/95 border-white/10' : 'bg-white/95 border-gray-200'
     }`}>
       <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-around py-4">
+        <div className="flex items-center justify-around py-3">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = isItemActive(item.id);
