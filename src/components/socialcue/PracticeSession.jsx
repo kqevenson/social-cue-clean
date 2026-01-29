@@ -9,6 +9,10 @@ import SessionResults from './SessionResults';
 import { useToast, Button, AnimatedNumber, SmoothProgressBar } from './animations';
 import { getFirestore, doc, updateDoc, collection, addDoc, getDoc, setDoc } from 'firebase/firestore';
 import { getApiBase } from '../../utils/apiBase';
+import SmileFace from '../SmileFace';
+import SmileFaceRunner from '../SmileFaceRunner';
+import SmileFaceWormGame from '../SmileFaceWormGame';
+import SpotTheCue from './lessons/SpotTheCue';
 
 function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEffects, autoReadText }) {
   // Configuration flags
@@ -33,8 +37,9 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   const [sessionResults, setSessionResults] = useState(null);
   const [showSessionResults, setShowSessionResults] = useState(false);
   const [isCompletingSession, setIsCompletingSession] = useState(false);
-  const [lessonState, setLessonState] = useState('loading'); // 'loading', 'ready', 'error'
+  const [lessonState, setLessonState] = useState('loading'); // 'loading', 'spot_the_cue', 'ready', 'error'
   const [aiGeneratedScenario, setAiGeneratedScenario] = useState(null);
+  const [spotTheCueCards, setSpotTheCueCards] = useState(null);
 
   const gradeRange = getGradeRange(gradeLevel);
   const scenario = aiGeneratedScenario || scenarios[sessionId] || scenarios[1];
@@ -178,11 +183,11 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
             id: turn.id || index + 1,
             context: turn.situation,
             prompt: turn.question || "What should you do?",
+            imageUrl: turn.imageUrl || null,
             options: turn.options?.map(option => ({
               text: option.text,
-              isGood: option.id === turn.correctAnswer, // Correct answer marked by correctAnswer field
+              isGood: option.id === turn.correctAnswer,
               points: option.id === turn.correctAnswer ? 10 : 0,
-              // Use AI-generated feedback if available, otherwise fall back to generic
               feedback: option.feedback || (option.id === turn.correctAnswer
                 ? "Great choice! That's the best approach."
                 : "That's not quite right. Think about what would be most helpful here."),
@@ -205,6 +210,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         setCurrentSituation(0);
         console.log('✅ SCENARIO SOURCE:', 'AI Generated via /api/lessons/start');
         console.log('✅ aiGeneratedScenario has been set with', transformedScenario.situations.length, 'situations');
+
         setLessonState('ready');
       } catch (error) {
         console.error('❌ Error generating scenarios:', error);
@@ -982,56 +988,133 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
 
   // Loading state while AI generates scenarios
   if (lessonState === 'loading') {
+    const funMessages = [
+      'Thinking up fun challenges...',
+      'Painting your scenarios...',
+      'Almost ready for launch...',
+      'Setting the stage...',
+      'Making it just right for you...',
+    ];
+
     return (
-      <div className={`min-h-screen ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="fixed inset-0 opacity-20" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}></div>
-        
+      <div className="min-h-screen relative overflow-hidden" style={{
+        background: darkMode
+          ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+          : 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)'
+      }}>
+        {/* Floating SmileFace decorations - positioned in corners away from center */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[5%] left-[5%] opacity-15 animate-pulse" style={{ animationDuration: '3s' }}>
+            <SmileFace scale={1.2} animated blink eyeColor="#a78bfa" mouthColor="#c084fc" />
+          </div>
+          <div className="absolute top-[8%] right-[8%] opacity-10 animate-pulse" style={{ animationDuration: '4.5s' }}>
+            <SmileFace scale={1} animated blink eyeColor="#f0abfc" mouthColor="#e879f9" />
+          </div>
+          <div className="absolute bottom-[8%] right-[10%] opacity-15 animate-pulse" style={{ animationDuration: '4s' }}>
+            <SmileFace scale={1.3} animated blink eyeColor="#60a5fa" mouthColor="#38bdf8" />
+          </div>
+          <div className="absolute bottom-[10%] left-[8%] opacity-12 animate-pulse" style={{ animationDuration: '3.5s' }}>
+            <SmileFace scale={1} animated blink eyeColor="#34d399" mouthColor="#6ee7b7" />
+          </div>
+        </div>
+
         <div className="relative z-10 flex items-center justify-center min-h-screen p-6 pb-24">
-          <div className="max-w-2xl w-full">
-            <div className={`backdrop-blur-xl border rounded-3xl p-8 text-center ${
-              darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              <div className="mb-6">
-                <div className="text-7xl mb-4">🤖</div>
-                <h1 className={`text-4xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Generating AI Scenarios...
-                </h1>
-                <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Creating personalized practice scenarios for you
-                </p>
-              </div>
-              
-              <div className="flex justify-center mb-6">
-                <LoadingSpinner 
-                  size="large" 
-                  variant="icon" 
-                  text="Creating your practice session..." 
-                  darkMode={darkMode}
+          <div className="max-w-md w-full text-center">
+            {/* Title */}
+            <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">
+              Building Your Practice!
+            </h1>
+            <p className="text-white/70 text-lg mb-6">
+              Play while you wait
+            </p>
+
+            {/* Runner Game */}
+            <div className="mb-6">
+              <SmileFaceRunner darkMode={darkMode} />
+            </div>
+
+            {/* Animated progress bar */}
+            <div className="mx-auto max-w-xs mb-4">
+              <div className="h-3 rounded-full overflow-hidden" style={{
+                background: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.3)'
+              }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: 'linear-gradient(90deg, #43e97b, #38f9d7, #4facfe, #667eea, #f093fb)',
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 2s linear infinite, grow 10s ease-out forwards',
+                    width: '0%',
+                  }}
                 />
               </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                </div>
-                <p className={`text-lg font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>
-                  Creating 5 unique scenarios...
+            </div>
+
+            {/* Rotating fun messages */}
+            <div className="h-6 relative overflow-hidden">
+              {funMessages.map((msg, i) => (
+                <p
+                  key={i}
+                  className="absolute inset-0 text-white/60 font-medium text-sm flex items-center justify-center"
+                  style={{
+                    animation: `fadeInOut ${funMessages.length * 2.5}s infinite`,
+                    animationDelay: `${i * 2.5}s`,
+                    opacity: 0,
+                  }}
+                >
+                  {msg}
                 </p>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  This usually takes 8-12 seconds
-                </p>
-                <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'} mt-2`}>
-                  ✨ Each scenario is tailored to your learning level
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
+
+        {/* Keyframe styles */}
+        <style>{`
+          @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(8px); }
+            5% { opacity: 1; transform: translateY(0); }
+            15% { opacity: 1; transform: translateY(0); }
+            20% { opacity: 0; transform: translateY(-8px); }
+            100% { opacity: 0; transform: translateY(-8px); }
+          }
+          @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+          @keyframes grow {
+            0% { width: 5%; }
+            50% { width: 60%; }
+            80% { width: 85%; }
+            100% { width: 92%; }
+          }
+          @keyframes smileBounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+          }
+          @keyframes smileBlink {
+            0%, 90%, 100% { transform: scaleY(1); }
+            92%, 96% { transform: scaleY(0.1); }
+            94% { transform: scaleY(0); }
+          }
+        `}</style>
       </div>
+    );
+  }
+
+  // Spot the Cue game - plays after AI scenarios load, before MCQ practice
+  if (lessonState === 'spot_the_cue' && spotTheCueCards) {
+    return (
+      <SpotTheCue
+        lesson={{ title: 'Social Skills' }}
+        gradeLevel={gradeLevel}
+        darkMode={darkMode}
+        preloadedCards={spotTheCueCards}
+        onComplete={(points) => {
+          setTotalPoints((p) => p + (points || 0));
+          setLessonState('ready');
+        }}
+      />
     );
   }
 
@@ -1181,30 +1264,12 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
           isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
         } ${darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-lg'}`}>
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-24 h-24 rounded-xl flex-shrink-0 shadow-lg bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center">
-                  {scenario.icon && React.createElement(scenario.icon, { className: "w-12 h-12 text-white" })}
-                </div>
-                <div className={`text-sm font-bold ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                  {gradeRange === 'k2' ? 'STORY' : 'SCENARIO'}
-                </div>
-              </div>
-              <button onClick={() => {
-                const optionsText = situation.options.map((opt, idx) => {
-                  const text = getContent(opt.text);
-                  return `Option ${String.fromCharCode(65 + idx)}: ${text}`;
-                }).join('. ');
-                const fullText = `${situationContext}. ${situationPrompt}. Here are your options. ${optionsText}`;
-                toggleSpeech(fullText);
-              }} className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all ${
-                isSpeaking ? 'bg-emerald-500 text-white' : darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-              }`}>
-                {isSpeaking ? <><VolumeX className="w-5 h-5" /><span className="text-sm">Stop</span></> : 
-                  <><Volume2 className="w-5 h-5" /><span className="text-sm">Read Aloud</span></>}
-              </button>
-            </div>
 
+            {situation?.imageUrl && (
+              <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 shadow-lg">
+                <img src={situation.imageUrl} alt="Social situation" className="w-full aspect-[4/3] object-cover" />
+              </div>
+            )}
             <p className={`text-xl mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{situationContext}</p>
             <div className={`text-lg font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{situationPrompt}</div>
           </div>
@@ -1233,133 +1298,147 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
         </div>
 
         {showFeedback && (
-          <div className={`backdrop-blur-xl border rounded-3xl p-6 mb-6 animate-fadeIn ${
-            shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? (darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200') :
-            (darkMode ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200')
-          }`}>
-            <div className="flex items-center justify-end mb-4">
-              <button onClick={() => {
-                const feedback = getContent(shuffledOptions[selectedOption].feedback);
-                const proTip = shuffledOptions[selectedOption].proTip ? getContent(shuffledOptions[selectedOption].proTip) : '';
-                const feedbackText = feedback + (proTip ? `. ${proTip}` : '');
-                toggleSpeech(feedbackText);
-              }} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                isSpeaking ? 'bg-blue-500 text-white' : darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-              }`}>
-                {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                <span>Read Feedback</span>
-              </button>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? 'bg-emerald-500' : 'bg-red-500'
-              }`}>
-                {shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? <CheckCircle className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white" />}
-              </div>
-              <div className="flex-1">
-                <h3 className={`text-lg font-bold mb-2 ${
-                  shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? (darkMode ? 'text-emerald-400' : 'text-emerald-700') : (darkMode ? 'text-red-400' : 'text-red-700')
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+            <div className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl animate-fadeIn ${
+              shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? (darkMode ? 'bg-[#0a1628] border-emerald-500/30' : 'bg-white border-emerald-200') :
+              (darkMode ? 'bg-[#0a1628] border-red-500/30' : 'bg-white border-red-200')
+            }`} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+              <div className="flex items-center justify-end mb-4">
+                <button onClick={() => {
+                  const feedback = getContent(shuffledOptions[selectedOption].feedback);
+                  const proTip = shuffledOptions[selectedOption].proTip ? getContent(shuffledOptions[selectedOption].proTip) : '';
+                  const feedbackText = feedback + (proTip ? `. ${proTip}` : '');
+                  toggleSpeech(feedbackText);
+                }} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                  isSpeaking ? 'bg-blue-500 text-white' : darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                 }`}>
-                  {shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? 'Great Choice!' : "Let's Learn!"}
-                </h3>
-                <p className={`mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {getContent(shuffledOptions[selectedOption].feedback)}
-                </p>
-                
-                {!(shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood) && shuffledOptions[selectedOption] && shuffledOptions[selectedOption].proTip && (
-                  <div className={`flex items-start gap-3 p-4 rounded-xl mt-4 ${
-                    darkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
-                  }`}>
-                    <Lightbulb className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                    <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
-                      {getContent(shuffledOptions[selectedOption].proTip)}
-                    </p>
-                  </div>
-                )}
+                  {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  <span>Read Feedback</span>
+                </button>
+              </div>
 
-                {/* AI Evaluation Feedback */}
-                {aiEvaluation && !isEvaluating && (
-                  <div className={`flex items-start gap-3 p-4 rounded-xl mt-4 ${
-                    darkMode ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? 'bg-emerald-500' : 'bg-red-500'
+                }`}>
+                  {shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? <CheckCircle className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white" />}
+                </div>
+                <div className="flex-1">
+                  <h3 className={`text-lg font-bold mb-2 ${
+                    shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? (darkMode ? 'text-emerald-400' : 'text-emerald-700') : (darkMode ? 'text-red-400' : 'text-red-700')
                   }`}>
-                    <div className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5">🤖</div>
-                    <div className="flex-1">
-                      <h4 className={`font-semibold mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
-                        AI Feedback (Score: {Math.round(aiEvaluation.score * 100)}%)
-                      </h4>
-                      <p className={`text-sm mb-2 ${darkMode ? 'text-purple-200' : 'text-purple-700'}`}>
-                        {aiEvaluation.personalizedFeedback}
+                    {shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood ? 'Great Choice!' : "Let's Learn!"}
+                  </h3>
+                  <p className={`mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {getContent(shuffledOptions[selectedOption].feedback)}
+                  </p>
+
+                  {!(shuffledOptions[selectedOption] && shuffledOptions[selectedOption].isGood) && shuffledOptions[selectedOption] && shuffledOptions[selectedOption].proTip && (
+                    <div className={`flex items-start gap-3 p-4 rounded-xl mt-4 ${
+                      darkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+                    }`}>
+                      <Lightbulb className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+                        {getContent(shuffledOptions[selectedOption].proTip)}
                       </p>
-                      {aiEvaluation.strengths && aiEvaluation.strengths.length > 0 && (
-                        <div className="mb-2">
-                          <span className={`text-xs font-semibold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                            Strengths: 
-                          </span>
-                          <span className={`text-xs ml-1 ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
-                            {aiEvaluation.strengths.join(', ')}
-                          </span>
-                        </div>
-                      )}
-                      {aiEvaluation.areasForImprovement && aiEvaluation.areasForImprovement.length > 0 && (
-                        <div>
-                          <span className={`text-xs font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
-                            Areas to improve: 
-                          </span>
-                          <span className={`text-xs ml-1 ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
-                            {aiEvaluation.areasForImprovement.join(', ')}
-                          </span>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Loading indicator for AI evaluation */}
-                {isEvaluating && (
-                  <div className={`flex items-center gap-3 p-4 rounded-xl mt-4 ${
-                    darkMode ? 'bg-gray-500/10 border border-gray-500/30' : 'bg-gray-50 border border-gray-200'
-                  }`}>
-                    <div className="w-5 h-5 text-gray-500 flex-shrink-0">🤖</div>
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
-                      <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        AI is analyzing your response...
-                      </span>
+                  {/* AI Evaluation Feedback */}
+                  {aiEvaluation && !isEvaluating && (
+                    <div className={`flex items-start gap-3 p-4 rounded-xl mt-4 ${
+                      darkMode ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'
+                    }`}>
+                      <div className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5">🤖</div>
+                      <div className="flex-1">
+                        <h4 className={`font-semibold mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
+                          AI Feedback (Score: {Math.round(aiEvaluation.score * 100)}%)
+                        </h4>
+                        <p className={`text-sm mb-2 ${darkMode ? 'text-purple-200' : 'text-purple-700'}`}>
+                          {aiEvaluation.personalizedFeedback}
+                        </p>
+                        {aiEvaluation.strengths && aiEvaluation.strengths.length > 0 && (
+                          <div className="mb-2">
+                            <span className={`text-xs font-semibold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                              Strengths:
+                            </span>
+                            <span className={`text-xs ml-1 ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
+                              {aiEvaluation.strengths.join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {aiEvaluation.areasForImprovement && aiEvaluation.areasForImprovement.length > 0 && (
+                          <div>
+                            <span className={`text-xs font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                              Areas to improve:
+                            </span>
+                            <span className={`text-xs ml-1 ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+                              {aiEvaluation.areasForImprovement.join(', ')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Loading indicator for AI evaluation */}
+                  {isEvaluating && (
+                    <div className={`flex items-center gap-3 p-4 rounded-xl mt-4 ${
+                      darkMode ? 'bg-gray-500/10 border border-gray-500/30' : 'bg-gray-50 border border-gray-200'
+                    }`}>
+                      <div className="w-5 h-5 text-gray-500 flex-shrink-0">🤖</div>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          AI is analyzing your response...
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Navigation buttons inside modal */}
+              <div className="flex gap-4 mt-6">
+                {currentSituation > 0 && (
+                  <button onClick={handleBack} className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 ${
+                    darkMode ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'
+                  }`}>
+                    <ArrowLeft className="w-5 h-5" />
+                    Previous
+                  </button>
                 )}
+                <Button
+                  onClick={handleNext}
+                  variant="primary"
+                  size="lg"
+                  className={`${currentSituation > 0 ? 'flex-1' : 'w-full'} bg-gradient-to-r from-blue-500 to-emerald-400 hover:from-blue-600 hover:to-emerald-500 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg hover:shadow-blue-500/50 transition-all flex items-center justify-center gap-2`}
+                  darkMode={darkMode}
+                >
+                  {scenario.situations?.length > 0 && currentSituation < scenario.situations.length - 1 ? 'Next Situation' : 'Complete'}
+                  <ArrowRight className="w-5 h-5" />
+                </Button>
               </div>
             </div>
-          </div>
-        )}
-
-        {showFeedback && (
-          <div className="flex gap-4 mb-6">
-            {currentSituation > 0 && (
-              <button onClick={handleBack} className={`flex-1 font-bold py-4 px-6 rounded-full border-2 transition-all flex items-center justify-center gap-2 ${
-                darkMode ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'
-              }`}>
-                <ArrowLeft className="w-5 h-5" />
-                Previous
-              </button>
-            )}
-            <Button 
-              onClick={handleNext} 
-              variant="primary"
-              size="lg"
-              className={`${currentSituation > 0 ? 'flex-1' : 'w-full'} bg-gradient-to-r from-blue-500 to-emerald-400 hover:from-blue-600 hover:to-emerald-500 text-white font-bold py-4 px-6 rounded-full hover:shadow-lg hover:shadow-blue-500/50 transition-all flex items-center justify-center gap-2`}
-              darkMode={darkMode}
-            >
-              {scenario.situations?.length > 0 && currentSituation < scenario.situations.length - 1 ? 'Next Situation' : 'Complete'}
-              <ArrowRight className="w-5 h-5" />
-            </Button>
           </div>
         )}
 
         <div className={`text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
           <div className="flex items-center justify-center gap-4 mb-2">
             <div className="text-sm font-semibold">Score</div>
+            <button onClick={() => {
+              const optionsText = situation.options.map((opt, idx) => {
+                const text = getContent(opt.text);
+                return `Option ${String.fromCharCode(65 + idx)}: ${text}`;
+              }).join('. ');
+              const fullText = `${situationContext}. ${situationPrompt}. Here are your options. ${optionsText}`;
+              toggleSpeech(fullText);
+            }} className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              isSpeaking ? 'bg-emerald-500 text-white' : darkMode ? 'bg-white/5 text-gray-400 border border-white/10' : 'bg-gray-100 text-gray-600 border border-gray-200'
+            }`}>
+              {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+              {isSpeaking ? 'Stop' : 'Read Aloud'}
+            </button>
             <button onClick={() => setAutoRead(!autoRead)} className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
               autoRead ? (darkMode ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border border-emerald-300') :
               (darkMode ? 'bg-white/5 text-gray-400 border border-white/10' : 'bg-gray-100 text-gray-600 border border-gray-200')

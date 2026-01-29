@@ -8,6 +8,7 @@ import React from 'react';
 const SmileFace = ({
   scale = 1,
   animated = false,
+  blink = false,
   eyeColor = '#4A90E2',
   mouthColor = '#34D399'
 }) => {
@@ -22,7 +23,12 @@ const SmileFace = ({
       }}
     >
       {/* Eyes */}
-      <div style={{ display: 'flex', gap: 24 * scale }}>
+      <div style={{
+        display: 'flex',
+        gap: 24 * scale,
+        animation: blink ? 'smileBlink 3.5s ease-in-out infinite' : 'none',
+        transformOrigin: 'center'
+      }}>
         <div
           style={{
             width: 10 * scale,

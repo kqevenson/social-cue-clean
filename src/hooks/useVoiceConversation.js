@@ -4,13 +4,14 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OpenAI } from "openai";
 
 import {
   unlockAudio,
   playVoiceResponseWithOpenAI,
   stopOpenAITTSPlayback
 } from "../services/openAITTSService";
+
+import { getApiBase } from "../utils/apiBase";
 
 import {
   startRecognition,
@@ -97,20 +98,27 @@ export default function useVoiceConversation({
   useEffect(() => { onAIResponseRef.current = onAIResponse; }, [onAIResponse]);
 
   // ---------------------------------------------------------------------------
-  // OPENAI CLIENT INIT
+  // OPENAI PROXY (routes through backend)
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const KEY =
-      import.meta.env.VITE_OPENAI_API_KEY ||
-      globalThis?.process?.env?.OPENAI_API_KEY ||
-      "";
-
-    if (KEY) {
-      openaiRef.current = new OpenAI({
-        apiKey: KEY,
-        dangerouslyAllowBrowser: true
-      });
-    }
+    const apiBase = getApiBase();
+    openaiRef.current = {
+      chat: {
+        completions: {
+          create: async (params) => {
+            const res = await fetch(`${apiBase}/api/chat/completions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(params)
+            });
+            if (!res.ok) {
+              throw new Error(`Chat API error: ${res.status}`);
+            }
+            return res.json();
+          }
+        }
+      }
+    };
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -310,10 +318,12 @@ export default function useVoiceConversation({
         }
 
         // Build context
-        const history = messagesRef.current.map((m) => ({
-          role: m.role === "ai" ? "assistant" : "user",
-          content: m.text
-        }));
+        const history = messagesRef.current
+          .filter((m) => m.role === "ai" || m.role === "user")
+          .map((m) => ({
+            role: m.role === "ai" ? "assistant" : "user",
+            content: m.text || ""
+          }));
 
         // Pull last 3 practice summaries for personalized guidance from Firestore
         let practiceHistory = [];

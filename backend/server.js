@@ -1,10 +1,14 @@
 import dotenv from "dotenv";
-dotenv.config();
+import { fileURLToPath } from "url";
+import path from "path";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 // ✅ ADD THIS IMPORT
 import lessonRouter from "./routes/lesson.js";
 import tavusRouter from "./routes/tavus.js";
 import sandboxRouter from "./routes/sandbox.js";
+import spotTheCueRouter from "./routes/spotTheCue.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -55,6 +59,10 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (origin.startsWith("http://localhost:")) return callback(null, true);
+      if (origin.endsWith(".vercel.app")) return callback(null, true);
+      if (origin.includes("railway.app")) return callback(null, true);
+      if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
+      if (process.env.ALLOWED_ORIGIN && origin === process.env.ALLOWED_ORIGIN) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -78,6 +86,9 @@ app.use("/api/tavus", tavusRouter);
 // ✅ REGISTER SANDBOX ROUTER for Social Sandbox feature
 app.use("/api/sandbox", sandboxRouter);
 
+// ✅ REGISTER SPOT THE CUE ROUTER for visual cue identification game
+app.use("/api/spot-the-cue", spotTheCueRouter);
+
 // Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -88,13 +99,84 @@ const anthropic = new Anthropic({
 const HUME_API_KEY = process.env.HUME_API_KEY;
 
 // Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_KEY
-});
+const OPENAI_API_KEY = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
+console.log("🔑 OpenAI API Key configured:", OPENAI_API_KEY ? "Yes" : "No");
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 // Test endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: "Server is running!" });
+});
+
+// ============================================
+// TTS (Text-to-Speech) ENDPOINT
+// ============================================
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, voice = 'shimmer', model = 'tts-1' } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const openaiKey = process.env.OPENAI_KEY;
+    if (!openaiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/audio/speech',
+      { model, voice, input: text.trim() },
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'arraybuffer'
+      }
+    );
+
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(Buffer.from(response.data));
+  } catch (err) {
+    console.error('TTS error:', err?.response?.data ? Buffer.from(err.response.data).toString() : err.message);
+    res.status(500).json({ error: 'TTS generation failed' });
+  }
+});
+
+// ============================================
+// CHAT COMPLETIONS PROXY ENDPOINT
+// ============================================
+app.post('/api/chat/completions', async (req, res) => {
+  try {
+    const { messages, model = 'gpt-4o-mini', temperature = 0.95, max_tokens = 220, response_format } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    const openaiKey = process.env.OPENAI_KEY;
+    if (!openaiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const payload = { model, temperature, max_tokens, messages };
+    if (response_format) payload.response_format = response_format;
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    res.json(response.data);
+  } catch (err) {
+    console.error('Chat completions error:', err?.response?.data || err.message);
+    res.status(500).json({ error: 'Chat completion failed' });
+  }
 });
 
 // ============================================
@@ -3014,6 +3096,25 @@ app.post("/api/hume/analyze-video", async (req, res) => {
 // DISABLED:   }
 // DISABLED: });
 // DISABLED: 
+// Serve static files from the React build folder
+const distPath = path.join(__dirname, "../dist");
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  // Handle React routing - serve index.html for all non-API routes
+  // Express 5 requires named parameter for wildcards
+  app.get("/{*splat}", (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+  console.log("📁 Serving static files from:", distPath);
+} else {
+  console.log("⚠️  No dist folder found - run 'npm run build' to create it");
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);

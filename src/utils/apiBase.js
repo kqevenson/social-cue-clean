@@ -3,8 +3,13 @@
 //--------------------------------------------------------------
 
 export function getApiBase() {
-  // Use VITE_API_URL from environment, fallback to localhost for development
-  return import.meta.env.VITE_API_URL || "http://localhost:3001";
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return "http://localhost:3001";
+  }
+  return "";
 }
 
 //--------------------------------------------------------------

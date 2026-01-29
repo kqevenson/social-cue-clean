@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 55">
+  <!-- Left eye -->
+  <circle cx="8" cy="5" r="5" fill="#4A90E2"/>
+  <!-- Right eye -->
+  <circle cx="42" cy="5" r="5" fill="#4A90E2"/>
+  <!-- Mouth: U-shape matching CSS border-radius 0 0 25px 25px on a 50x31 box with 7px border -->
+  <!-- Stroke center path: x from 3.5 to 46.5, top at y=24, bottom at y=51.5 -->
+  <!-- Bottom corners: 21.5px radius arcs (25 - 3.5) -->
+  <path d="M 3.5 24 L 3.5 30 A 21.5 21.5 0 0 0 25 51.5 A 21.5 21.5 0 0 0 46.5 30 L 46.5 24" fill="none" stroke="#34D399" stroke-width="7"/>
+</svg>

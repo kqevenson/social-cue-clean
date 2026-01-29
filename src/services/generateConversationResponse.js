@@ -396,8 +396,7 @@ Current Stage: ${currentPhase}
 Topic: ${topicName}
 Scenario Setting: "${sessionScenario}"
 
-${history.length > 0 ? `Conversation so far:
-${history.slice(-6).map(m => `${m.role === "assistant" ? "You" : learner}: ${m.content}`).join("\n")}` : "(This is the start of the conversation)"}
+${history.length === 0 ? "(This is the start of the conversation — greet the learner warmly)" : "(Continue the conversation naturally from where you left off. Do NOT re-introduce the scenario or repeat your greeting.)"}
 
 ${visualEmotionContext?.topEmotions?.length > 0 && visualEmotionContext.topEmotions[0].score > 0.5 ? `
 WHAT YOU SEE (learner's facial expression right now):
@@ -461,14 +460,31 @@ IMPORTANT - nextPhase MUST advance the conversation:
   // ---------------------------------------------------------------------------
   let raw;
   try {
+    // Build messages array with actual conversation history
+    // so the AI sees the full back-and-forth, not just a text summary
+    const chatMessages = [
+      { role: "system", content: system },
+    ];
+
+    // Include conversation history as proper chat messages (last 10 turns)
+    const recentHistory = history
+      .filter(m => m.content && (m.role === "assistant" || m.role === "user"))
+      .slice(-10);
+
+    if (recentHistory.length > 0) {
+      for (const m of recentHistory) {
+        chatMessages.push({ role: m.role, content: m.content });
+      }
+    }
+
+    // Add the current turn context as the final user message
+    chatMessages.push({ role: "user", content: user });
+
     const res = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.95,
       max_tokens: 220,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user }
-      ]
+      messages: chatMessages
     });
 
     raw = res.choices[0]?.message?.content;

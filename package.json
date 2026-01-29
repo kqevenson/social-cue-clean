@@ -8,6 +8,7 @@
     "server": "node backend/server.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "vite build",
+    "start": "node backend/server.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -24,7 +25,7 @@
     "hume": "^0.15.9",
     "localforage": "^1.10.0",
     "lucide-react": "^0.546.0",
-    "openai": "^6.8.1",
+    "openai": "^6.15.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",

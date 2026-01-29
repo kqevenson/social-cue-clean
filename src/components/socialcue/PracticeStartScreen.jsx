@@ -1,66 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { OpenAI } from 'openai';
 import { unlockAudio } from '../../services/openAITTSService';
 import { initRecognition, startRecognition, stopRecognition } from '../../services/speechRecognitionService';
 import { Sparkles, Clock, Lightbulb, Target, ArrowRight } from 'lucide-react';
+import SmileFaceRunner from '../SmileFaceRunner';
+import { getApiBase } from '../../utils/apiBase';
 
 // ---------- AI SCENARIO GENERATOR ----------
 
-async function generateAIPracticeScenario({ topicName, gradeLevel, openaiClient }) {
-  const systemPrompt = `You are Cue, a K-12 social skills coach. Generate a practice scenario based on topicName and gradeLevel.
-
-Use friendly, age-appropriate language. Keep the preview short.
-
-Produce:
-- scenarioTitle (string): A catchy, friendly title for this practice scenario
-- shortPreview (1–2 sentences): A brief, engaging description that gets the learner excited
-- fullContext (3–4 sentences): A detailed scenario description that sets the scene
-- whatYouWillLearn: three short bullet points describing the key skills they'll practice
-- tips: 2–3 grade-appropriate coaching tips to help them succeed
-- estimatedTime: a short string like '5–8 minutes' or '10–12 minutes'
-
-Return your response as a JSON object with these exact keys: scenarioTitle, shortPreview, fullContext, whatYouWillLearn (array), tips (array), estimatedTime.
-
-Be encouraging and make the scenario feel relevant to their grade level.`;
-
-  const userPrompt = `Generate a practice scenario for:
-Topic: "${topicName}"
-Grade Level: "${gradeLevel}"
-
-Make it engaging, age-appropriate, and focused on real-world social skills practice.`;
-
+async function generateAIPracticeScenario({ topicName, gradeLevel }) {
   try {
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.8,
-      max_tokens: 500,
-      response_format: { type: 'json_object' }
+    const response = await fetch(`${getApiBase()}/api/lessons/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topicName, gradeLevel })
     });
 
-    const content = response.choices[0]?.message?.content?.trim();
-    if (!content) {
-      throw new Error('Empty response from AI');
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
     }
 
-    const parsed = JSON.parse(content);
-    
-    // Ensure arrays are properly formatted
-    return {
-      scenarioTitle: parsed.scenarioTitle || `${topicName} Practice`,
-      shortPreview: parsed.shortPreview || `Let's practice ${topicName} together!`,
-      fullContext: parsed.fullContext || `You'll practice ${topicName} in a safe, supportive environment. This scenario will help you build confidence and improve your social skills.`,
-      whatYouWillLearn: Array.isArray(parsed.whatYouWillLearn) 
-        ? parsed.whatYouWillLearn 
-        : (parsed.whatYouWillLearn || '').split('\n').filter(Boolean).slice(0, 3),
-      tips: Array.isArray(parsed.tips)
-        ? parsed.tips
-        : (parsed.tips || '').split('\n').filter(Boolean).slice(0, 3),
-      estimatedTime: parsed.estimatedTime || '5–8 minutes'
-    };
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to generate scenario');
+    }
+
+    return data.scenario;
   } catch (error) {
     console.error('Failed to generate AI scenario:', error);
     // Fallback scenario
@@ -102,48 +66,21 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
-  const [openaiClient, setOpenaiClient] = useState(null);
 
-  // Initialize OpenAI client
+  // Generate scenario on mount via backend API
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const processEnvApiKey =
-        typeof globalThis !== 'undefined' &&
-        typeof globalThis.process !== 'undefined' &&
-        globalThis.process?.env?.OPENAI_API_KEY;
-
-      const OPENAI_API_KEY =
-        (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY) ||
-        processEnvApiKey ||
-        '';
-
-      if (OPENAI_API_KEY) {
-        setOpenaiClient(new OpenAI({
-          apiKey: OPENAI_API_KEY,
-          dangerouslyAllowBrowser: true
-        }));
-      } else {
-        setError('OpenAI API key not configured');
-        setIsLoading(false);
-      }
-    }
-  }, []);
-
-  // Generate scenario on mount
-  useEffect(() => {
-    if (!openaiClient || !topicName) return;
+    if (!topicName) return;
 
     const loadScenario = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
+
         const generated = await generateAIPracticeScenario({
           topicName,
-          gradeLevel: gradeLevel || '6-8',
-          openaiClient
+          gradeLevel: gradeLevel || '6-8'
         });
-        
+
         setScenario(generated);
       } catch (err) {
         console.error('Error generating scenario:', err);
@@ -154,7 +91,7 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
     };
 
     loadScenario();
-  }, [openaiClient, topicName, gradeLevel]);
+  }, [topicName, gradeLevel]);
 
   const handleBeginSession = async () => {
     if (!scenario) return;
@@ -203,18 +140,29 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
 
   if (isLoading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="text-center space-y-4 max-w-md mx-auto px-6">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full" />
-            <div className="absolute inset-0 border-4 border-transparent border-t-blue-500 rounded-full animate-spin" />
-            <Sparkles className="w-8 h-8 text-blue-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-          </div>
-          <h2 className="text-2xl font-bold">Creating your practice scenario...</h2>
+      <div className={`min-h-screen flex flex-col items-center justify-center ${darkMode ? 'bg-[#020412] text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="text-center space-y-6 max-w-md mx-auto px-6">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+            Building Your Practice!
+          </h2>
           <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            AI is crafting a personalized practice session just for you!
+            Play while you wait
           </p>
+          <SmileFaceRunner darkMode={darkMode} />
+          <div className="mx-auto max-w-xs">
+            <div className="h-2 rounded-full overflow-hidden bg-white/10">
+              <div className="h-full rounded-full" style={{
+                background: 'linear-gradient(90deg, #43e97b, #38f9d7, #4facfe, #667eea, #f093fb)',
+                animation: 'shimmer 2s linear infinite, grow 12s ease-out forwards',
+                backgroundSize: '200% 100%',
+              }} />
+            </div>
+          </div>
         </div>
+        <style>{`
+          @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+          @keyframes grow { from { width: 5%; } to { width: 95%; } }
+        `}</style>
       </div>
     );
   }

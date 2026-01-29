@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useIncognitoMode from '../hooks/useIncognitoMode';
 import heartRateService from '../services/heartRateService';
+import { getApiBase } from '../utils/apiBase';
 
 const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) => {
   const [showSettings, setShowSettings] = useState(false);
@@ -788,7 +789,7 @@ const IncognitoModeScreen = ({ gradeLevel = '6-8', onBack, onSessionComplete }) 
 
                   <div className="space-y-2">
                     <div className="p-2 bg-black/30 rounded text-[10px] text-purple-400 font-mono break-all">
-                      GET: http://localhost:3001/api/watch-cue/{watchSessionId}
+                      GET: {getApiBase()}/api/watch-cue/{watchSessionId}
                     </div>
 
                     <p className="text-[10px] text-gray-500">Response format:</p>
