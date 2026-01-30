@@ -1588,59 +1588,6 @@ const VoiceCoachOrbScreen = ({
         )}
       </div>
 
-      {/* Coach Panel */}
-      <div className="shrink-0">
-        {isLoadingCoach ? (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10">
-            <div className="w-12 h-12 rounded-full bg-purple-500/20 animate-pulse" />
-            <div className="animate-pulse">
-              <div className="h-3 w-20 bg-purple-500/20 rounded mb-2" />
-              <div className="h-2 w-16 bg-purple-500/10 rounded" />
-            </div>
-          </div>
-        ) : tavusCoach ? (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10">
-            {/* Coach Avatar */}
-            <div className="relative">
-              <img
-                src={tavusCoach.previewUrl}
-                alt={tavusCoach.name}
-                className="w-12 h-12 rounded-full object-cover border-2 border-purple-400/50"
-                onError={(e) => {
-                  e.target.src = generateAvatarPlaceholder(tavusCoach.name, tavusCoach.fallbackColor);
-                }}
-              />
-              {/* Speaking indicator */}
-              {isSpeaking && (
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-purple-500 rounded-full border-2 border-black animate-pulse" />
-              )}
-            </div>
-            {/* Coach Info */}
-            <div>
-              <p className="text-xs text-purple-300 uppercase tracking-wide">Practicing with</p>
-              <p className="text-sm font-semibold text-white">{tavusCoach.name}</p>
-            </div>
-          </div>
-        ) : (
-          /* No Coach Selected - Prompt to choose */
-          <button
-            onClick={handleChooseCoach}
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-purple-500/20 backdrop-blur-xl border border-purple-400/30 hover:bg-purple-500/30 transition-all group"
-          >
-            <div className="w-12 h-12 rounded-full bg-purple-500/30 flex items-center justify-center">
-              <svg className="w-6 h-6 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <p className="text-xs text-purple-300">No coach selected</p>
-              <p className="text-sm font-semibold text-white group-hover:text-purple-200 transition-colors">
-                Choose a Coach →
-              </p>
-            </div>
-          </button>
-        )}
-      </div>
       </div>{/* end top bar */}
 
       {/* Avatar or Orb */}

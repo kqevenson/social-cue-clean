@@ -247,7 +247,7 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
             darkMode ? 'bg-white/6 border-white/15' : 'bg-white border-gray-200 shadow-sm'
           }`}>
             {firebaseData.isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-4">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex flex-col items-center text-center animate-pulse">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 opacity-40 mb-2" />
@@ -257,7 +257,7 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-4">
                 {stats.map((stat, i) => (
                   <div key={i} className="text-center">
                     <div className={`text-4xl font-extrabold bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent mb-1`}> {stat.value}</div>

@@ -10,6 +10,7 @@ import tavusRouter from "./routes/tavus.js";
 import sandboxRouter from "./routes/sandbox.js";
 import spotTheCueRouter from "./routes/spotTheCue.js";
 import youtubeRouter from "./routes/youtube.js";
+import heygenRouter from "./routes/heygen.js";
 
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -91,6 +92,7 @@ app.use("/api/sandbox", sandboxRouter);
 // ✅ REGISTER SPOT THE CUE ROUTER for visual cue identification game
 app.use("/api/spot-the-cue", spotTheCueRouter);
 app.use("/api/youtube", youtubeRouter);
+app.use("/api/heygen", heygenRouter);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
