@@ -34,13 +34,12 @@ function BottomNav({ currentScreen, onNavigate, darkMode, navItems, newGoalsCoun
     <nav className={`fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t z-50 pb-[env(safe-area-inset-bottom)] ${
       darkMode ? 'bg-black/95 border-white/10' : 'bg-white/95 border-gray-200'
     }`}>
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-around py-3">
+      <div className="max-w-7xl mx-auto px-2">
+        <div className="flex items-center justify-around py-2">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = isItemActive(item.id);
 
-            // Special styling for Avatar tab when active
             const isAvatarTab = item.id === 'avatar-builder';
             const activeClasses = isAvatarTab && isActive
               ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30'
@@ -58,17 +57,17 @@ function BottomNav({ currentScreen, onNavigate, darkMode, navItems, newGoalsCoun
               <button
                 key={item.id}
                 onClick={() => onNavigate(getNavigationTarget(item.id))}
-                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all relative ${activeClasses}`}
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all relative min-w-0 ${activeClasses}`}
               >
                 <div className="relative">
-                  <Icon className={`w-6 h-6 ${activeTextColor}`} />
+                  <Icon className={`w-5 h-5 ${activeTextColor}`} />
                   {item.id === 'goals' && newGoalsCount > 0 && (
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-bold">
                       {newGoalsCount}
                     </div>
                   )}
                 </div>
-                <span className={`text-xs font-bold ${activeTextColor}`}>
+                <span className={`text-[10px] font-bold ${activeTextColor} truncate max-w-full`}>
                   {item.label}
                 </span>
               </button>
