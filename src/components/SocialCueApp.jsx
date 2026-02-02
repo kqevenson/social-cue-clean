@@ -29,6 +29,7 @@ function SocialCueApp({ onLogout }) {
   const [autoReadText, setAutoReadText] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [sessionId, setSessionId] = useState(1);
+  const [practiceMode, setPracticeMode] = useState(null);
   const [selectedChildId, setSelectedChildId] = useState(null);
   
   // Calculate new goals count (goals created in the last 5 minutes)
@@ -186,12 +187,21 @@ function SocialCueApp({ onLogout }) {
   const handleNavigate = (screen, sid) => {
     console.log('🧭 Navigating to:', screen, sid ? `with sessionId: ${sid}` : '');
     setCurrentScreen(screen);
-    if (sid) {
+
+    // Handle practice mode from HomeScreen
+    const modeStrings = ['roleplay', 'spot-the-cue', 'quiz', 'mirror'];
+    if (screen === 'practiceHome' && sid && typeof sid === 'object' && sid.mode && modeStrings.includes(sid.mode)) {
+      setPracticeMode(sid.mode);
+    } else if (screen !== 'practiceHome') {
+      setPracticeMode(null);
+    }
+
+    if (sid && typeof sid !== 'object') {
       setSessionId(sid);
       // Set topicName based on sessionId
       const topicMap = {
         1: 'Small Talk Basics',
-        2: 'Active Listening', 
+        2: 'Active Listening',
         3: 'Reading Body Language',
         4: 'Building Confidence',
         5: 'Conflict Resolution',
@@ -200,7 +210,7 @@ function SocialCueApp({ onLogout }) {
         8: 'Assertiveness'
       };
       const topicName = topicMap[sid] || 'Social Skills';
-      
+
       // Update user data with topicName
       const currentData = getUserData();
       const updatedData = { ...currentData, topicName };
@@ -277,9 +287,10 @@ function SocialCueApp({ onLogout }) {
         
         {/* Practice Home - only for learners */}
         {currentScreen === 'practiceHome' && userData?.role !== 'parent' && (
-          <PracticeScreen 
-            onNavigate={handleNavigate} 
-            darkMode={darkMode} 
+          <PracticeScreen
+            onNavigate={handleNavigate}
+            darkMode={darkMode}
+            practiceMode={practiceMode}
           />
         )}
         

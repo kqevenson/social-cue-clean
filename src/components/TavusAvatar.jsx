@@ -94,16 +94,14 @@ const TavusAvatar = forwardRef(({
     lastEchoTextRef.current = text;
 
     // Echo format per Tavus docs:
-    // https://docs.tavus.io/sections/event-schemas/conversation-echo
-    // REQUIRED fields: modality, text (for text mode), done
+    // https://docs.tavus.io/sections/conversational-video-interface/interactions-protocols/overview
+    // Only message_type, event_type, conversation_id, and properties.text are needed
     const interaction = {
       message_type: "conversation",
       event_type: "conversation.echo",
       conversation_id: conversationIdRef.current,
       properties: {
-        modality: "text",
-        text: text,
-        done: true
+        text: text
       }
     };
 

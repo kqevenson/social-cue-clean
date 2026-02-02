@@ -210,7 +210,14 @@ export default function useVoiceConversation({
   // ---------------------------------------------------------------------------
   const startConversation = useCallback(async () => {
     if (startedRef.current) return;
-    if (!scenarioRef.current) return;
+    if (!scenarioRef.current) {
+      console.warn("⚠️ No scenario available — cannot start conversation");
+      return;
+    }
+    if (!openaiRef.current) {
+      console.warn("⏳ OpenAI proxy not ready yet, deferring start...");
+      return;
+    }
 
     try {
       startedRef.current = true;
@@ -261,6 +268,8 @@ export default function useVoiceConversation({
 
       await speakAI(intro.aiResponse, intro.nextPhase);
     } catch (err) {
+      console.error("❌ startConversation failed:", err);
+      startedRef.current = false; // Allow retry on failure
       onError?.(err);
     } finally {
       setIsLoading(false);
@@ -472,9 +481,20 @@ export default function useVoiceConversation({
   // AUTO START
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (autoStart && scenarioRef.current) {
-      startConversation();
-    }
+    if (!autoStart || !scenarioRef.current) return;
+
+    // Try immediately
+    startConversation();
+
+    // Retry after a short delay in case OpenAI proxy wasn't ready on first attempt
+    const retryTimeout = setTimeout(() => {
+      if (!startedRef.current) {
+        console.log("🔄 Retrying startConversation...");
+        startConversation();
+      }
+    }, 1500);
+
+    return () => clearTimeout(retryTimeout);
   }, [autoStart, startConversation]);
 
   // Cleanup on unmount

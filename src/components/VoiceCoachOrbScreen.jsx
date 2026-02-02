@@ -881,6 +881,7 @@ const VoiceCoachOrbScreen = ({
     // Prevent double-loading
     if (coachLoadedRef.current) {
       console.log("🎭 Coach already loaded, skipping...");
+      setIsLoadingCoach(false);
       return;
     }
 
@@ -1003,6 +1004,18 @@ const VoiceCoachOrbScreen = ({
 
   // State to track if streaming avatar is ready (use state so hook updates)
   const [streamingAvatarReady, setStreamingAvatarReady] = useState(false);
+
+  // Fallback: if streaming avatar doesn't become ready within 30s, fall back to OpenAI TTS
+  useEffect(() => {
+    if (!tavusCoach || !useStreamingAvatar || streamingAvatarReady || streamingError) return;
+    const timeout = setTimeout(() => {
+      if (!streamingAvatarReady) {
+        console.warn("⏰ Streaming avatar did not become ready in 30s — falling back to OpenAI TTS");
+        setStreamingError(true);
+      }
+    }, 30000);
+    return () => clearTimeout(timeout);
+  }, [tavusCoach, useStreamingAvatar, streamingAvatarReady, streamingError]);
 
   // ---- CONVERSATION HOOK ----
   // ALWAYS disable OpenAI TTS when we have a Tavus coach - avatar speaks everything

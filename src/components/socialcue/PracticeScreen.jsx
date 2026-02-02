@@ -8,7 +8,7 @@ import {
   getGradeBandFromGrade,
 } from "../../data/voicePracticeScenarios";
 import { AI_BEHAVIOR_CONFIG } from "../../content/training/aibehaviorconfig";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, MessageCircle, Target, Sparkles, Users } from "lucide-react";
 import { savePracticeHistory } from "../../services/savePracticeHistory";
 import { generateSceneBackground } from "../../services/dalleImageService";
 import {
@@ -17,8 +17,14 @@ import {
   clearSceneContext,
   getSceneDataForDallE
 } from "../../services/sceneContextManager";
+const PRACTICE_MODES = [
+  { id: "roleplay", title: "Role Play", subtitle: "Practice a real scenario with your AI coach", color: "#F59E0B", icon: MessageCircle },
+  { id: "spot-the-cue", title: "Spot the Cue", subtitle: "The avatar describes a scene — you spot the social cue", color: "#4A90E2", icon: Target },
+  { id: "quiz", title: "Quick Quiz", subtitle: "The avatar quizzes you — what would you do?", color: "#8B5CF6", icon: Sparkles },
+  { id: "mirror", title: "Mirror Mode", subtitle: "Practice your expressions and body language with the avatar", color: "#34D399", icon: Users },
+];
 
-const PracticeScreen = ({ darkMode }) => {
+const PracticeScreen = ({ darkMode, practiceMode: externalPracticeMode }) => {
   const [userGradeBand, setUserGradeBand] = useState("6-8");
   const [userGradeNumber, setUserGradeNumber] = useState(6);
   const [learnerName, setLearnerName] = useState("");
@@ -28,6 +34,8 @@ const PracticeScreen = ({ darkMode }) => {
   const [sessionSummary, setSessionSummary] = useState(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(null);
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
+  const [chosenTopic, setChosenTopic] = useState(null);       // topic selected, waiting for mode pick
+  const [selectedMode, setSelectedMode] = useState(null);      // mode chosen after topic
 
   useEffect(() => {
     try {
@@ -65,12 +73,17 @@ const PracticeScreen = ({ darkMode }) => {
     topic.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Resolve active mode: either from the mode picker or from HomeScreen external prop
+  const activeMode = selectedMode || externalPracticeMode;
+
+  // ---- ALL MODES → PracticeStartScreen → VoiceCoachOrbScreen ----
   if (pendingTopic) {
     return (
       <PracticeStartScreen
         topicName={pendingTopic.title}
         gradeLevel={userGradeNumber}
         learnerName={learnerName}
+        practiceMode={activeMode}
         onStartSession={async (scenarioObject) => {
           // Clear any previous scene context
           clearSceneContext();
@@ -106,7 +119,8 @@ const PracticeScreen = ({ darkMode }) => {
             scenario: scenarioObject,
             learnerName: learnerName,
             gradeLevel: userGradeBand,
-            sceneContext: sceneContext, // Pass scene context to session
+            sceneContext: sceneContext,
+            practiceMode: activeMode || 'roleplay',
           });
           setPendingTopic(null);
         }}
@@ -139,6 +153,8 @@ const PracticeScreen = ({ darkMode }) => {
           // Go back to Practice topic grid
           setSelectedSession(null);
           setPendingTopic(null);
+          setChosenTopic(null);
+          setSelectedMode(null);
         }}
       />
     );
@@ -156,6 +172,7 @@ const PracticeScreen = ({ darkMode }) => {
         autoStart={true}
         backgroundImageUrl={backgroundImageUrl}
         isLoadingBackground={isGeneratingBackground}
+        practiceMode={selectedSession.practiceMode}
         onEndSession={async (data) => {
           console.log("📊 Practice session complete:", data);
 
@@ -186,11 +203,67 @@ const PracticeScreen = ({ darkMode }) => {
 
           setSelectedSession(null);
           setPendingTopic(null);
+          setChosenTopic(null);
+          setSelectedMode(null);
         }}
       />
     );
   }
 
+  // ---- MODE PICKER (shown after topic is chosen, before session starts) ----
+  if (chosenTopic && !activeMode) {
+    return (
+      <div className="relative min-h-screen w-full bg-[#020412] text-white flex justify-center px-6 py-20 overflow-hidden">
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-500/25 blur-[200px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-400/25 blur-[200px] rounded-full pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-3xl">
+          {/* Back button */}
+          <button
+            onClick={() => setChosenTopic(null)}
+            className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span className="font-medium">Back to topics</span>
+          </button>
+
+          <h1 className="text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+            {chosenTopic.title}
+          </h1>
+          <p className="text-xl text-gray-300 mb-12">
+            How do you want to practice?
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {PRACTICE_MODES.map((mode) => {
+              const Icon = mode.icon;
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    setSelectedMode(mode.id);
+                    setPendingTopic(chosenTopic);
+                  }}
+                  className="group relative text-left rounded-3xl p-8 bg-white/5 backdrop-blur-2xl border border-white/10 shadow-lg transition-all duration-300 hover:scale-[1.03] hover:bg-white/10 hover:shadow-lg"
+                >
+                  <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: `radial-gradient(circle at center, ${mode.color}33, transparent 70%)` }} />
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: `${mode.color}DD` }}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2 text-white">{mode.title}</h3>
+                    <p className="text-gray-400 leading-relaxed">{mode.subtitle}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- TOPIC GRID ----
   return (
     <div className="relative min-h-screen w-full bg-[#020412] text-white flex justify-center px-6 py-20 overflow-hidden">
       {/* Background Glow Blobs */}
@@ -199,10 +272,14 @@ const PracticeScreen = ({ darkMode }) => {
 
       <div className="relative z-10 w-full max-w-7xl">
         <h1 className="text-6xl font-extrabold mb-6 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-          Practice
+          {externalPracticeMode
+            ? `${PRACTICE_MODES.find(m => m.id === externalPracticeMode)?.title || "Practice"} — Pick a topic`
+            : "Practice"}
         </h1>
         <p className="text-xl text-gray-300 mb-12 max-w-2xl">
-          Explore and practice real-world social communication skills.
+          {externalPracticeMode
+            ? PRACTICE_MODES.find(m => m.id === externalPracticeMode)?.subtitle || "Pick a topic to get started."
+            : "Pick a topic, then choose how you want to practice."}
         </p>
 
         {/* Search Bar */}
@@ -221,7 +298,16 @@ const PracticeScreen = ({ darkMode }) => {
           {filteredTopics.map(({ topic }, index) => (
             <div
               key={topic.id}
-              onClick={() => setPendingTopic(topic)}
+              onClick={() => {
+                if (externalPracticeMode) {
+                  // Mode pre-selected from HomeScreen — skip mode picker
+                  setChosenTopic(topic);
+                  setPendingTopic(topic);
+                } else {
+                  // No mode yet — show mode picker
+                  setChosenTopic(topic);
+                }
+              }}
               className="relative group cursor-pointer rounded-[2rem] p-10 bg-white/5 backdrop-blur-2xl border border-white/10 shadow-lg transform transition-all duration-500 hover:scale-[1.04] active:scale-[0.97] hover:bg-white/10 hover:shadow-blue-500/20"
               style={{ animationDelay: `${index * 80}ms` }}
             >
@@ -236,10 +322,10 @@ const PracticeScreen = ({ darkMode }) => {
                   {topic.description}
                 </p>
 
-                {/* Minimal bottom indicator instead of example */}
+                {/* Minimal bottom indicator */}
                 <div className="flex items-center gap-2 text-blue-300 mt-4 opacity-80 group-hover:opacity-100 transition-all">
                   <ArrowRight className="w-5 h-5" />
-                  <span className="font-medium tracking-wide">Open Topic</span>
+                  <span className="font-medium tracking-wide">Choose Mode</span>
                 </div>
               </div>
             </div>
