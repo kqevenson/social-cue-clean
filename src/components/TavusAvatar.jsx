@@ -560,8 +560,22 @@ const TavusAvatar = forwardRef(({
     mountedRef.current = true;
     startConversation();
 
+    // End conversation on tab close/refresh (cleanup may not fire on unload)
+    const handleBeforeUnload = () => {
+      if (conversationIdRef.current) {
+        // Use sendBeacon for reliable delivery during page unload
+        const apiBase = typeof window !== "undefined" && window.__API_BASE ? window.__API_BASE : "";
+        navigator.sendBeacon(
+          `${apiBase}/api/tavus/conversations/${conversationIdRef.current}/end`,
+          JSON.stringify({ reason: "page_unload" })
+        );
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
     return () => {
       mountedRef.current = false;
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       stopConversation();
     };
   }, []);
@@ -636,7 +650,6 @@ const TavusAvatar = forwardRef(({
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black/50">
           <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mb-4" />
           <p className="text-purple-200 text-lg">Connecting to {coachName}...</p>
-          <p className="text-purple-300/60 text-sm mt-2">Setting up video call...</p>
         </div>
       )}
 

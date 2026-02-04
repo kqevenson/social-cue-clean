@@ -51,6 +51,19 @@ router.get("/access-token", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/hume/streaming-key
+ * Returns the Hume API key for the Expression Measurement streaming WebSocket.
+ * The streaming API (wss://api.hume.ai/v0/stream/models) uses apikey auth,
+ * NOT the OAuth access token used by EVI.
+ */
+router.get("/streaming-key", (req, res) => {
+  if (!ENV.HUME_API_KEY) {
+    return res.status(500).json({ success: false, details: "Hume API key not configured" });
+  }
+  return res.json({ apiKey: ENV.HUME_API_KEY });
+});
+
 router.post("/analyze-video", async (req, res) => {
   try {
     const { videoUrl } = req.body;

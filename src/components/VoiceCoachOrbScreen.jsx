@@ -334,7 +334,8 @@ const VoiceCoachOrbScreen = ({
   onEndSession,
   onNavigate,
   backgroundImageUrl: propBackgroundUrl = null,
-  isLoadingBackground = false
+  isLoadingBackground = false,
+  practiceMode = null
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
@@ -1043,6 +1044,7 @@ const VoiceCoachOrbScreen = ({
     disableTTS: shouldDisableTTS, // Disable OpenAI TTS when streaming avatar handles voice
     visualEmotionContext: visualEmotion, // Pass visual emotion for "you look shy/tired" feedback
     voiceEmotionContext: voiceEmotion, // Pass Hume EVI voice emotion for "you sound nervous" feedback
+    practiceMode, // Pass practice mode to shape AI behavior (roleplay, spot-the-cue, quiz, mirror)
     onAIResponse: (text) => {
       // This is called when AI responds and TTS is disabled
       // Send to Tavus avatar via Echo API to make it speak

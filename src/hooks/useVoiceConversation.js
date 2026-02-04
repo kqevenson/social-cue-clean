@@ -65,6 +65,7 @@ export default function useVoiceConversation({
   onAIResponse,       // NEW: callback when AI responds (for streaming avatar to speak)
   visualEmotionContext = null, // NEW: visual emotion from webcam (Hume face analysis)
   voiceEmotionContext = null, // NEW: voice emotion from Hume EVI (real-time voice analysis)
+  practiceMode = null, // Practice mode: roleplay, spot-the-cue, quiz, mirror
 }) {
   // ---------------------------------------------------------------------------
   // STATE
@@ -89,6 +90,7 @@ export default function useVoiceConversation({
   const lastEmotionRef = useRef(null);
   const disableTTSRef = useRef(disableTTS);
   const onAIResponseRef = useRef(onAIResponse);
+  const practiceModeRef = useRef(practiceMode);
 
   // Sync refs
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -96,6 +98,7 @@ export default function useVoiceConversation({
   useEffect(() => { scenarioRef.current = scenario; }, [scenario]);
   useEffect(() => { disableTTSRef.current = disableTTS; }, [disableTTS]);
   useEffect(() => { onAIResponseRef.current = onAIResponse; }, [onAIResponse]);
+  useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
 
   // ---------------------------------------------------------------------------
   // OPENAI PROXY (routes through backend)
@@ -160,11 +163,11 @@ export default function useVoiceConversation({
           onAudioStart?.();
           onAIResponseRef.current?.(text); // Let streaming avatar handle it
 
-          // We'll rely on the avatar's onSpeakEnd to call onAudioComplete
-          // For now, set a reasonable timeout as fallback
-          const estimatedDuration = Math.max(3000, text.length * 60); // ~60ms per char
+          // We rely on signalSpeechComplete (called by avatar's onSpeakEnd) to release locks.
+          // This long timeout is only a safety net in case the avatar never signals completion.
           setTimeout(() => {
             if (ttsLockRef.current) {
+              console.warn("⏰ Safety timeout: avatar never signaled speech complete — releasing locks");
               setIsSpeaking(false);
               allowMicInputRef.current = true;
               ttsLockRef.current = false;
@@ -174,7 +177,7 @@ export default function useVoiceConversation({
                 onFinishSession?.(messagesRef.current);
               }
             }
-          }, estimatedDuration);
+          }, 30000); // 30s safety net — normal flow uses signalSpeechComplete
           return;
         }
 
@@ -263,7 +266,8 @@ export default function useVoiceConversation({
         gradeLevel,
         difficulty: 1,
         scenario: scenarioRef.current,
-        practiceHistory
+        practiceHistory,
+        practiceMode: practiceModeRef.current
       });
 
       await speakAI(intro.aiResponse, intro.nextPhase);
@@ -446,7 +450,8 @@ export default function useVoiceConversation({
           scenario: scenarioRef.current,
           practiceHistory,
           emotionContext: combinedVoiceEmotion, // Hume EVI voice emotion or backend emotion
-          visualEmotionContext // Visual/face emotion context if available
+          visualEmotionContext, // Visual/face emotion context if available
+          practiceMode: practiceModeRef.current
         });
 
         await speakAI(ai.aiResponse, ai.nextPhase);
