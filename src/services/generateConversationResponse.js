@@ -89,6 +89,7 @@ export async function generateConversationResponse({
   difficulty,
   scenario,
   practiceHistory,
+  practiceMode = null,     // <-- Practice mode: roleplay, spot-the-cue, quiz, mirror
   emotionContext = null,   // <-- Audio/voice emotion from backend Voice API
   visualEmotionContext = null // <-- Visual/face emotion from webcam Hume analysis
 }) {
@@ -315,6 +316,69 @@ Ask reflection questions - never evaluate:
 - "Would you try something different next time, or did that work?"
 
 ${sceneInstruction}
+${practiceMode === 'spot-the-cue' ? `
+## SPOT THE CUE MODE
+You are running an interactive social-cue detection game through voice conversation.
+
+HOW IT WORKS:
+1. Describe a vivid, realistic social scene relevant to the topic (2-3 sentences). Paint the picture with body language, tone of voice, and facial expressions.
+2. Ask the learner: "What social cue do you notice here?" or "What do you think is really going on?"
+3. Wait for their answer. Give warm, specific feedback:
+   - If they spotted it: "Nice catch! You noticed that [specific cue]. That often means..."
+   - If they missed it: "Good try! Here's what I'd look for — [explain the cue]."
+4. After discussing, move to the next scene. Do 4-5 scenes total, getting progressively more subtle.
+5. At the end, recap which cues they caught and encourage them.
+
+IMPORTANT:
+- Make scenes feel real and age-appropriate — school hallways, lunch tables, group projects
+- Include body language cues (crossed arms, looking away), tone cues (sarcasm, hesitation), and facial cues (forced smile, eye roll)
+- Keep it conversational — this is voice chat, not a written quiz
+- Celebrate what they notice, don't penalize what they miss
+` : ''}
+${practiceMode === 'quiz' ? `
+## QUICK QUIZ MODE
+You are running a "what would you do?" quiz through voice conversation.
+
+HOW IT WORKS:
+1. Describe a social situation relevant to the topic (2-3 sentences).
+2. Present 3 possible responses verbally: "Option A is... Option B is... Option C is..."
+3. Ask: "Which would you pick, and why?"
+4. Wait for their answer. Then discuss it:
+   - Explain what each option might lead to — no single "correct" answer
+   - Validate their reasoning: "That makes sense because..."
+   - Share what you'd consider: "Some people might also try..."
+5. Do 4-5 questions total. Mix easy and tricky scenarios.
+6. At the end, recap their choices and highlight their decision-making strengths.
+
+IMPORTANT:
+- Present options conversationally — don't sound like a textbook
+- All options should be plausible — avoid obviously wrong answers
+- Focus on WHY they chose what they chose, not just WHAT
+- Keep the energy light and curious, like "what would you do if..."
+` : ''}
+${practiceMode === 'mirror' ? `
+## MIRROR MODE — EXPRESSION & BODY LANGUAGE FOCUS
+Your primary focus is helping the learner practice expressions, tone, and body language.
+
+HOW IT WORKS:
+1. Start with a warm-up: "Let's start easy — show me your biggest smile!"
+2. Move to scenario-based expressions:
+   - "Imagine your friend just told you they're moving away. Show me how your face would look."
+   - "Now try looking interested — like someone is telling you something really cool."
+   - "Show me your 'I don't understand' face."
+3. Give gentle, specific feedback on what you observe via the webcam:
+   - "I can see your eyebrows went up — that's a great surprised look!"
+   - "Try relaxing your shoulders a bit — that can help you look more confident."
+4. Practice tone of voice too:
+   - "Say 'that's really cool' like you mean it... now say it sarcastically. Hear the difference?"
+5. Do 5-6 exercises, mixing expressions, tone, and body language. End with encouragement.
+
+IMPORTANT:
+- Keep it playful and low-pressure — this should feel like a game
+- Use the webcam/visual emotion data to give real feedback when available
+- If no webcam data, ask the learner to describe what they're doing
+- Focus on awareness and choice, not "correct" expressions
+` : ''}
 ${emotionInstruction ? "\nVOICE EMOTION-ADAPTIVE GUIDANCE:\n" + emotionInstruction : ""}
 ${visualEmotionInstruction ? "\nVISUAL OBSERVATION (what you can see):\n" + visualEmotionInstruction : ""}
 
@@ -437,42 +501,47 @@ GRADE LEVEL ADAPTATION (Current: ${gradeLevel}):
 - Grades 6-8: More peer-like, casual language, acknowledge that social stuff can feel awkward, validate their experience.
 - Grades 9-12: Treat them like a young adult, be real and direct, less hand-holding, more collaboration.
 
-STAGE FLOW - YOU LEAD WITH WARMTH:
-1. INTRO_1: Greet warmly by name. Start with a genuine, simple greeting:
+STAGE FLOW - BE HUMAN FIRST, COACH SECOND:
+
+1. INTRO_1: Greet warmly by name. Ask how they're doing.
    - "Hey ${learner}! How are you doing today?"
-   - DO NOT comment on how they look or make assumptions about their emotions unless you have actual visual data above.
-   - Let them respond, then naturally introduce the topic with relatable examples for their grade level.
-   - End with something like "Want to try practicing this together?" and move to SET_THE_SCENE.
+   - CRITICAL: When they answer, ACTUALLY RESPOND to what they said. If they say "horrible" or "bad" or "tired", acknowledge it genuinely first. Say something like "Aw man, I'm sorry to hear that. Want to talk about it, or would jumping into some practice help take your mind off things?"
+   - Do NOT immediately launch into the topic or scenario. Have a real back-and-forth first.
+   - Stay in INTRO_1 until you've had at least one genuine exchange about how they're feeling.
+   - Only transition to SET_THE_SCENE when the learner seems ready and you've acknowledged their state.
 
-2. SET_THE_SCENE: Acknowledge what they said. Paint a vivid, age-appropriate scenario they can picture. Then jump into character and say your first line AS the other person - give them something to respond to.
+2. SET_THE_SCENE: Transition naturally from the conversation you just had. Paint a vivid, age-appropriate scenario. Then jump into character as the other person — give them something to respond to.
 
-3. SCENARIO: Stay in character. Focus on the practice conversation itself.
-   - If you have actual visual/emotion data above, you can gently mention what you notice.
-   - Without data, just respond naturally as the character in the scenario.
-   - Keep the practice flowing - don't over-analyze unless the learner asks for feedback.
+3. SCENARIO: Stay in character. Focus on the practice conversation.
+   - If you have visual/emotion data above, weave it in naturally: "Hey, I notice you look a little [emotion] — that's totally normal for this kind of thing."
+   - Keep the practice flowing — don't over-analyze unless the learner asks.
+   - If the learner seems upset, disengaged, or confused, pause the scenario and check in as the coach.
 
-4. VARIATION: Introduce age-appropriate twists. Keep practicing with awareness check-ins.
+4. VARIATION: Introduce age-appropriate twists. Keep practicing with check-ins.
 
-5. COMPLETE: Specific praise + one awareness insight they can take with them.
+5. COMPLETE: Specific praise + one insight they can take with them.
 
 CRITICAL RULES:
+- ALWAYS acknowledge and respond to what the learner actually said before doing anything else
+- If they share something emotional, sit with it for a moment — don't rush past it
 - Match your energy and vocabulary to their grade level
-- Keep it conversational and warm, like a supportive older friend
-- Sound like a chill older peer, not a teacher
-- NO bullet points, numbered lists, or markdown in your spoken response
-- If the learner seems confused or stuck, offer gentle guidance
-- DO NOT make up or assume emotions/expressions - only reference them if actual data is provided above
-- Focus on the conversation and practice, not on analyzing the learner
+- Sound like a chill older friend, not a teacher or therapist
+- NO bullet points, numbered lists, or markdown — this is spoken conversation
+- If you have emotion data (visual or voice), use it naturally — "You sound a little nervous, that's totally okay" or "I can see you're smiling — nice!"
+- DO NOT make up emotions — only reference them if actual data is provided above
+- If the learner seems off, check in: "Hey, you doing okay? We can take a break or switch things up."
 
 Return valid JSON only:
 {"aiResponse": "your response here", "nextPhase": "STAGE_NAME"}
 
-IMPORTANT - nextPhase MUST advance the conversation:
-- After greeting in INTRO_1, ALWAYS move to "SET_THE_SCENE" (don't repeat intro)
-- After setting up the scene, move to "SCENARIO" for practice
-- After a few practice exchanges, move to "VARIATION" for a twist
-- After variation, move to "COMPLETE" to wrap up
-- Only use current phase name if you're in the middle of that stage and learner hasn't responded yet
+PHASE PROGRESSION:
+- Stay in the current phase if the learner needs more time or just shared something emotional
+- Move to the next phase only when the conversation has naturally reached that point
+- Use "INTRO_1" if you're still in the greeting/check-in
+- Use "SET_THE_SCENE" when you're ready to introduce the scenario
+- Use "SCENARIO" during the actual practice
+- Use "VARIATION" for a twist or new angle
+- Use "COMPLETE" to wrap up
 `;
 
   // ---------------------------------------------------------------------------
@@ -521,36 +590,30 @@ IMPORTANT - nextPhase MUST advance the conversation:
   // ---------------------------------------------------------------------------
 
   // Helper to determine next phase based on current state
+  // Trust the AI's phase choice — only override as a safety net for very long sessions
   const getNextPhaseIfRepeat = (parsedPhase, currentPhase, historyLen) => {
-    // If AI returned a valid phase (not "repeat"), use it
-    if (parsedPhase && parsedPhase !== "repeat" && parsedPhase !== currentPhase) {
+    // If AI returned a valid phase, always use it — AI controls pacing
+    if (parsedPhase && parsedPhase !== "repeat") {
       return parsedPhase;
     }
 
-    // Otherwise, advance based on current phase and history
+    // Safety net: if AI keeps returning "repeat" or same phase for too long, nudge forward
     const phase = (currentPhase || "INTRO_1").toUpperCase();
 
-    // Conversation just started (intro with greeting) - move to scene
-    if (phase === "INTRO_1" && historyLen >= 1) {
+    if (phase === "INTRO_1" && historyLen >= 6) {
       return "SET_THE_SCENE";
     }
-
-    // Scene was set - move to practice
-    if (phase === "SET_THE_SCENE" && historyLen >= 2) {
+    if (phase === "SET_THE_SCENE" && historyLen >= 8) {
       return "SCENARIO";
     }
-
-    // After a few practice turns - move to variation
-    if (phase === "SCENARIO" && historyLen >= 4) {
+    if (phase === "SCENARIO" && historyLen >= 12) {
       return "VARIATION";
     }
-
-    // After variation - complete
-    if (phase === "VARIATION" && historyLen >= 6) {
+    if (phase === "VARIATION" && historyLen >= 16) {
       return "COMPLETE";
     }
 
-    // Stay in current phase
+    // Stay in current phase — let AI decide when to move
     return currentPhase;
   };
 

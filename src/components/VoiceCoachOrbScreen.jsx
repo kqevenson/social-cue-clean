@@ -334,7 +334,8 @@ const VoiceCoachOrbScreen = ({
   onEndSession,
   onNavigate,
   backgroundImageUrl: propBackgroundUrl = null,
-  isLoadingBackground = false
+  isLoadingBackground = false,
+  practiceMode = null
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
@@ -881,6 +882,7 @@ const VoiceCoachOrbScreen = ({
     // Prevent double-loading
     if (coachLoadedRef.current) {
       console.log("🎭 Coach already loaded, skipping...");
+      setIsLoadingCoach(false);
       return;
     }
 
@@ -1004,6 +1006,18 @@ const VoiceCoachOrbScreen = ({
   // State to track if streaming avatar is ready (use state so hook updates)
   const [streamingAvatarReady, setStreamingAvatarReady] = useState(false);
 
+  // Fallback: if streaming avatar doesn't become ready within 30s, fall back to OpenAI TTS
+  useEffect(() => {
+    if (!tavusCoach || !useStreamingAvatar || streamingAvatarReady || streamingError) return;
+    const timeout = setTimeout(() => {
+      if (!streamingAvatarReady) {
+        console.warn("⏰ Streaming avatar did not become ready in 30s — falling back to OpenAI TTS");
+        setStreamingError(true);
+      }
+    }, 30000);
+    return () => clearTimeout(timeout);
+  }, [tavusCoach, useStreamingAvatar, streamingAvatarReady, streamingError]);
+
   // ---- CONVERSATION HOOK ----
   // ALWAYS disable OpenAI TTS when we have a Tavus coach - avatar speaks everything
   // Only use OpenAI TTS as fallback if streaming errors out
@@ -1030,6 +1044,7 @@ const VoiceCoachOrbScreen = ({
     disableTTS: shouldDisableTTS, // Disable OpenAI TTS when streaming avatar handles voice
     visualEmotionContext: visualEmotion, // Pass visual emotion for "you look shy/tired" feedback
     voiceEmotionContext: voiceEmotion, // Pass Hume EVI voice emotion for "you sound nervous" feedback
+    practiceMode, // Pass practice mode to shape AI behavior (roleplay, spot-the-cue, quiz, mirror)
     onAIResponse: (text) => {
       // This is called when AI responds and TTS is disabled
       // Send to Tavus avatar via Echo API to make it speak

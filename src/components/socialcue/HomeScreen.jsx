@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader, MessageSquare } from 'lucide-react';
-import { getSessionProgress } from './utils/storage';
+import { Play, Clock, Sparkles, TrendingUp, MessageCircle, Ear, Users, Zap, Loader, MessageSquare, Target, Shield, Heart, Compass } from 'lucide-react';
 import { getLearnerProfile, getSessionStats, getAllTopicMastery, getLessonProgressStats } from '../../firebaseHelpers';
-import { DifficultyBadge } from './utils/difficultyLevels.jsx';
 import AnimatedLogo from './AnimatedLogo';
 
 function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
   // Debug: Log userData to see what we're getting
   console.log('HomeScreen userData:', userData);
-  
+
   // Firebase data state
   const [firebaseData, setFirebaseData] = useState({
     learnerProfile: null,
@@ -30,7 +28,7 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
 
       try {
         console.log('🔄 Loading Firebase data for user:', userData.userId);
-        
+
         // Load all Firebase data in parallel
         const [learnerProfile, sessionStats, topicMastery, lessonProgressStats] = await Promise.all([
           getLearnerProfile(userData.userId),
@@ -67,41 +65,45 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
 
     loadFirebaseData();
   }, [userData?.userId]);
-  
-  const sessions = [
-    { id: 1, title: 'Small Talk Mastery', subtitle: 'Break the ice with confidence', category: 'Conversation Starters', duration: '15 min', level: 'Beginner', color: '#4A90E2', icon: <MessageCircle className="w-8 h-8" /> },
-    { id: 2, title: 'Active Listening', subtitle: 'Master the art of truly hearing others', category: 'Communication', duration: '20 min', level: 'Intermediate', color: '#34D399', icon: <Ear className="w-8 h-8" /> },
-    { id: 3, title: 'Body Language', subtitle: 'Read and project confident signals', category: 'Non-Verbal', duration: '18 min', level: 'Beginner', color: '#8B5CF6', icon: <Users className="w-8 h-8" /> },
-    { id: 4, title: 'Confidence Amplifier', subtitle: 'Transform your social presence', category: 'Personal Growth', duration: '25 min', level: 'All Levels', color: '#14B8A6', icon: <Zap className="w-8 h-8" /> },
+
+  const lessons = [
+    { id: 'small-talk', title: 'Small Talk', subtitle: 'Start conversations', color: '#4A90E2', icon: <MessageCircle className="w-6 h-6" /> },
+    { id: 'active-listening', title: 'Active Listening', subtitle: 'Really hear others', color: '#34D399', icon: <Ear className="w-6 h-6" /> },
+    { id: 'body-language', title: 'Body Language', subtitle: 'Read the signals', color: '#8B5CF6', icon: <Users className="w-6 h-6" /> },
+    { id: 'confidence', title: 'Confidence', subtitle: 'Own the room', color: '#14B8A6', icon: <Zap className="w-6 h-6" /> },
+    { id: 'conflict', title: 'Conflict Resolution', subtitle: 'Stay cool under pressure', color: '#EF4444', icon: <Shield className="w-6 h-6" /> },
+    { id: 'making-friends', title: 'Making Friends', subtitle: 'Build real connections', color: '#EC4899', icon: <Heart className="w-6 h-6" /> },
   ];
 
-  const sessionsWithProgress = sessions.map(session => ({
-    ...session,
-    progress: getSessionProgress(session.id)
-  }));
+  const practices = [
+    { id: 'roleplay', title: 'Role Play', subtitle: 'Practice real scenarios', color: '#F59E0B', icon: <MessageCircle className="w-6 h-6" /> },
+    { id: 'spot-the-cue', title: 'Spot the Cue', subtitle: 'Test your skills', color: '#4A90E2', icon: <Target className="w-6 h-6" /> },
+    { id: 'quiz', title: 'Quick Quiz', subtitle: 'What would you do?', color: '#8B5CF6', icon: <Sparkles className="w-6 h-6" /> },
+    { id: 'mirror', title: 'Mirror Mode', subtitle: 'Practice expressions', color: '#34D399', icon: <Users className="w-6 h-6" /> },
+  ];
 
   // Calculate stats from Firebase data with fallback to localStorage
   const calculateStats = () => {
     const { learnerProfile, sessionStats, topicMastery, lessonProgressStats } = firebaseData;
- 
+
     return [
-      { 
-        label: 'Day Streak', 
-        value: String(learnerProfile?.streak || userData?.streak || 0), 
-        icon: <Sparkles className="w-5 h-5" />, 
-        gradient: 'from-emerald-500 to-emerald-600' 
+      {
+        label: 'Day Streak',
+        value: String(learnerProfile?.streak || userData?.streak || 0),
+        icon: <Sparkles className="w-5 h-5" />,
+        gradient: 'from-emerald-500 to-emerald-600'
       },
-      { 
-        label: 'Sessions', 
-        value: String(sessionStats?.totalSessions || userData?.totalSessions || 0), 
-        icon: <Play className="w-5 h-5" />, 
-        gradient: 'from-blue-400 to-blue-500' 
+      {
+        label: 'Sessions',
+        value: String(sessionStats?.totalSessions || userData?.totalSessions || 0),
+        icon: <Play className="w-5 h-5" />,
+        gradient: 'from-blue-400 to-blue-500'
       },
-      { 
-        label: 'Lessons', 
-        value: String(lessonProgressStats?.completedLessons || 0), 
-        icon: <Users className="w-5 h-5" />, 
-        gradient: 'from-orange-400 to-orange-500' 
+      {
+        label: 'Lessons',
+        value: String(lessonProgressStats?.completedLessons || 0),
+        icon: <Users className="w-5 h-5" />,
+        gradient: 'from-orange-400 to-orange-500'
       }
     ];
   };
@@ -153,42 +155,6 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
           </div>
         </section>
 
-        {/* Social Sandbox Quick Access */}
-        <section className="mb-8">
-          <button
-            onClick={() => onNavigate('sandbox')}
-            className={`w-full backdrop-blur-xl border rounded-2xl p-5 text-left transition-all group hover:scale-[1.01] ${
-              darkMode
-                ? 'bg-gradient-to-r from-orange-500/10 to-purple-500/10 border-orange-500/20 hover:border-orange-500/40'
-                : 'bg-gradient-to-r from-orange-50 to-purple-50 border-orange-200 hover:border-orange-300'
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                <MessageSquare className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Need to blow off steam?
-                  </h3>
-                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-500/20 text-orange-400">
-                    NEW
-                  </span>
-                </div>
-                <p className={`text-sm ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>
-                  Your safe space to vent, process, and learn - no judgment, no grades
-                </p>
-              </div>
-              <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </div>
-          </button>
-        </section>
-
         {/* Parent Dashboard Access */}
         {userData?.role === 'parent' && (
           <section className="mb-8">
@@ -230,8 +196,8 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
                     }
                   }}
                   className={`px-6 py-3 rounded-full font-bold border transition-all ${
-                    darkMode 
-                      ? 'border-white/20 text-white hover:bg-white/10' 
+                    darkMode
+                      ? 'border-white/20 text-white hover:bg-white/10'
                       : 'border-gray-300 text-gray-700 hover:bg-gray-100'
                   }`}
                 >
@@ -275,51 +241,123 @@ function HomeScreen({ userData, onNavigate, darkMode, soundEffects }) {
           </div>
         </section>
 
+        {/* 1. Lessons */}
         <section className="mb-8">
-          <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Continue Learning</h2>
+          <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Lessons</h2>
           <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-            {sessionsWithProgress.map(session => (
-              <div key={session.id} className={`backdrop-blur-xl border rounded-2xl overflow-hidden hover:border-white/30 transition-all cursor-pointer group flex-shrink-0 w-72 flex flex-col ${
-                darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
-              }`}>
-                <div className="p-5 flex items-center justify-between min-h-[90px]" style={{backgroundColor: `${session.color}DD`}}>
-                  <div className="flex-1 pr-3">
-                    <h3 className="text-lg font-bold mb-1 text-white">{session.title}</h3>
-                    <p className="text-white/90 text-xs font-medium">{session.subtitle}</p>
-                  </div>
-                  <div className="text-white group-hover:scale-110 transition-transform flex-shrink-0">
-                    {React.cloneElement(session.icon, { className: 'w-6 h-6' })}
-                  </div>
-                </div>
-                <div className="p-5 flex-1 flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className={`text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{session.category}</span>
-                    <DifficultyBadge level={session.difficultyLevel || 1} darkMode={darkMode} size="xs" showIcon={false} />
-                  </div>
-                  <div className="flex-1"></div>
-                  <button onClick={() => onNavigate('practiceHome')} className="w-full bg-blue-500 text-white font-bold py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-blue-600 transition-all text-sm mb-4">
-                    <Play className="w-4 h-4" fill="white" />
-                    {session.progress > 0 ? 'Continue' : 'Begin'}
-                  </button>
-                  {session.progress > 0 && (
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Progress</span>
-                        <span className="text-xs font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">{session.progress}%</span>
-                      </div>
-                      <div className={`rounded-full h-2 overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
-                        <div className="h-full rounded-full" style={{width: `${session.progress}%`, backgroundColor: session.color}}></div>
-                      </div>
-                    </div>
-                  )}
-                  <div className={`flex items-center justify-center text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <Clock className="w-3 h-3 mr-1" />
-                    {session.duration}
+            {lessons.map(lesson => (
+              <button
+                key={lesson.id}
+                onClick={() => onNavigate('practiceHome', { topic: lesson.id })}
+                className={`backdrop-blur-xl border rounded-2xl overflow-hidden hover:border-white/30 transition-all cursor-pointer group flex-shrink-0 w-48 ${
+                  darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+                }`}
+              >
+                <div className="p-4 flex items-center justify-center" style={{backgroundColor: `${lesson.color}DD`}}>
+                  <div className="text-white">
+                    {lesson.icon}
                   </div>
                 </div>
-              </div>
+                <div className="p-4">
+                  <h3 className={`text-sm font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{lesson.title}</h3>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{lesson.subtitle}</p>
+                </div>
+              </button>
             ))}
           </div>
+        </section>
+
+        {/* 2. Live Practice */}
+        <section className="mb-8">
+          <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Live Practice</h2>
+          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+            {practices.map(practice => (
+              <button
+                key={practice.id}
+                onClick={() => onNavigate('practiceHome', { mode: practice.id })}
+                className={`backdrop-blur-xl border rounded-2xl overflow-hidden hover:border-white/30 transition-all cursor-pointer group flex-shrink-0 w-48 ${
+                  darkMode ? 'bg-white/8 border-white/20' : 'bg-white border-gray-200 shadow-sm'
+                }`}
+              >
+                <div className="p-4 flex items-center justify-center" style={{backgroundColor: `${practice.color}DD`}}>
+                  <div className="text-white">
+                    {practice.icon}
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h3 className={`text-sm font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{practice.title}</h3>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{practice.subtitle}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 3. Cue -- take your skills into the real world */}
+        <section className="mb-8">
+          <button
+            onClick={() => onNavigate('cue')}
+            className={`w-full backdrop-blur-xl border rounded-2xl p-5 text-left transition-all group hover:scale-[1.01] ${
+              darkMode
+                ? 'bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border-emerald-500/20 hover:border-emerald-500/40'
+                : 'bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200 hover:border-emerald-300'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center flex-shrink-0">
+                <Compass className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Cue
+                </h3>
+                <p className={`text-sm ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>
+                  You've got the skills -- now try them in the real world!
+                </p>
+              </div>
+              <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </button>
+        </section>
+
+        {/* 4. Social Sandbox */}
+        <section className="mb-8">
+          <button
+            onClick={() => onNavigate('sandbox')}
+            className={`w-full backdrop-blur-xl border rounded-2xl p-5 text-left transition-all group hover:scale-[1.01] ${
+              darkMode
+                ? 'bg-gradient-to-r from-orange-500/10 to-purple-500/10 border-orange-500/20 hover:border-orange-500/40'
+                : 'bg-gradient-to-r from-orange-50 to-purple-50 border-orange-200 hover:border-orange-300'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                <MessageSquare className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Need to blow off steam?
+                  </h3>
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-500/20 text-orange-400">
+                    NEW
+                  </span>
+                </div>
+                <p className={`text-sm ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>
+                  Your safe space to vent, process, and learn - no judgment, no grades
+                </p>
+              </div>
+              <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white/40' : 'text-gray-400'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </button>
         </section>
       </div>
     </div>

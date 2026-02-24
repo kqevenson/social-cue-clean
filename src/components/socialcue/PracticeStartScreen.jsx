@@ -18,12 +18,12 @@ function CyclingMiniGame({ darkMode }) {
 
 // ---------- AI SCENARIO GENERATOR ----------
 
-async function generateAIPracticeScenario({ topicName, gradeLevel }) {
+async function generateAIPracticeScenario({ topicName, gradeLevel, practiceMode }) {
   try {
     const response = await fetch(`${getApiBase()}/api/lessons/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topicName, gradeLevel })
+      body: JSON.stringify({ topicName, gradeLevel, practiceMode })
     });
 
     if (!response.ok) {
@@ -72,7 +72,7 @@ async function ensureMicrophoneAccess() {
 
 // ---------- COMPONENT ----------
 
-const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSession, darkMode = true }) => {
+const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSession, darkMode = true, practiceMode }) => {
   const [scenario, setScenario] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -89,7 +89,8 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
 
         const generated = await generateAIPracticeScenario({
           topicName,
-          gradeLevel: gradeLevel || '6-8'
+          gradeLevel: gradeLevel || '6-8',
+          practiceMode: practiceMode || 'roleplay'
         });
 
         setScenario(generated);
@@ -207,7 +208,13 @@ const PracticeStartScreen = ({ topicName, gradeLevel, learnerName, onStartSessio
           </h1>
           {learnerName && (
             <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Ready to practice, {learnerName}?
+              {practiceMode === 'mirror'
+                ? `Practice your expressions and body language, ${learnerName}!`
+                : practiceMode === 'spot-the-cue'
+                ? `Can you spot the social cues, ${learnerName}?`
+                : practiceMode === 'quiz'
+                ? `Let's see what you'd do, ${learnerName}!`
+                : `Ready to practice, ${learnerName}?`}
             </p>
           )}
         </div>

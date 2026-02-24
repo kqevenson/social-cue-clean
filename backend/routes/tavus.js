@@ -31,6 +31,30 @@ router.post("/conversations", async (req, res) => {
   }
 
   try {
+    // Auto-cleanup: end any active conversations before creating a new one
+    // This prevents "maximum concurrent conversations" errors
+    try {
+      const listRes = await fetch(`${TAVUS_API_BASE}/conversations`, {
+        headers: { "x-api-key": ENV.TAVUS_API_KEY }
+      });
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const active = (listData.conversations || listData || [])
+          .filter(c => c.status === "active" || c.status === "in_progress");
+        if (active.length > 0) {
+          console.log(`🧹 Cleaning up ${active.length} stale conversation(s)...`);
+          await Promise.all(active.map(c =>
+            fetch(`${TAVUS_API_BASE}/conversations/${c.conversation_id}`, {
+              method: "DELETE",
+              headers: { "x-api-key": ENV.TAVUS_API_KEY }
+            }).catch(() => {})
+          ));
+        }
+      }
+    } catch (cleanupErr) {
+      console.warn("⚠️ Auto-cleanup failed (non-blocking):", cleanupErr.message);
+    }
+
     console.log("🎭 Creating Tavus conversation...");
     console.log("   Replica ID:", replicaId || "(from persona)");
     console.log("   Persona ID:", personaId || "(none)");
@@ -84,6 +108,27 @@ router.post("/conversations", async (req, res) => {
       success: false,
       error: err.message
     });
+  }
+});
+
+/**
+ * End a conversation (POST version for sendBeacon on page unload)
+ * POST /api/tavus/conversations/:conversationId/end
+ */
+router.post("/conversations/:conversationId/end", async (req, res) => {
+  const { conversationId } = req.params;
+  if (!ENV.TAVUS_API_KEY) return res.status(500).json({ success: false });
+
+  try {
+    console.log("🛑 Ending Tavus conversation (beacon):", conversationId);
+    await fetch(`${TAVUS_API_BASE}/conversations/${conversationId}`, {
+      method: "DELETE",
+      headers: { "x-api-key": ENV.TAVUS_API_KEY }
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Beacon end error:", err.message);
+    return res.json({ success: false });
   }
 });
 

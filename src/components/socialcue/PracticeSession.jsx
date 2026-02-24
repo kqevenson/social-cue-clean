@@ -443,12 +443,33 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       const correctOnes = sessionResponses.filter(r => r.isCorrect);
       const incorrectOnes = sessionResponses.filter(r => !r.isCorrect);
 
-      // What they got right — use the scenario question to describe the skill
-      const conceptsUnderstood = correctOnes.map((r, i) => {
+      // What they got right — use actual scenario content for specific feedback
+      const conceptsUnderstood = correctOnes.map((r) => {
         const q = r.scenarioQuestion || '';
-        // Try to pull the skill from the question, e.g. "What does Leo's body language tell you..."
-        if (q) return `Correctly read the social cue in Scenario ${i + 1}`;
-        return `Identified the correct cue in Scenario ${i + 1}`;
+        const context = r.scenarioContext || '';
+        const answer = r.correctAnswer || r.userAnswer || '';
+
+        // Extract character name from context
+        const nameMatch = context.match(/\b([A-Z][a-z]{2,})\b/);
+        const name = nameMatch ? nameMatch[1] : '';
+
+        // Build specific feedback from the question content
+        if (q.toLowerCase().includes('body language')) {
+          return `Correctly read ${name ? name + "'s" : "the"} body language${answer ? " — recognized that " + answer.toLowerCase() : ""}`;
+        } else if (q.toLowerCase().includes('feeling') || q.toLowerCase().includes('emotion')) {
+          return `Identified ${name ? "how " + name + " was feeling" : "the emotion in the scene"}${answer ? " — " + answer.toLowerCase() : ""}`;
+        } else if (q.toLowerCase().includes('tone') || q.toLowerCase().includes('voice')) {
+          return `Picked up on ${name ? name + "'s" : "the"} tone of voice${answer ? " — " + answer.toLowerCase() : ""}`;
+        } else if (q.toLowerCase().includes('what should') || q.toLowerCase().includes('what would') || q.toLowerCase().includes('best response')) {
+          return `Chose a strong response${context ? " when " + context.substring(0, 60).toLowerCase().trim() : ""}`;
+        } else if (q.toLowerCase().includes('facial') || q.toLowerCase().includes('expression') || q.toLowerCase().includes('face')) {
+          return `Read ${name ? name + "'s" : "the"} facial expression correctly${answer ? " — " + answer.toLowerCase() : ""}`;
+        } else if (q) {
+          // Use a shortened version of the question itself
+          const shortQ = q.length > 80 ? q.substring(0, 77) + "..." : q;
+          return `Understood: ${shortQ}`;
+        }
+        return `Correctly identified the social cue in this scenario`;
       });
       if (conceptsUnderstood.length === 0) {
         conceptsUnderstood.push('Keep practicing — recognizing social cues takes time!');
@@ -949,7 +970,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
       showSuccess('🎉 Session completed! Great job!');
       
       // Calculate performance for challenge generation
-      const performance = Math.round((totalPoints / (scenario.situations.length * 10)) * 100);
+      const performance = Math.min(100, Math.round((totalPoints / (scenario.situations.length * 10)) * 100));
       
       // Generate a real-world challenge
       await generateRealWorldChallenge(scenario.title, performance);
@@ -1060,7 +1081,7 @@ function PracticeSession({ sessionId, onNavigate, darkMode, gradeLevel, soundEff
   };
 
   const progressPercentage = scenario.situations?.length > 0 ? ((currentSituation + 1) / scenario.situations.length) * 100 : 0;
-  const finalScore = scenario.situations?.length > 0 ? Math.round((totalPoints / (scenario.situations.length * 10)) * 100) : 0;
+  const finalScore = scenario.situations?.length > 0 ? Math.min(100, Math.round((totalPoints / (scenario.situations.length * 10)) * 100)) : 0;
   const scenarioTitle = getContent(scenario.title);
   const situationContext = getContent(situation?.context || '');
   const situationPrompt = getContent(situation?.prompt || '');
